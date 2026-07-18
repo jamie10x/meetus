@@ -114,6 +114,7 @@ func (h *Handler) Register(r gin.IRouter, requireAuth gin.HandlerFunc) {
 	g := r.Group("/organizers", requireAuth)
 	g.POST("", h.become)
 	g.GET("/me", h.me)
+	g.GET("/me/stats", h.stats)
 }
 
 type becomeRequest struct {
@@ -142,4 +143,47 @@ func (h *Handler) me(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, http.StatusOK, o.ToDTO())
+}
+
+type Stats struct {
+	TotalEvents       int64 `json:"totalEvents"`
+	UpcomingPublished int64 `json:"upcomingPublished"`
+	TotalRsvps        int64 `json:"totalRsvps"`
+	TotalCheckins     int64 `json:"totalCheckins"`
+}
+
+func (r *Repository) StatsFor(ctx context.Context, organizerID int64) (*Stats, error) {
+	var s Stats
+	err := r.pool.QueryRow(ctx, `
+		SELECT
+			(SELECT count(*) FROM events e WHERE e.organizer_id = $1),
+			(SELECT count(*) FROM events e
+			  WHERE e.organizer_id = $1 AND e.status = 'published' AND e.starts_at > now()),
+			(SELECT count(*) FROM rsvps rv
+			  JOIN events e ON e.id = rv.event_id
+			  WHERE e.organizer_id = $1 AND rv.status = 'going'),
+			(SELECT count(*) FROM tickets t
+			  JOIN rsvps rv ON rv.id = t.rsvp_id
+			  JOIN events e ON e.id = rv.event_id
+			  WHERE e.organizer_id = $1 AND t.checked_in_at IS NOT NULL)`,
+		organizerID).
+		Scan(&s.TotalEvents, &s.UpcomingPublished, &s.TotalRsvps, &s.TotalCheckins)
+	if err != nil {
+		return nil, fmt.Errorf("organizer stats: %w", err)
+	}
+	return &s, nil
+}
+
+func (h *Handler) stats(c *gin.Context) {
+	o, err := h.repo.GetByUserID(c.Request.Context(), authn.UserID(c))
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	s, err := h.repo.StatsFor(c.Request.Context(), o.ID)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	httpx.OK(c, http.StatusOK, s)
 }

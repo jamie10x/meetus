@@ -19,12 +19,12 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-const userColumns = `id, telegram_id, name, username, avatar_url, city_id, district, language, is_banned, created_at, updated_at`
+const userColumns = `id, telegram_id, name, username, avatar_url, city_id, district, language, is_banned, is_admin, created_at, updated_at`
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
 	err := row.Scan(&u.ID, &u.TelegramID, &u.Name, &u.Username, &u.AvatarURL,
-		&u.CityID, &u.District, &u.Language, &u.IsBanned, &u.CreatedAt, &u.UpdatedAt)
+		&u.CityID, &u.District, &u.Language, &u.IsBanned, &u.IsAdmin, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

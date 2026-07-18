@@ -6,6 +6,7 @@ export type User = {
   cityId: number | null;
   district: string | null;
   language: "uz" | "ru" | "en";
+  isAdmin: boolean;
   createdAt: string;
 };
 

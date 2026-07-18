@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"meetus.uz/backend/internal/admin"
 	"meetus.uz/backend/internal/auth"
 	"meetus.uz/backend/internal/config"
 	"meetus.uz/backend/internal/event"
@@ -75,6 +76,8 @@ func New(deps Deps) (*gin.Engine, error) {
 	rsvpService := rsvp.NewService(rsvp.NewRepository(deps.Pool), rsvp.NewTicketSigner(cfg.TicketSecret))
 	rsvpGroup := api.Group("", ratelimit.PerIP(deps.Redis, "rsvp", 60, time.Minute))
 	rsvp.NewHandler(rsvpService, eventRepo).Register(rsvpGroup, requireAuth, requireOrganizer)
+
+	admin.NewHandler(deps.Pool, eventRepo).Register(api, requireAuth, admin.RequireAdmin(userRepo))
 	uploadHandler.Register(api, r, requireAuth)
 
 	return r, nil

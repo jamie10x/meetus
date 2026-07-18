@@ -57,6 +57,9 @@ Body: `{ "displayName" (≤100), "bio"? (≤1000) }` → 201 `data`: organizer.
 ### GET /organizers/me (auth)
 → `data`: `{ "id", "displayName", "bio", "avatarUrl", "createdAt" }`. 404 if none.
 
+### GET /organizers/me/stats (auth)
+→ `data`: `{ "totalEvents", "upcomingPublished", "totalRsvps", "totalCheckins" }`
+
 ## Events (organizer-only management)
 
 All routes require auth **and** an organizer profile (403 otherwise).
@@ -135,6 +138,33 @@ ticket is unused. → `data`: `{ "attendeeName", "eventTitle", "checkedInAt" }`.
 
 ### GET /events/:id/attendees (auth + organizer, owner only)
 → `data`: `[{ "userId", "name", "username", "avatarUrl", "rsvpAt", "checkedInAt" }]`
+
+### GET /events/:id/attendees.csv (auth + organizer, owner only)
+CSV download (`name`, `username`, `rsvp_at`, `checked_in_at`), not the JSON envelope.
+
+## Admin
+
+All routes require auth **and** `users.is_admin` (403 otherwise). Admin is
+granted by SQL only: `UPDATE users SET is_admin = true WHERE telegram_id = ...`.
+The `/me` response includes `isAdmin` so the frontend can show admin nav.
+
+### GET /admin/stats
+→ `data`: `{ "users", "organizers", "eventsByStatus": {status: n},
+"upcomingEvents", "rsvps7d", "rsvps30d", "checkins30d" }`
+
+### GET /admin/events?status=
+All events, any status, newest first (limit 50). → `data`: event array.
+
+### POST /admin/events/:id/unpublish · /cancel
+Moderation overrides — force-set status regardless of lifecycle rules. → event.
+
+### GET /admin/users?q=
+Search by name/username (ILIKE, limit 50)
+→ `data`: `[{ "id", "name", "username", "isBanned", "isAdmin", "createdAt" }]`
+
+### POST /admin/users/:id/ban · /unban
+Ban blocks login **and** token refresh. Admins cannot ban admins or
+themselves. → `data`: `{ "id", "isBanned" }`
 
 ## Uploads
 

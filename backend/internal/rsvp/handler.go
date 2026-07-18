@@ -1,6 +1,8 @@
 package rsvp
 
 import (
+	"encoding/csv"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -31,6 +33,7 @@ func (h *Handler) Register(r gin.IRouter, requireAuth, requireOrganizer gin.Hand
 
 	r.POST("/checkin", requireAuth, requireOrganizer, h.checkIn)
 	r.GET("/events/:id/attendees", requireAuth, requireOrganizer, h.attendees)
+	r.GET("/events/:id/attendees.csv", requireAuth, requireOrganizer, h.attendeesCSV)
 }
 
 func eventID(c *gin.Context) (int64, error) {
@@ -118,24 +121,29 @@ type attendeeDTO struct {
 	CheckedInAt *time.Time `json:"checkedInAt"`
 }
 
-func (h *Handler) attendees(c *gin.Context) {
+// ownedAttendees loads the attendee list after verifying the caller owns
+// the event.
+func (h *Handler) ownedAttendees(c *gin.Context) (*event.Event, []*Attendee, error) {
 	id, err := eventID(c)
 	if err != nil {
-		httpx.Error(c, err)
-		return
+		return nil, nil, err
 	}
-	// Only the owning organizer may see the attendee list.
 	e, err := h.eventRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		httpx.Error(c, err)
-		return
+		return nil, nil, err
 	}
 	if e.OrganizerID != organizer.OrganizerID(c) {
-		httpx.Error(c, apperr.Forbidden("you do not own this event"))
-		return
+		return nil, nil, apperr.Forbidden("you do not own this event")
 	}
-
 	attendees, err := h.service.repo.ListAttendees(c.Request.Context(), id)
+	if err != nil {
+		return nil, nil, err
+	}
+	return e, attendees, nil
+}
+
+func (h *Handler) attendees(c *gin.Context) {
+	_, attendees, err := h.ownedAttendees(c)
 	if err != nil {
 		httpx.Error(c, err)
 		return
@@ -152,4 +160,31 @@ func (h *Handler) attendees(c *gin.Context) {
 		}
 	}
 	httpx.OK(c, http.StatusOK, dtos)
+}
+
+func (h *Handler) attendeesCSV(c *gin.Context) {
+	e, attendees, err := h.ownedAttendees(c)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+
+	filename := fmt.Sprintf("attendees-event-%d.csv", e.ID)
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", `attachment; filename="`+filename+`"`)
+	c.Status(http.StatusOK)
+
+	w := csv.NewWriter(c.Writer)
+	_ = w.Write([]string{"name", "username", "rsvp_at", "checked_in_at"})
+	for _, a := range attendees {
+		username, checkedIn := "", ""
+		if a.Username != nil {
+			username = *a.Username
+		}
+		if a.CheckedInAt != nil {
+			checkedIn = a.CheckedInAt.Format(time.RFC3339)
+		}
+		_ = w.Write([]string{a.Name, username, a.RSVPAt.Format(time.RFC3339), checkedIn})
+	}
+	w.Flush()
 }

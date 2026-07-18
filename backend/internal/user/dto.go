@@ -10,6 +10,7 @@ type DTO struct {
 	CityID    *int32    `json:"cityId"`
 	District  *string   `json:"district"`
 	Language  string    `json:"language"`
+	IsAdmin   bool      `json:"isAdmin"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -22,6 +23,7 @@ func (u *User) ToDTO() DTO {
 		CityID:    u.CityID,
 		District:  u.District,
 		Language:  u.Language,
+		IsAdmin:   u.IsAdmin,
 		CreatedAt: u.CreatedAt,
 	}
 }

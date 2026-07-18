@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, API_URL, getAccessToken } from "@/lib/api";
 
 type Attendee = {
   userId: number;
@@ -53,9 +53,32 @@ export default function AttendeesPage({
         </Link>
       </div>
 
-      <p className="mb-4 text-sm text-zinc-500">
-        {attendees.length} going · {checkedIn} checked in
-      </p>
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-zinc-500">
+          {attendees.length} going · {checkedIn} checked in
+        </p>
+        {attendees.length > 0 ? (
+          <button
+            onClick={async () => {
+              const res = await fetch(
+                `${API_URL}/api/events/${id}/attendees.csv`,
+                { headers: { Authorization: `Bearer ${getAccessToken()}` } },
+              );
+              if (!res.ok) return;
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `attendees-event-${id}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="rounded-lg border border-zinc-300 px-3 py-1 text-xs font-medium hover:border-sky-500 hover:text-sky-500 dark:border-zinc-700"
+          >
+            Export CSV
+          </button>
+        ) : null}
+      </div>
 
       {attendees.length === 0 ? (
         <p className="rounded-lg border border-dashed border-zinc-300 p-10 text-center text-zinc-500 dark:border-zinc-700">

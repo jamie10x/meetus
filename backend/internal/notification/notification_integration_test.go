@@ -20,7 +20,10 @@ func TestDueAndMarkSent(t *testing.T) {
 	if err != nil {
 		t.Skipf("postgres unavailable: %v", err)
 	}
-	defer pool.Close()
+	// Registered before the data cleanup below: t.Cleanup runs LIFO, so the
+	// pool closes after the fixture rows are deleted. (A defer would close
+	// it before any t.Cleanup runs.)
+	t.Cleanup(pool.Close)
 
 	// Self-contained fixtures with a unique telegram_id, removed on cleanup.
 	var userID, orgID, eventID, rsvpID int64

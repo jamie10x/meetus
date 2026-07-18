@@ -14,6 +14,7 @@ import (
 
 	"meetus.uz/backend/internal/config"
 	"meetus.uz/backend/internal/event"
+	"meetus.uz/backend/internal/housekeeping"
 	"meetus.uz/backend/internal/notification"
 	"meetus.uz/backend/internal/platform/db"
 	"meetus.uz/backend/internal/platform/redisx"
@@ -26,6 +27,10 @@ const (
 	scanInterval = time.Minute
 	scanLockKey  = "meetus:worker:reminder-scan"
 	scanLockTTL  = 50 * time.Second
+
+	housekeepingInterval = time.Hour
+	housekeepingLockKey  = "meetus:worker:housekeeping"
+	housekeepingLockTTL  = 55 * time.Minute
 )
 
 func main() {
@@ -75,6 +80,7 @@ func run() error {
 	notifications := notification.NewRepository(pool)
 
 	go reminderLoop(ctx, notifications, bot, rdb)
+	go housekeepingLoop(ctx, housekeeping.NewRunner(pool), rdb)
 
 	// Blocks until ctx is canceled.
 	bot.Start(ctx)
@@ -111,6 +117,32 @@ func reminderLoop(ctx context.Context, repo *notification.Repository, bot *tgbot
 			return
 		case <-ticker.C:
 			scan()
+		}
+	}
+}
+
+func housekeepingLoop(ctx context.Context, runner *housekeeping.Runner, rdb *redis.Client) {
+	ticker := time.NewTicker(housekeepingInterval)
+	defer ticker.Stop()
+
+	run := func() {
+		ok, err := rdb.SetNX(ctx, housekeepingLockKey, "1", housekeepingLockTTL).Result()
+		if err != nil {
+			slog.Error("housekeeping lock failed", "err", err)
+			return
+		}
+		if ok {
+			runner.Run(ctx)
+		}
+	}
+
+	run()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
 		}
 	}
 }

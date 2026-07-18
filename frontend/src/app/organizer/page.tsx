@@ -7,6 +7,13 @@ import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import type { EventItem, Organizer } from "@/lib/types";
 
+type OrganizerStats = {
+  totalEvents: number;
+  upcomingPublished: number;
+  totalRsvps: number;
+  totalCheckins: number;
+};
+
 const statusStyle: Record<string, string> = {
   draft: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
   published: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
@@ -20,6 +27,7 @@ export default function OrganizerPage() {
 
   const [organizer, setOrganizer] = useState<Organizer | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [stats, setStats] = useState<OrganizerStats | null>(null);
   const [checked, setChecked] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
@@ -37,6 +45,9 @@ export default function OrganizerPage() {
       .then(async (o) => {
         setOrganizer(o);
         setEvents(await api<EventItem[]>("/events/mine", { auth: true }));
+        api<OrganizerStats>("/organizers/me/stats", { auth: true })
+          .then(setStats)
+          .catch(() => setStats(null));
       })
       .catch(() => setOrganizer(null))
       .finally(() => setChecked(true));
@@ -120,6 +131,31 @@ export default function OrganizerPage() {
           + New event
         </Link>
       </div>
+
+      {stats ? (
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: "Events", value: stats.totalEvents },
+            { label: "Upcoming", value: stats.upcomingPublished },
+            { label: "Total RSVPs", value: stats.totalRsvps },
+            {
+              label: "Check-in rate",
+              value:
+                stats.totalRsvps > 0
+                  ? `${Math.round((stats.totalCheckins / stats.totalRsvps) * 100)}%`
+                  : "—",
+            },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="rounded-xl border border-zinc-200 p-4 text-center dark:border-zinc-800"
+            >
+              <p className="text-2xl font-bold">{s.value}</p>
+              <p className="text-xs text-zinc-500">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {events.length === 0 ? (
         <p className="rounded-lg border border-dashed border-zinc-300 p-10 text-center text-zinc-500 dark:border-zinc-700">

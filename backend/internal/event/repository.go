@@ -150,6 +150,20 @@ func collectEvents(rows pgx.Rows) ([]*Event, error) {
 	return events, rows.Err()
 }
 
+// ListForAdmin returns events in any status (optionally filtered),
+// newest first. Admin-only — never expose through public routes.
+func (r *Repository) ListForAdmin(ctx context.Context, status string, limit int) ([]*Event, error) {
+	rows, err := r.pool.Query(ctx, eventSelect+`
+		WHERE $1 = '' OR e.status = $1::event_status
+		ORDER BY e.created_at DESC
+		LIMIT $2`, status, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list events for admin: %w", err)
+	}
+	defer rows.Close()
+	return collectEvents(rows)
+}
+
 func (r *Repository) SetStatus(ctx context.Context, id int64, status Status) error {
 	_, err := r.pool.Exec(ctx,
 		`UPDATE events SET status = $2, updated_at = now() WHERE id = $1`, id, status)

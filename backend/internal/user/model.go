@@ -12,6 +12,7 @@ type User struct {
 	District   *string
 	Language   string
 	IsBanned   bool
+	IsAdmin    bool
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }

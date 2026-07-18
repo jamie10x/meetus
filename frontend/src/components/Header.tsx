@@ -27,6 +27,11 @@ export default function Header() {
               <Link href="/organizer" className="hover:text-sky-500">
                 Organize
               </Link>
+              {user.isAdmin ? (
+                <Link href="/admin" className="hover:text-sky-500">
+                  Admin
+                </Link>
+              ) : null}
               <Link
                 href="/profile"
                 className="flex items-center gap-2 hover:text-sky-500"
