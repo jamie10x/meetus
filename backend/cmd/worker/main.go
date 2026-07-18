@@ -1,0 +1,139 @@
+// Command worker runs the Telegram bot (long polling) and the reminder
+// loop that notifies attendees before their events start.
+package main
+
+import (
+	"context"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/redis/go-redis/v9"
+
+	"meetus.uz/backend/internal/config"
+	"meetus.uz/backend/internal/event"
+	"meetus.uz/backend/internal/notification"
+	"meetus.uz/backend/internal/platform/db"
+	"meetus.uz/backend/internal/platform/redisx"
+	"meetus.uz/backend/internal/rsvp"
+	"meetus.uz/backend/internal/tgbot"
+	"meetus.uz/backend/internal/user"
+)
+
+const (
+	scanInterval = time.Minute
+	scanLockKey  = "meetus:worker:reminder-scan"
+	scanLockTTL  = 50 * time.Second
+)
+
+func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	if err := run(); err != nil {
+		slog.Error("fatal", "err", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if cfg.TelegramBotToken == "" {
+		slog.Error("TELEGRAM_BOT_TOKEN is not set; the worker needs it for the bot and reminders")
+		os.Exit(1)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+
+	rdb, err := redisx.NewClient(ctx, cfg.RedisAddr)
+	if err != nil {
+		return err
+	}
+	defer rdb.Close()
+
+	bot, err := tgbot.New(
+		cfg.TelegramBotToken,
+		user.NewRepository(pool),
+		event.NewRepository(pool),
+		rsvp.NewRepository(pool),
+		cfg.WebBaseURL,
+	)
+	if err != nil {
+		return err
+	}
+
+	notifications := notification.NewRepository(pool)
+
+	go reminderLoop(ctx, notifications, bot, rdb)
+
+	// Blocks until ctx is canceled.
+	bot.Start(ctx)
+	slog.Info("worker stopped")
+	return nil
+}
+
+func reminderLoop(ctx context.Context, repo *notification.Repository, bot *tgbot.Bot, rdb *redis.Client) {
+	ticker := time.NewTicker(scanInterval)
+	defer ticker.Stop()
+
+	scan := func() {
+		// One scan at a time across all worker instances.
+		ok, err := rdb.SetNX(ctx, scanLockKey, "1", scanLockTTL).Result()
+		if err != nil {
+			slog.Error("reminder lock failed", "err", err)
+			return
+		}
+		if !ok {
+			return
+		}
+		for _, kind := range []notification.Kind{
+			notification.KindReminder24h,
+			notification.KindReminder1h,
+		} {
+			sendDue(ctx, repo, bot, kind)
+		}
+	}
+
+	scan()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			scan()
+		}
+	}
+}
+
+func sendDue(ctx context.Context, repo *notification.Repository, bot *tgbot.Bot, kind notification.Kind) {
+	due, err := repo.Due(ctx, kind)
+	if err != nil {
+		slog.Error("load due reminders failed", "kind", kind, "err", err)
+		return
+	}
+	for _, rem := range due {
+		if err := bot.SendReminder(ctx, rem); err != nil {
+			// Typical case: the user never opened the bot chat (403).
+			// Recorded anyway so we don't retry forever.
+			slog.Warn("reminder send failed", "event", rem.EventID,
+				"user", rem.UserID, "err", err)
+		}
+		if err := repo.MarkSent(ctx, rem); err != nil {
+			slog.Error("mark sent failed", "event", rem.EventID,
+				"user", rem.UserID, "err", err)
+		}
+	}
+	if len(due) > 0 {
+		slog.Info("reminders processed", "kind", kind, "count", len(due))
+	}
+}

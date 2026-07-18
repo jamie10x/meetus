@@ -24,6 +24,7 @@ type Config struct {
 
 	UploadDir  string
 	APIBaseURL string
+	WebBaseURL string
 }
 
 func Load() (*Config, error) {
@@ -45,6 +46,7 @@ func Load() (*Config, error) {
 
 		UploadDir:  getenv("UPLOAD_DIR", "./uploads"),
 		APIBaseURL: getenv("API_BASE_URL", "http://localhost:8080"),
+		WebBaseURL: getenv("WEB_BASE_URL", "http://localhost:3000"),
 	}
 
 	if cfg.AppEnv == "production" {
