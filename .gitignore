@@ -1,0 +1,23 @@
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Go
+backend/bin/
+*.out
+*.test
+
+# Node / Next.js
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+
+# Uploads (dev)
+backend/uploads/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

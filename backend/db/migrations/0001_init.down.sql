@@ -1,0 +1,11 @@
+DROP TABLE IF EXISTS notification_log;
+DROP TABLE IF EXISTS refresh_tokens;
+DROP TABLE IF EXISTS tickets;
+DROP TABLE IF EXISTS rsvps;
+DROP TABLE IF EXISTS events;
+DROP TYPE IF EXISTS event_visibility;
+DROP TYPE IF EXISTS event_status;
+DROP TABLE IF EXISTS organizers;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS cities;
