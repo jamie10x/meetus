@@ -16,8 +16,19 @@ Events and meetup platform for Uzbekistan: discover events, RSVP, get a QR ticke
 backend/    Go API, worker, migrations
 frontend/   Next.js web app
 deploy/     Dockerfiles, compose, systemd units, scripts
-docs/       API contract
+docs/       architecture, data model, API contract, dev guide, roadmap
 ```
+
+## Documentation
+
+New here (human or AI agent)? Read **[AGENTS.md](AGENTS.md)** first — stack,
+conventions, and gotchas in one page. Then:
+
+- [docs/architecture.md](docs/architecture.md) — system design and key flows
+- [docs/data-model.md](docs/data-model.md) — schema and query conventions
+- [docs/api.md](docs/api.md) — HTTP contract (contract-first)
+- [docs/development.md](docs/development.md) — setup, dev-login helper, smoke tests, recipes
+- [docs/roadmap.md](docs/roadmap.md) — v2 backlog
 
 ## Development
 
