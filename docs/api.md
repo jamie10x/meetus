@@ -104,6 +104,38 @@ Pass `nextCursor` back as `cursor` for the next page.
 → `data`: event. Resolves published, finished, and canceled events
 (unlisted events resolve by direct link); drafts → 404.
 
+## RSVP & Tickets
+
+Ticket object: `{ "code", "qr", "checkedInAt" }`. The `qr` value
+(`code.signature`, HMAC-SHA256) is what gets rendered as the QR code.
+
+### POST /events/:id/rsvp (auth)
+Joins the event; capacity-checked in a transaction. Re-joining after a
+cancel re-activates the same ticket. → 201 ticket.
+409: already joined / event full / not published / already started.
+
+### DELETE /events/:id/rsvp (auth)
+Cancels the caller's RSVP → `{ "canceled": true }`. 404 if not joined.
+
+### GET /events/:id/rsvp (auth)
+→ the caller's active ticket for the event, 404 if none.
+
+### GET /me/tickets (auth)
+→ `data`: array of tickets with event info
+(`eventId`, `eventTitle`, `eventStatus`, `startsAt`, `isOnline`,
+`locationName`, `citySlug`, `coverUrl` + ticket fields), soonest first.
+
+## Check-in (organizer)
+
+### POST /checkin (auth + organizer)
+Body: `{ "qr": "<scanned value>" }`. Verifies the HMAC signature, that the
+ticket belongs to one of the caller's events, the RSVP is active, and the
+ticket is unused. → `data`: `{ "attendeeName", "eventTitle", "checkedInAt" }`.
+409 on duplicate scan, 403 for another organizer's ticket.
+
+### GET /events/:id/attendees (auth + organizer, owner only)
+→ `data`: `[{ "userId", "name", "username", "avatarUrl", "rsvpAt", "checkedInAt" }]`
+
 ## Uploads
 
 ### POST /uploads (auth)

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { fetchEvent } from "@/lib/server-api";
 import { formatEventDate } from "@/components/EventCard";
+import RsvpSection from "@/components/RsvpSection";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -72,6 +73,14 @@ export default async function EventDetailPage({ params }: Props) {
           {spotsLeft !== null ? ` · ${spotsLeft} spots left` : ""}
         </span>
       </div>
+
+      {event.status === "published" ? (
+        <RsvpSection
+          eventId={event.id}
+          spotsLeft={spotsLeft}
+          isPast={new Date(event.startsAt) <= new Date()}
+        />
+      ) : null}
 
       {!event.isOnline && (event.locationName || event.address) ? (
         <div className="mt-6 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">

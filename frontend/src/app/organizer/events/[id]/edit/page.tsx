@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import EventForm from "@/components/EventForm";
 import { api, ApiError } from "@/lib/api";
@@ -101,6 +102,18 @@ export default function EditEventPage({
         ) : null}
         {event.status === "published" ? (
           <>
+            <Link
+              href={`/organizer/events/${event.id}/scan`}
+              className={`${btn} border-sky-500 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950`}
+            >
+              Scan tickets
+            </Link>
+            <Link
+              href={`/organizer/events/${event.id}/attendees`}
+              className={`${btn} border-zinc-400 text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-900`}
+            >
+              Attendees ({event.goingCount})
+            </Link>
             <button
               onClick={() => doAction("unpublish")}
               className={`${btn} border-zinc-400 text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-900`}

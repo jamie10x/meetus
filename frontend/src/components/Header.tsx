@@ -16,8 +16,17 @@ export default function Header() {
         </Link>
 
         <nav className="flex items-center gap-4 text-sm">
+          <Link href="/events" className="hover:text-sky-500">
+            Explore
+          </Link>
           {loading ? null : user ? (
             <>
+              <Link href="/tickets" className="hover:text-sky-500">
+                Tickets
+              </Link>
+              <Link href="/organizer" className="hover:text-sky-500">
+                Organize
+              </Link>
               <Link
                 href="/profile"
                 className="flex items-center gap-2 hover:text-sky-500"
