@@ -1,0 +1,16 @@
+[Unit]
+Description=Meetus.uz stack (docker compose)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/meetus
+ExecStart=/usr/bin/docker compose -f deploy/docker-compose.yml --env-file /etc/meetus/meetus.env up -d --remove-orphans
+ExecStop=/usr/bin/docker compose -f deploy/docker-compose.yml --env-file /etc/meetus/meetus.env down
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

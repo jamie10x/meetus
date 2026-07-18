@@ -32,3 +32,8 @@ make frontend               # run Next.js on :3000
 ```
 
 Tests: `make test` · Vet: `make vet`
+
+## Deployment
+
+See [deploy/README.md](deploy/README.md) — Docker images, one systemd unit,
+Caddy with automatic TLS, `deploy.sh` and nightly `backup.sh`.

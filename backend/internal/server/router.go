@@ -17,6 +17,7 @@ import (
 	"meetus.uz/backend/internal/meta"
 	"meetus.uz/backend/internal/organizer"
 	"meetus.uz/backend/internal/platform/authn"
+	"meetus.uz/backend/internal/platform/ratelimit"
 	"meetus.uz/backend/internal/rsvp"
 	"meetus.uz/backend/internal/upload"
 	"meetus.uz/backend/internal/user"
@@ -61,7 +62,10 @@ func New(deps Deps) (*gin.Engine, error) {
 	}
 
 	api := r.Group("/api")
-	auth.NewHandler(authService).Register(api)
+
+	// Abuse-prone endpoints get per-IP rate limits.
+	authGroup := api.Group("", ratelimit.PerIP(deps.Redis, "auth", 20, time.Minute))
+	auth.NewHandler(authService).Register(authGroup)
 	user.NewHandler(userRepo).Register(api, requireAuth)
 	meta.NewHandler(deps.Pool).Register(api)
 	organizer.NewHandler(organizerRepo).Register(api, requireAuth)
@@ -69,7 +73,8 @@ func New(deps Deps) (*gin.Engine, error) {
 	event.NewPublicHandler(eventRepo).Register(api)
 
 	rsvpService := rsvp.NewService(rsvp.NewRepository(deps.Pool), rsvp.NewTicketSigner(cfg.TicketSecret))
-	rsvp.NewHandler(rsvpService, eventRepo).Register(api, requireAuth, requireOrganizer)
+	rsvpGroup := api.Group("", ratelimit.PerIP(deps.Redis, "rsvp", 60, time.Minute))
+	rsvp.NewHandler(rsvpService, eventRepo).Register(rsvpGroup, requireAuth, requireOrganizer)
 	uploadHandler.Register(api, r, requireAuth)
 
 	return r, nil
