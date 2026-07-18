@@ -107,3 +107,34 @@ export async function api<T>(
   }
   return payload.data as T;
 }
+
+/** Uploads an image and returns its public URL. */
+export async function uploadImage(file: File): Promise<string> {
+  const doUpload = async (): Promise<Response> => {
+    const form = new FormData();
+    form.append("file", file);
+    const headers: Record<string, string> = {};
+    const token = getAccessToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return fetch(`${API_URL}/api/uploads`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+  };
+
+  let res = await doUpload();
+  if (res.status === 401 && (await tryRefresh())) {
+    res = await doUpload();
+  }
+  const payload = await res.json().catch(() => null);
+  if (!res.ok) {
+    const err = payload?.error;
+    throw new ApiError(
+      err?.code ?? "internal_error",
+      err?.message ?? "Upload failed",
+      res.status,
+    );
+  }
+  return payload.data.url as string;
+}

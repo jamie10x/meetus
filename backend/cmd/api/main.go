@@ -46,7 +46,10 @@ func run() error {
 	}
 	defer rdb.Close()
 
-	engine := server.New(server.Deps{Config: cfg, Pool: pool, Redis: rdb})
+	engine, err := server.New(server.Deps{Config: cfg, Pool: pool, Redis: rdb})
+	if err != nil {
+		return err
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

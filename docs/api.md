@@ -47,3 +47,51 @@ Body (all optional): `{ "name", "cityId", "district", "language" }`.
 
 ### GET /meta/cities · GET /meta/categories
 → `data`: `[{ "id", "slug", "nameUz", "nameRu", "nameEn" }]`
+
+## Organizers
+
+### POST /organizers (auth)
+Body: `{ "displayName" (≤100), "bio"? (≤1000) }` → 201 `data`: organizer.
+409 if the user is already an organizer.
+
+### GET /organizers/me (auth)
+→ `data`: `{ "id", "displayName", "bio", "avatarUrl", "createdAt" }`. 404 if none.
+
+## Events (organizer-only management)
+
+All routes require auth **and** an organizer profile (403 otherwise).
+
+Event object:
+```json
+{ "id", "organizerId", "organizerName", "title", "description",
+  "categoryId", "categorySlug", "cityId", "citySlug", "district",
+  "locationName", "address", "lat", "lng", "isOnline",
+  "startsAt", "endsAt", "capacity", "coverUrl",
+  "status", "visibility", "goingCount", "createdAt" }
+```
+`status` ∈ `draft | published | canceled | finished`.
+
+### POST /events
+Body: `{ "title"*, "description", "categoryId"*, "cityId", "district",
+"locationName", "address", "lat", "lng", "isOnline", "startsAt"* (RFC3339),
+"endsAt", "capacity", "coverUrl", "visibility" }`.
+Offline events require `cityId`. → 201, status `draft`.
+
+### GET /events/mine
+→ `data`: array of the organizer's events, newest start first.
+
+### PATCH /events/:id
+Same body as create. Rejected for canceled/finished events (409).
+
+### POST /events/:id/publish · /unpublish · /cancel
+Lifecycle transitions: draft→published (start must be in the future),
+published→draft, any active→canceled. Invalid transitions → 409.
+
+### DELETE /events/:id
+Drafts only (409 otherwise) → `data`: `{ "deleted": true }`.
+
+## Uploads
+
+### POST /uploads (auth)
+Multipart field `file`: JPEG/PNG/WebP ≤ 5 MB → 201 `data`: `{ "url" }`.
+Files are served publicly at `/uploads/<name>`.

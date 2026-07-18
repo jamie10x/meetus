@@ -13,8 +13,11 @@ import (
 
 	"meetus.uz/backend/internal/auth"
 	"meetus.uz/backend/internal/config"
+	"meetus.uz/backend/internal/event"
 	"meetus.uz/backend/internal/meta"
+	"meetus.uz/backend/internal/organizer"
 	"meetus.uz/backend/internal/platform/authn"
+	"meetus.uz/backend/internal/upload"
 	"meetus.uz/backend/internal/user"
 )
 
@@ -24,7 +27,7 @@ type Deps struct {
 	Redis  *redis.Client
 }
 
-func New(deps Deps) *gin.Engine {
+func New(deps Deps) (*gin.Engine, error) {
 	cfg := deps.Config
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -46,12 +49,24 @@ func New(deps Deps) *gin.Engine {
 	authRepo := auth.NewRepository(deps.Pool)
 	authService := auth.NewService(userRepo, authRepo, tokens, cfg.TelegramBotToken, cfg.RefreshTokenTTL)
 
+	organizerRepo := organizer.NewRepository(deps.Pool)
+	requireOrganizer := organizer.RequireOrganizer(organizerRepo)
+	eventService := event.NewService(event.NewRepository(deps.Pool))
+
+	uploadHandler, err := upload.NewHandler(cfg.UploadDir, cfg.APIBaseURL)
+	if err != nil {
+		return nil, err
+	}
+
 	api := r.Group("/api")
 	auth.NewHandler(authService).Register(api)
 	user.NewHandler(userRepo).Register(api, requireAuth)
 	meta.NewHandler(deps.Pool).Register(api)
+	organizer.NewHandler(organizerRepo).Register(api, requireAuth)
+	event.NewHandler(eventService).Register(api, requireAuth, requireOrganizer)
+	uploadHandler.Register(api, r, requireAuth)
 
-	return r
+	return r, nil
 }
 
 func corsMiddleware(cfg *config.Config) gin.HandlerFunc {
