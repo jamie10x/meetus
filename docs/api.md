@@ -90,6 +90,20 @@ published→draft, any active→canceled. Invalid transitions → 409.
 ### DELETE /events/:id
 Drafts only (409 otherwise) → `data`: `{ "deleted": true }`.
 
+## Explore (public)
+
+### GET /explore/events
+Query params (all optional): `city` (slug), `category` (slug), `from`/`to`
+(RFC3339), `online` (bool), `q` (full-text search), `cursor`, `limit` (≤50,
+default 20). Returns published public upcoming events, soonest first.
+
+→ `data`: `{ "items": [event...], "nextCursor": string|null }`
+Pass `nextCursor` back as `cursor` for the next page.
+
+### GET /explore/events/:id
+→ `data`: event. Resolves published, finished, and canceled events
+(unlisted events resolve by direct link); drafts → 404.
+
 ## Uploads
 
 ### POST /uploads (auth)

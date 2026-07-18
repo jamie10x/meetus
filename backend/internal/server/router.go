@@ -51,7 +51,8 @@ func New(deps Deps) (*gin.Engine, error) {
 
 	organizerRepo := organizer.NewRepository(deps.Pool)
 	requireOrganizer := organizer.RequireOrganizer(organizerRepo)
-	eventService := event.NewService(event.NewRepository(deps.Pool))
+	eventRepo := event.NewRepository(deps.Pool)
+	eventService := event.NewService(eventRepo)
 
 	uploadHandler, err := upload.NewHandler(cfg.UploadDir, cfg.APIBaseURL)
 	if err != nil {
@@ -64,6 +65,7 @@ func New(deps Deps) (*gin.Engine, error) {
 	meta.NewHandler(deps.Pool).Register(api)
 	organizer.NewHandler(organizerRepo).Register(api, requireAuth)
 	event.NewHandler(eventService).Register(api, requireAuth, requireOrganizer)
+	event.NewPublicHandler(eventRepo).Register(api)
 	uploadHandler.Register(api, r, requireAuth)
 
 	return r, nil
