@@ -40,7 +40,13 @@ function presetRange(preset: DatePreset): { from?: string; to?: string } {
 }
 
 const selectCls =
-  "rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+  "rounded-full border border-line bg-ink-raised px-4 py-2 text-sm font-medium text-dust transition-colors hover:text-bone";
+const chipCls = (active: boolean) =>
+  `shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+    active
+      ? "border-registan bg-registan text-[#0A2320]"
+      : "border-line bg-ink-raised text-dust hover:border-registan-dim hover:text-bone"
+  }`;
 
 export default function ExplorePage() {
   const t = useTranslations("explore");
@@ -119,82 +125,109 @@ export default function ExplorePage() {
   };
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="mb-6 text-3xl font-bold">{t("title")}</h1>
-
-      <TrendingSection city={city} />
-
-      <div className="mb-6 flex flex-wrap gap-2">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t("searchPlaceholder")}
-          className={`${selectCls} w-full sm:w-64`}
-        />
-        <select value={city} onChange={(e) => setCity(e.target.value)} className={selectCls}>
-          <option value="">{t("allCities")}</option>
-          {cities.map((c) => (
-            <option key={c.id} value={c.slug}>
-              {c.nameEn}
-            </option>
-          ))}
-        </select>
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className={selectCls}
-        >
-          <option value="">{t("allCategories")}</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.slug}>
-              {c.nameEn}
-            </option>
-          ))}
-        </select>
-        <select
-          value={preset}
-          onChange={(e) => setPreset(e.target.value as DatePreset)}
-          className={selectCls}
-        >
-          <option value="all">{t("anyDate")}</option>
-          <option value="today">{t("today")}</option>
-          <option value="tomorrow">{t("tomorrow")}</option>
-          <option value="week">{t("thisWeek")}</option>
-        </select>
-        <select
-          value={online}
-          onChange={(e) => setOnline(e.target.value)}
-          className={selectCls}
-        >
-          <option value="">{t("onlineAndOffline")}</option>
-          <option value="false">{t("inPerson")}</option>
-          <option value="true">{t("online")}</option>
-        </select>
+    <main>
+      <div className="mx-auto max-w-6xl px-5 pb-4 pt-12">
+        <h1 className="text-[clamp(2.1rem,3vw+1rem,3rem)] font-black text-bone">
+          {t("title")}
+        </h1>
       </div>
 
-      {loading ? (
-        <p className="py-16 text-center text-zinc-500">{t("loading")}</p>
-      ) : failed ? (
-        <p className="py-16 text-center text-red-500">{t("loadFailed")}</p>
-      ) : items.length === 0 ? (
-        <p className="py-16 text-center text-zinc-500">{t("noResults")}</p>
-      ) : (
-        <>
-          <div className="flex flex-col gap-3">
-            {items.map((e) => (
-              <EventCard key={e.id} event={e} />
+      <div className="sticky top-16 z-20 border-b border-bone/[0.09] bg-ink/95 py-4 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5">
+          <div className="flex flex-wrap gap-3">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={t("searchPlaceholder")}
+              className={`${selectCls} min-w-56 flex-1 rounded-2xl`}
+            />
+            <select value={city} onChange={(e) => setCity(e.target.value)} className={selectCls}>
+              <option value="">{t("allCities")}</option>
+              {cities.map((c) => (
+                <option key={c.id} value={c.slug}>
+                  {c.nameEn}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
+            <button onClick={() => setCategory("")} className={chipCls(category === "")}>
+              {t("allCategories")}
+            </button>
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setCategory(c.slug)}
+                className={chipCls(category === c.slug)}
+              >
+                {c.nameEn}
+              </button>
             ))}
           </div>
-          {nextCursor ? (
-            <button
-              onClick={loadMore}
-              className="mx-auto mt-6 block rounded-lg border border-zinc-300 px-5 py-2 text-sm font-medium hover:border-sky-500 hover:text-sky-500 dark:border-zinc-700"
-            >
-              {t("loadMore")}
-            </button>
-          ) : null}
-        </>
-      )}
+
+          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
+            {(
+              [
+                ["all", t("anyDate")],
+                ["today", t("today")],
+                ["tomorrow", t("tomorrow")],
+                ["week", t("thisWeek")],
+              ] as [DatePreset, string][]
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setPreset(value)}
+                className={chipCls(preset === value)}
+              >
+                {label}
+              </button>
+            ))}
+            <span className="mx-1 w-px shrink-0 self-stretch bg-line" />
+            {[
+              ["", t("onlineAndOffline")],
+              ["false", t("inPerson")],
+              ["true", t("online")],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setOnline(value)}
+                className={chipCls(online === value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-6xl px-5 py-10">
+        <TrendingSection city={city} />
+
+        {loading ? (
+          <p className="py-16 text-center text-dust">{t("loading")}</p>
+        ) : failed ? (
+          <p className="py-16 text-center text-pomegranate">{t("loadFailed")}</p>
+        ) : items.length === 0 ? (
+          <p className="py-16 text-center text-dust">{t("noResults")}</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {items.map((e) => (
+                <EventCard key={e.id} event={e} />
+              ))}
+            </div>
+            {nextCursor ? (
+              <button
+                onClick={loadMore}
+                className="mx-auto mt-8 block rounded-full border border-line px-6 py-2.5 text-sm font-bold text-bone transition-colors hover:border-registan-strong hover:text-registan-strong"
+              >
+                {t("loadMore")}
+              </button>
+            ) : null}
+          </>
+        )}
+      </div>
     </main>
   );
 }

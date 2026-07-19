@@ -51,10 +51,10 @@ export default function AttendeesPage({
   }, [id]);
 
   if (failed) {
-    return <main className="p-8 text-center text-zinc-500">{t("loadFailed")}</main>;
+    return <main className="p-8 text-center text-dust">{t("loadFailed")}</main>;
   }
   if (attendees === null) {
-    return <main className="p-8 text-center text-zinc-500">{t("loading")}</main>;
+    return <main className="p-8 text-center text-dust">{t("loading")}</main>;
   }
 
   const checkedIn = attendees.filter((a) => a.checkedInAt).length;
@@ -62,17 +62,17 @@ export default function AttendeesPage({
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">{t("title")}</h1>
+        <h1 className="text-xl font-bold text-bone">{t("title")}</h1>
         <Link
           href={`/organizer/events/${id}/edit`}
-          className="text-sm text-zinc-500 hover:text-sky-500"
+          className="text-sm text-dust hover:text-registan-strong"
         >
           {t("back")}
         </Link>
       </div>
 
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-dust">
           {t("summary", { going: attendees.length, checkedIn })}
           {feedback && feedback.count > 0 ? (
             <>
@@ -100,7 +100,7 @@ export default function AttendeesPage({
               a.click();
               URL.revokeObjectURL(url);
             }}
-            className="rounded-lg border border-zinc-300 px-3 py-1 text-xs font-medium hover:border-sky-500 hover:text-sky-500 dark:border-zinc-700"
+            className="rounded-lg border border-line px-3 py-1 text-xs font-medium text-dust transition-colors hover:border-registan-strong hover:text-registan-strong"
           >
             {t("exportCsv")}
           </button>
@@ -108,11 +108,11 @@ export default function AttendeesPage({
       </div>
 
       {attendees.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-zinc-300 p-10 text-center text-zinc-500 dark:border-zinc-700">
+        <p className="rounded-card border border-dashed border-line p-10 text-center text-dust">
           {t("noRsvps")}
         </p>
       ) : (
-        <ul className="divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+        <ul className="divide-y divide-line rounded-card border border-line bg-ink-raised">
           {attendees.map((a) => (
             <li key={a.userId} className="flex items-center gap-3 p-3">
               {a.avatarUrl ? (
@@ -123,22 +123,22 @@ export default function AttendeesPage({
                   className="h-9 w-9 rounded-full"
                 />
               ) : (
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-200 text-sm font-medium dark:bg-zinc-700">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-ink-overlay text-sm font-medium text-bone">
                   {a.name[0]}
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{a.name}</p>
+                <p className="truncate font-medium text-bone">{a.name}</p>
                 {a.username ? (
-                  <p className="truncate text-xs text-zinc-500">@{a.username}</p>
+                  <p className="truncate text-xs text-dust-dim">@{a.username}</p>
                 ) : null}
               </div>
               {a.checkedInAt ? (
-                <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">
+                <span className="rounded-full border border-registan-dim bg-registan/[0.12] px-2.5 py-0.5 text-xs font-medium text-registan-strong">
                   {t("checkedIn")}
                 </span>
               ) : (
-                <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800">
+                <span className="rounded-full border border-line bg-ink-raised px-2.5 py-0.5 text-xs text-dust">
                   {t("going")}
                 </span>
               )}
@@ -149,25 +149,25 @@ export default function AttendeesPage({
 
       {comments.length > 0 ? (
         <section className="mt-8">
-          <h2 className="mb-3 text-lg font-semibold">
+          <h2 className="mb-3 text-lg font-semibold text-bone">
             {t("commentsHeading", { count: comments.length })}
           </h2>
           <ul className="flex flex-col gap-3">
             {comments.map((c, i) => (
               <li
                 key={i}
-                className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
+                className="rounded-card border border-line bg-ink-raised p-3"
               >
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="text-sm font-medium">{c.userName}</span>
-                  <span className="text-xs text-amber-500">
+                  <span className="text-sm font-medium text-bone">{c.userName}</span>
+                  <span className="text-xs text-atlas">
                     {"★".repeat(c.rating)}
-                    <span className="text-zinc-300 dark:text-zinc-700">
+                    <span className="text-dust-dim">
                       {"★".repeat(5 - c.rating)}
                     </span>
                   </span>
                 </div>
-                <p className="text-sm text-zinc-600 dark:text-zinc-300">{c.comment}</p>
+                <p className="text-sm text-dust">{c.comment}</p>
               </li>
             ))}
           </ul>

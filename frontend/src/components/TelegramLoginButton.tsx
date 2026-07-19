@@ -55,7 +55,7 @@ export default function TelegramLoginButton({ onAuth }: Props) {
 
   if (!BOT_USERNAME) {
     return (
-      <p className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
+      <p className="rounded-card border border-atlas/35 bg-atlas/[0.1] p-4 text-sm text-atlas">
         {t("notConfigured", {
           envVar: "NEXT_PUBLIC_TELEGRAM_BOT_USERNAME",
           envFile: "frontend/.env.local",

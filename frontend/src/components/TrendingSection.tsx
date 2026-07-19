@@ -41,17 +41,16 @@ export default function TrendingSection({ city, limit = 6 }: Props) {
   if (!items || items.length === 0) return null;
 
   return (
-    <section className="mb-8">
-      <h2 className="mb-4 flex items-center gap-2 text-xl font-bold">
-        🔥 {t("title")}
-      </h2>
-      <div className="flex flex-col gap-3">
+    <section className="mb-12">
+      <div className="mb-2 flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-[0.14em] text-registan-strong">
+        <span className="h-1.5 w-1.5 rounded-full bg-registan-strong shadow-[0_0_0_3px_rgba(24,173,160,0.16)]" />
+        {t("title")}
+      </div>
+      <div className="-mx-1 flex snap-x snap-proximity gap-4 overflow-x-auto px-1 pb-3 [scrollbar-width:thin]">
         {items.map((e) => (
-          <EventCard
-            key={e.id}
-            event={e}
-            badge={t("badge", { count: e.recentGoing })}
-          />
+          <div key={e.id} className="w-[268px] shrink-0 snap-start">
+            <EventCard event={e} badge={t("badge", { count: e.recentGoing })} />
+          </div>
         ))}
       </div>
     </section>

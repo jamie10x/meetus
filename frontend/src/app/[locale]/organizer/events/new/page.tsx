@@ -21,8 +21,8 @@ export default function NewEventPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="mb-6 text-2xl font-bold">{t("title")}</h1>
-      <p className="mb-6 text-sm text-zinc-500">{t("subtitle")}</p>
+      <h1 className="mb-6 text-2xl font-bold text-bone">{t("title")}</h1>
+      <p className="mb-6 text-sm text-dust">{t("subtitle")}</p>
       <EventForm submitLabel={t("createDraft")} onSubmit={create} />
     </main>
   );

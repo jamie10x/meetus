@@ -8,11 +8,23 @@
     "logOut": "Log out"
   },
   "home": {
+    "eyebrow": "Telegram-native · Always free",
     "titlePart1": "Find your people in",
     "titleHighlight": "Uzbekistan",
     "subtitle": "Discover meetups, workshops, and communities near you. RSVP in one click, get your QR ticket, and show up.",
     "exploreEvents": "Explore events",
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "statCities": "{count} cities and counting",
+    "statFree": "Always free to join",
+    "ticketPreviewLabel": "Trending now",
+    "ticketPreviewCta": "View & join",
+    "howItWorksHeading": "How it works",
+    "step1Title": "Find something",
+    "step1Body": "Browse by city, category, or search — tech meetups, language exchanges, sunrise hikes, startup nights.",
+    "step2Title": "RSVP with Telegram",
+    "step2Body": "One tap, no forms, no passwords. Your Telegram account is your ticket.",
+    "step3Title": "Show up",
+    "step3Body": "Your QR ticket is ready instantly. Scan in at the door — that's it."
   },
   "login": {
     "title": "Sign in to Meetus",
@@ -247,5 +259,62 @@
   },
   "miniApp": {
     "signingIn": "Opening Meetus…"
+  },
+  "footer": {
+    "tagline": "Discover meetups, workshops, and communities across Uzbekistan — RSVP with Telegram, no passwords.",
+    "exploreHeading": "Explore",
+    "exploreLink": "Browse events",
+    "ticketsLink": "My tickets",
+    "organizeLink": "Host an event",
+    "legalHeading": "Legal",
+    "privacyLink": "Privacy Policy",
+    "botLink": "Open the bot",
+    "copyright": "© {year} Meetus.uz. All rights reserved.",
+    "builtFor": "Built for Uzbekistan 🇺🇿"
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "updated": "Last updated: July 2026",
+    "intro": "Meetus.uz is an events and meetup discovery platform for Uzbekistan. This page explains what information we collect through the website, the Telegram Mini App, and our Telegram bot, and how we use it.",
+    "sections": [
+      {
+        "heading": "Identity via Telegram",
+        "body": "We don't use passwords. When you sign in — through the Telegram Login Widget on the website, the Telegram Mini App, or by messaging our bot — Telegram shares your Telegram ID, first and last name, username (if you have one), and profile photo with us. Your Telegram ID is your permanent account identifier across the website and the bot."
+      },
+      {
+        "heading": "Profile information",
+        "body": "You may optionally add a city, district, and preferred language to your profile. If you become an organizer, your display name and bio are shown publicly on the events you host."
+      },
+      {
+        "heading": "Event and ticket data",
+        "body": "When you RSVP to an event, we store the RSVP and generate a signed ticket code used for check-in. After an event ends, you may optionally leave a star rating and a comment. Organizers can see who RSVP'd to their own events and verify your ticket's QR code at the door — they cannot see tickets for events they don't host."
+      },
+      {
+        "heading": "Messages from our bot",
+        "body": "If you interact with our Telegram bot, we send event reminders, feedback prompts, and — for channels you administer — announcement tools. These messages are delivered through the official Telegram Bot API, only to the Telegram account linked to your Meetus account."
+      },
+      {
+        "heading": "What we don't collect",
+        "body": "We don't ask for or store passwords. Meetus events are free, so we don't collect payment details. We don't run third-party advertising trackers or sell your data to anyone."
+      },
+      {
+        "heading": "Where things are stored",
+        "body": "Your data is stored in a database on servers we operate ourselves. Login sessions are kept in your browser's local storage, not tracking cookies; one small cookie remembers your chosen language. A short-lived marker (automatically deleted after 10 minutes) is used only to recognize your next bot message as a feedback comment."
+      },
+      {
+        "heading": "How long we keep it",
+        "body": "We keep your account and event history for as long as your account exists. Expired login sessions are purged automatically. You can ask us to delete your account and its associated data at any time, using the contact details below."
+      },
+      {
+        "heading": "Your choices",
+        "body": "You can update your profile, language, and RSVPs yourself at any time from the website. To request a copy or deletion of your data, or ask a question about this policy, contact us using the details below."
+      },
+      {
+        "heading": "Changes to this policy",
+        "body": "If this policy changes in a meaningful way, we'll update the date at the top of this page."
+      }
+    ],
+    "contactHeading": "Contact us",
+    "contactBody": "For any privacy question, data request, or concern, message our bot at @meetusuz_bot or email privacy@meetus.uz."
   }
 }

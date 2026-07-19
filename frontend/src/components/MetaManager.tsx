@@ -86,7 +86,7 @@ export default function MetaManager({ resource, heading }: Props) {
   };
 
   const inputCls =
-    "rounded-lg border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+    "rounded-lg border border-line bg-ink-raised px-2 py-1 text-sm text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim";
   const btn =
     "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors";
 
@@ -118,13 +118,13 @@ export default function MetaManager({ resource, heading }: Props) {
       />
       <button
         onClick={save}
-        className={`${btn} border-sky-500 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950`}
+        className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12]`}
       >
         {t("metaSave")}
       </button>
       <button
         onClick={cancel}
-        className={`${btn} border-zinc-400 text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-900`}
+        className={`${btn} border-line text-dust hover:border-registan-strong hover:text-registan-strong`}
       >
         {t("metaCancel")}
       </button>
@@ -134,36 +134,36 @@ export default function MetaManager({ resource, heading }: Props) {
   return (
     <section className="mb-10">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">{heading}</h2>
+        <h2 className="text-lg font-semibold text-bone">{heading}</h2>
         <button
           onClick={startAdd}
-          className={`${btn} border-sky-500 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950`}
+          className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12]`}
         >
           {t("metaAdd")}
         </button>
       </div>
-      {error ? <p className="mb-2 text-sm text-red-600">{error}</p> : null}
-      <ul className="divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+      {error ? <p className="mb-2 text-sm text-pomegranate">{error}</p> : null}
+      <ul className="divide-y divide-line rounded-card border border-line bg-ink-raised">
         {items.map((item) =>
           editingId === item.id ? (
             <div key={item.id}>{formRow}</div>
           ) : (
             <li key={item.id} className="flex items-center gap-3 p-3">
-              <span className="w-28 shrink-0 font-mono text-xs text-zinc-500">
+              <span className="w-28 shrink-0 font-mono text-xs text-dust-dim">
                 {item.slug}
               </span>
-              <span className="flex-1 truncate text-sm">
+              <span className="flex-1 truncate text-sm text-bone">
                 {item.nameEn} · {item.nameRu} · {item.nameUz}
               </span>
               <button
                 onClick={() => startEdit(item)}
-                className={`${btn} border-zinc-400 text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-900`}
+                className={`${btn} border-line text-dust hover:border-registan-strong hover:text-registan-strong`}
               >
                 {t("metaEdit")}
               </button>
               <button
                 onClick={() => remove(item.id)}
-                className={`${btn} border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950`}
+                className={`${btn} border-pomegranate/35 text-pomegranate hover:bg-pomegranate/[0.12]`}
               >
                 {t("metaDelete")}
               </button>
@@ -172,7 +172,7 @@ export default function MetaManager({ resource, heading }: Props) {
         )}
         {adding ? formRow : null}
         {items.length === 0 && !adding ? (
-          <li className="p-6 text-center text-sm text-zinc-500">—</li>
+          <li className="p-6 text-center text-sm text-dust-dim">—</li>
         ) : null}
       </ul>
     </section>

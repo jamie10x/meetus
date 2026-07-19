@@ -85,10 +85,10 @@ export default function ScanPage({
   return (
     <main className="mx-auto max-w-md px-4 py-8">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">{t("title")}</h1>
+        <h1 className="text-xl font-bold text-bone">{t("title")}</h1>
         <Link
           href={`/organizer/events/${id}/edit`}
-          className="text-sm text-zinc-500 hover:text-sky-500"
+          className="text-sm text-dust hover:text-registan-strong"
         >
           {t("back")}
         </Link>
@@ -96,36 +96,36 @@ export default function ScanPage({
 
       <div
         id={READER_ID}
-        className="overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800"
+        className="overflow-hidden rounded-card border border-line"
       />
 
       {cameraError ? (
-        <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        <p className="mt-4 rounded-lg border border-pomegranate/35 bg-pomegranate/[0.12] p-3 text-sm text-pomegranate">
           {cameraError}
         </p>
       ) : null}
 
       {feedback?.kind === "success" ? (
-        <div className="mt-4 rounded-xl bg-green-50 p-4 text-center dark:bg-green-950">
+        <div className="mt-4 rounded-card border border-registan-dim bg-registan/[0.12] p-4 text-center">
           <p className="text-2xl">✅</p>
-          <p className="font-semibold text-green-700 dark:text-green-300">
+          <p className="font-semibold text-registan-strong">
             {feedback.result.attendeeName}
           </p>
-          <p className="text-sm text-green-600 dark:text-green-400">
+          <p className="text-sm text-registan-strong">
             {t("checkedInTo", { eventTitle: feedback.result.eventTitle })}
           </p>
         </div>
       ) : null}
       {feedback?.kind === "error" ? (
-        <div className="mt-4 rounded-xl bg-red-50 p-4 text-center dark:bg-red-950">
+        <div className="mt-4 rounded-card border border-pomegranate/35 bg-pomegranate/[0.12] p-4 text-center">
           <p className="text-2xl">❌</p>
-          <p className="text-sm font-medium text-red-700 dark:text-red-300">
+          <p className="text-sm font-medium text-pomegranate">
             {feedback.message}
           </p>
         </div>
       ) : null}
 
-      <p className="mt-4 text-center text-sm text-zinc-500">
+      <p className="mt-4 text-center text-sm text-dust">
         {t("sessionCount", { count })}
       </p>
     </main>

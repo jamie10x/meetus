@@ -363,13 +363,11 @@ it convincingly:
   the ordinary in-page button (or ticket/cancel UI) is used instead — the
   two never show at once.
 - `TelegramChrome` also calls `setHeaderColor`/`setBackgroundColor` once on
-  mount, picking between the same two background colors the rest of the UI
-  already uses (`#ffffff` light / `#09090b` dark, matching `bg-white` /
-  `dark:bg-zinc-950` elsewhere) based on `tg.colorScheme`. Deliberately
-  scoped to *that* and nothing more — it does not attempt to override
-  Tailwind's `prefers-color-scheme` dark mode with Telegram's `colorScheme`;
-  doing so risked regressing plain-browser visitors for a Mini-App-only
-  cosmetic win.
+  mount, unconditionally set to the app's single committed background color
+  (`--color-ink`, `#160f16`) — the frontend is a dark-first brand identity
+  (see "Frontend visual identity" below), not an OS/`prefers-color-scheme`
+  toggle, so there's no light variant to pick between and `tg.colorScheme`
+  is intentionally ignored here.
 
 All three read from the same extended `TelegramWebApp` type
 (`frontend/src/lib/telegram-webapp.ts`: `BackButton`, `MainButton`,
@@ -377,6 +375,39 @@ All three read from the same extended `TelegramWebApp` type
 outside Telegram, `getTelegramWebApp()` returns `null` and every one of
 these call sites no-ops via its own `if (!tg) return` guard, so none of
 this affects plain-browser visitors.
+
+### Frontend visual identity ("Bold Dark")
+
+The frontend commits to one dark visual identity — near-black surfaces with
+a warm plum-dusk undertone, not an OS-`prefers-color-scheme` toggle. There
+is no light theme; `dark:` Tailwind variants and the old `zinc-*`/`sky-*`
+palette are gone from the codebase. Tokens are registered as real Tailwind
+v4 utilities via `@theme` in `frontend/src/app/[locale]/globals.css`:
+
+- Surfaces: `bg-ink` (`#160F16`, base), `bg-ink-raised` (`#211722`, cards),
+  `bg-ink-overlay` (`#2C1F2C`), `border-line` (`#3B2B3A`, all borders).
+- Text: `text-bone` (`#F6EFE4`, primary), `text-dust` (`#BBA8B6`,
+  secondary), `text-dust-dim` (`#8C7A88`, tertiary/fine print).
+- Accents: `registan` (`#18ADA0`, primary teal — the saturated cobalt of
+  Shah-i-Zinda/Registan majolica tilework; `registan-strong` `#3FD8C9` for
+  links/highlights on dark backgrounds) and `atlas` (`#F2A73B`, secondary
+  gold — the warm marigold of hand-dyed atlas silk). `pomegranate`
+  (`#E1523A`) is reserved strictly for semantic error/danger states, never
+  decoration.
+- Type: `font-display` (Fraunces, a serif with real personality — applied
+  automatically to every `h1`/`h2`/`h3` via a global CSS rule), `font-sans`
+  (Hanken Grotesk, body default), `font-mono` (IBM Plex Mono — dates,
+  ticket codes, counts, eyebrow labels), all loaded via `next/font/google`
+  in `[locale]/layout.tsx`.
+- Shape/elevation: `rounded-card` (16px, the standard card radius) and the
+  `shadow-card`/`shadow-pop` utilities, all registered the same way.
+
+Category covers (event card thumbnails, the event-detail hero, the home
+hero's ticket preview) are CSS-only patterns per category slug —
+`frontend/src/lib/categoryStyle.ts` — deliberately restricted to the two
+brand accents (registan, atlas) so a mixed grid of categories still reads
+as one palette instead of an arbitrary per-category rainbow; there are no
+cover images to source or maintain.
 
 ## Error handling
 
@@ -423,4 +454,5 @@ violations are translated to `Validation` in repositories (`mapWriteErr`).
 | Feedback comment state lives in Redis (`GETDEL`), not a new DB table or in-memory map | Bot updates are stateless per-request — Redis is the only place to park "what was this user just asked" between two separate Telegram messages; `GETDEL` makes the pop atomic against concurrent webhook delivery |
 | Comment prompt and rating submission are separate calls (`Submit` then `SetComment`), not one combined call | A skipped or TTL-expired comment prompt must not affect the already-recorded star rating |
 | Admin meta CRUD uses one generic handler keyed by a hardcoded table name string, not two near-identical handlers | `cities` and `categories` share the exact same shape and validation; the table name is never user-supplied, so there's no injection risk, just de-duplication |
-| Mini App theme sync only sets header/background color, doesn't override Tailwind's `prefers-color-scheme` dark mode | Overriding the OS-driven dark mode with Telegram's `colorScheme` risked regressing plain-browser visitors for a Mini-App-only cosmetic win |
+| Frontend is a committed dark-first brand identity, not an OS-`prefers-color-scheme` toggle | A single considered dark palette (see "Frontend visual identity") reads as a deliberate premium product identity; a light/dark split would have doubled the design surface for every component with no clear product need |
+| Category cover art is CSS-only (gradients/patterns), never uploaded images | No image sourcing/licensing/storage needed, renders instantly, and staying disciplined to two brand accents keeps a mixed-category grid coherent instead of an arbitrary rainbow |

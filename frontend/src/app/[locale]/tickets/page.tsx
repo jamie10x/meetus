@@ -34,13 +34,13 @@ function TicketCard({ ticket }: { ticket: MyTicket }) {
   }, [ticket.qr]);
 
   return (
-    <div className="flex flex-col items-center gap-4 rounded-2xl border border-zinc-200 p-6 sm:flex-row dark:border-zinc-800">
-      <div className="shrink-0 rounded-xl bg-white p-2">
+    <div className="flex flex-col items-center gap-5 rounded-card border border-line bg-ink-raised p-6 shadow-card sm:flex-row">
+      <div className="shrink-0 rounded-xl bg-bone p-2">
         {qrDataUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={qrDataUrl} alt={`Ticket QR for ${ticket.eventTitle}`} />
         ) : (
-          <div className="flex h-[220px] w-[220px] items-center justify-center text-sm text-zinc-400">
+          <div className="flex h-[220px] w-[220px] items-center justify-center text-sm text-ink/50">
             {t("qrUnavailable")}
           </div>
         )}
@@ -48,29 +48,29 @@ function TicketCard({ ticket }: { ticket: MyTicket }) {
       <div className="text-center sm:text-left">
         <Link
           href={`/events/${ticket.eventId}`}
-          className="text-xl font-semibold hover:text-sky-500"
+          className="font-display text-xl font-bold text-bone hover:text-registan-strong"
         >
           {ticket.eventTitle}
         </Link>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1.5 font-mono text-sm text-registan-strong">
           {formatEventDate(ticket.startsAt, locale)}
         </p>
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-dust">
           {ticket.isOnline
             ? t("online")
             : (ticket.locationName ?? ticket.citySlug ?? "")}
         </p>
-        <p className="mt-2 font-mono text-xs text-zinc-400">{ticket.code}</p>
+        <p className="mt-2 font-mono text-xs text-dust-dim">{ticket.code}</p>
         {ticket.checkedInAt ? (
-          <p className="mt-2 inline-block rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">
+          <p className="mt-2.5 inline-block rounded-full border border-registan-dim bg-registan/[0.12] px-3 py-1 text-xs font-semibold text-registan-strong">
             {t("checkedIn")}
           </p>
         ) : ticket.eventStatus === "canceled" ? (
-          <p className="mt-2 inline-block rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700 dark:bg-red-900 dark:text-red-300">
+          <p className="mt-2.5 inline-block rounded-full border border-pomegranate/35 bg-pomegranate/[0.12] px-3 py-1 text-xs font-semibold text-pomegranate">
             {t("eventCanceled")}
           </p>
         ) : (
-          <p className="mt-2 text-xs text-zinc-400">{t("showAtEntrance")}</p>
+          <p className="mt-2.5 text-xs text-dust-dim">{t("showAtEntrance")}</p>
         )}
       </div>
     </div>
@@ -95,16 +95,16 @@ export default function TicketsPage() {
   }, [user]);
 
   if (loading || !user || tickets === null) {
-    return <main className="p-8 text-center text-zinc-500">{t("loading")}</main>;
+    return <main className="p-8 text-center text-dust">{t("loading")}</main>;
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="mb-6 text-2xl font-bold">{t("title")}</h1>
+    <main className="mx-auto max-w-2xl px-5 py-12">
+      <h1 className="mb-6 font-display text-2xl font-black text-bone">{t("title")}</h1>
       {tickets.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-zinc-300 p-10 text-center text-zinc-500 dark:border-zinc-700">
+        <p className="rounded-card border border-dashed border-line p-10 text-center text-dust">
           {t("empty")}{" "}
-          <Link href="/events" className="text-sky-500 hover:underline">
+          <Link href="/events" className="text-registan-strong hover:underline">
             {t("exploreLink")}
           </Link>{" "}
           {t("andJoinOne")}

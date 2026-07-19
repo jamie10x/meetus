@@ -44,7 +44,7 @@ export default function ProfilePage() {
   }, []);
 
   if (loading || !user) {
-    return <main className="p-8 text-center text-zinc-500">{t("loading")}</main>;
+    return <main className="p-8 text-center text-dust">{t("loading")}</main>;
   }
 
   const save = async (e: React.FormEvent) => {
@@ -72,27 +72,30 @@ export default function ProfilePage() {
     }
   };
 
+  const inputCls =
+    "rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim";
+
   return (
-    <main className="mx-auto max-w-lg px-4 py-10">
-      <h1 className="mb-6 text-2xl font-bold">{t("title")}</h1>
+    <main className="mx-auto max-w-lg px-5 py-12">
+      <h1 className="mb-6 font-display text-2xl font-black text-bone">{t("title")}</h1>
 
       <form onSubmit={save} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm font-medium">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-dust">
           {t("name")}
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
-            className="rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className={inputCls}
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-dust">
           {t("city")}
           <select
             value={cityId}
             onChange={(e) => setCityId(e.target.value)}
-            className="rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className={inputCls}
           >
             <option value="">{t("cityNotSet")}</option>
             {cities.map((c) => (
@@ -103,22 +106,22 @@ export default function ProfilePage() {
           </select>
         </label>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-dust">
           {t("district")}
           <input
             value={district}
             onChange={(e) => setDistrict(e.target.value)}
             placeholder={t("districtPlaceholder")}
-            className="rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className={inputCls}
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-dust">
           {t("language")}
           <select
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
-            className="rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className={inputCls}
           >
             {LANGUAGES.map((l) => (
               <option key={l.value} value={l.value}>
@@ -131,13 +134,13 @@ export default function ProfilePage() {
         <button
           type="submit"
           disabled={saving}
-          className="mt-2 rounded-lg bg-sky-500 px-4 py-2 font-medium text-white hover:bg-sky-600 disabled:opacity-50"
+          className="mt-2 rounded-full bg-registan px-4 py-2.5 font-bold text-[#0A2320] transition-colors hover:bg-registan-strong disabled:opacity-50"
         >
           {saving ? t("saving") : t("save")}
         </button>
 
-        {message ? <p className="text-sm text-green-600">{message}</p> : null}
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {message ? <p className="text-sm text-registan-strong">{message}</p> : null}
+        {error ? <p className="text-sm text-pomegranate">{error}</p> : null}
       </form>
     </main>
   );

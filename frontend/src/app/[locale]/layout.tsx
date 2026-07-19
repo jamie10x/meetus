@@ -3,21 +3,29 @@ import { notFound } from "next/navigation";
 import Script from "next/script";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Hanken_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { routing, type AppLocale } from "@/i18n/routing";
 import { AuthProvider } from "@/lib/auth-context";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import TelegramChrome from "@/components/TelegramChrome";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+});
+
+const hanken = Hanken_Grotesk({
+  variable: "--font-hanken",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
   subsets: ["latin"],
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
@@ -27,6 +35,10 @@ export const metadata: Metadata = {
   },
   description:
     "Discover events, join meetups, and grow communities across Uzbekistan.",
+};
+
+export const viewport = {
+  themeColor: "#160f16",
 };
 
 export function generateStaticParams() {
@@ -54,13 +66,13 @@ export default async function LocaleLayout({
   return (
     <html
       lang={locale}
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${fraunces.variable} ${hanken.variable} ${plexMono.variable} h-full antialiased`}
       // The Telegram Mini App SDK (loaded below) sets --tg-viewport-*
       // CSS vars on this element as soon as it runs, on every browser —
       // an expected, benign mismatch against the server-rendered markup.
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col bg-ink text-bone">
         {/*
           Telegram Mini App SDK. "beforeInteractive" guarantees
           window.Telegram.WebApp exists by the time AuthProvider's mount
@@ -78,7 +90,8 @@ export default async function LocaleLayout({
           <AuthProvider>
             <TelegramChrome />
             <Header />
-            <div className="flex-1">{children}</div>
+            <div className="relative z-[1] flex-1">{children}</div>
+            <Footer />
           </AuthProvider>
         </NextIntlClientProvider>
       </body>

@@ -34,10 +34,10 @@ export default function OrganizerPage() {
   const [error, setError] = useState<string | null>(null);
 
   const statusStyle: Record<string, string> = {
-    draft: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
-    published: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-    canceled: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-    finished: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+    draft: "border border-atlas/35 bg-atlas/[0.12] text-atlas",
+    published: "border border-registan-dim bg-registan/[0.12] text-registan-strong",
+    canceled: "border border-pomegranate/35 bg-pomegranate/[0.12] text-pomegranate",
+    finished: "border border-line bg-ink-raised text-dust",
   };
   const statusLabel: Record<string, string> = {
     draft: t("statusDraft"),
@@ -68,7 +68,7 @@ export default function OrganizerPage() {
   }, [user]);
 
   if (loading || !user || !checked) {
-    return <main className="p-8 text-center text-zinc-500">{t("loading")}</main>;
+    return <main className="p-8 text-center text-dust">{t("loading")}</main>;
   }
 
   const disconnectChannel = async (id: number) => {
@@ -116,10 +116,10 @@ export default function OrganizerPage() {
 
     return (
       <main className="mx-auto max-w-lg px-4 py-10">
-        <h1 className="mb-2 text-2xl font-bold">{t("becomeTitle")}</h1>
-        <p className="mb-6 text-zinc-500">{t("becomeSubtitle")}</p>
+        <h1 className="mb-2 text-2xl font-bold text-bone">{t("becomeTitle")}</h1>
+        <p className="mb-6 text-dust">{t("becomeSubtitle")}</p>
         <form onSubmit={become} className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1 text-sm font-medium">
+          <label className="flex flex-col gap-1.5 text-sm font-medium text-dust">
             {t("organizerNameLabel")}
             <input
               value={displayName}
@@ -127,27 +127,27 @@ export default function OrganizerPage() {
               required
               maxLength={100}
               placeholder={t("organizerNamePlaceholder")}
-              className="rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+              className="rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim"
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm font-medium">
+          <label className="flex flex-col gap-1.5 text-sm font-medium text-dust">
             {t("aboutLabel")}
             <textarea
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               rows={3}
               maxLength={1000}
-              className="rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+              className="rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim"
             />
           </label>
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-lg bg-sky-500 px-4 py-2 font-medium text-white hover:bg-sky-600 disabled:opacity-50"
+            className="rounded-full bg-registan px-4 py-2.5 font-bold text-[#0A2320] transition-colors hover:bg-registan-strong disabled:opacity-50"
           >
             {submitting ? t("creating") : t("create")}
           </button>
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {error ? <p className="text-sm text-pomegranate">{error}</p> : null}
         </form>
       </main>
     );
@@ -157,12 +157,12 @@ export default function OrganizerPage() {
     <main className="mx-auto max-w-3xl px-4 py-10">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{organizer.displayName}</h1>
-          <p className="text-sm text-zinc-500">{t("yourEvents")}</p>
+          <h1 className="text-2xl font-bold text-bone">{organizer.displayName}</h1>
+          <p className="text-sm text-dust">{t("yourEvents")}</p>
         </div>
         <Link
           href="/organizer/events/new"
-          className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-medium text-white hover:bg-sky-600"
+          className="rounded-full bg-registan px-4 py-2.5 text-sm font-bold text-[#0A2320] transition-colors hover:bg-registan-strong"
         >
           {t("newEvent")}
         </Link>
@@ -184,17 +184,17 @@ export default function OrganizerPage() {
           ].map((s) => (
             <div
               key={s.label}
-              className="rounded-xl border border-zinc-200 p-4 text-center dark:border-zinc-800"
+              className="rounded-card border border-line bg-ink-raised p-4 text-center"
             >
-              <p className="text-2xl font-bold">{s.value}</p>
-              <p className="text-xs text-zinc-500">{s.label}</p>
+              <p className="text-2xl font-bold text-bone">{s.value}</p>
+              <p className="text-xs text-dust">{s.label}</p>
             </div>
           ))}
         </div>
       ) : null}
 
       {events.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-zinc-300 p-10 text-center text-zinc-500 dark:border-zinc-700">
+        <p className="rounded-card border border-dashed border-line p-10 text-center text-dust">
           {t("noEventsYet")}
         </p>
       ) : (
@@ -202,16 +202,16 @@ export default function OrganizerPage() {
           {events.map((e) => (
             <li
               key={e.id}
-              className="flex items-center justify-between rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+              className="flex items-center justify-between rounded-card border border-line bg-ink-raised p-4"
             >
               <div>
                 <Link
                   href={`/organizer/events/${e.id}/edit`}
-                  className="font-medium hover:text-sky-500"
+                  className="font-medium text-bone hover:text-registan-strong"
                 >
                   {e.title}
                 </Link>
-                <p className="text-sm text-zinc-500">
+                <p className="text-sm text-dust">
                   {new Date(e.startsAt).toLocaleString()} ·{" "}
                   {tEventCard("going", { count: e.goingCount })}
                   {e.capacity ? ` / ${e.capacity}` : ""}
@@ -228,14 +228,14 @@ export default function OrganizerPage() {
       )}
 
       <section className="mt-10">
-        <h2 className="mb-2 text-lg font-semibold">{t("channelsHeading")}</h2>
+        <h2 className="mb-2 text-lg font-semibold text-bone">{t("channelsHeading")}</h2>
         {BOT_USERNAME ? (
-          <p className="mb-4 text-sm text-zinc-500">
+          <p className="mb-4 text-sm text-dust">
             {t("channelsHint", { botUsername: `@${BOT_USERNAME}` })}
           </p>
         ) : null}
         {channels.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
+          <p className="rounded-card border border-dashed border-line p-6 text-center text-sm text-dust">
             {t("noChannels")}
           </p>
         ) : (
@@ -243,11 +243,11 @@ export default function OrganizerPage() {
             {channels.map((c) => (
               <li
                 key={c.id}
-                className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-3 dark:border-zinc-800"
+                className="flex items-center justify-between rounded-card border border-line bg-ink-raised px-4 py-3"
               >
                 <div>
-                  <p className="font-medium">{c.chatTitle}</p>
-                  <p className="text-xs text-zinc-500">
+                  <p className="font-medium text-bone">{c.chatTitle}</p>
+                  <p className="text-xs text-dust-dim">
                     {t("connectedOn", {
                       date: new Date(c.connectedAt).toLocaleDateString(),
                     })}
@@ -257,7 +257,7 @@ export default function OrganizerPage() {
                   <select
                     value={c.language ?? ""}
                     onChange={(e) => setChannelLanguage(c.id, e.target.value)}
-                    className="rounded-lg border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                    className="rounded-lg border border-line bg-ink-raised px-2 py-1 text-xs text-bone transition-colors focus:border-registan-dim"
                     aria-label={t("channelLanguageLabel")}
                   >
                     <option value="">{t("channelLanguageDefault")}</option>
@@ -267,7 +267,7 @@ export default function OrganizerPage() {
                   </select>
                   <button
                     onClick={() => disconnectChannel(c.id)}
-                    className="rounded-lg border border-red-500 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                    className="rounded-lg border border-pomegranate/35 px-3 py-1 text-xs font-medium text-pomegranate transition-colors hover:bg-pomegranate/[0.12]"
                   >
                     {t("disconnect")}
                   </button>

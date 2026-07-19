@@ -39,25 +39,25 @@ export default function LoginPage() {
   // (AuthProvider) is still in flight — resolves quickly either way.
   if (loading) {
     return (
-      <main className="mx-auto flex max-w-md flex-col items-center gap-6 px-4 py-24 text-center">
-        <p className="text-sm text-zinc-500">{t("signingIn")}</p>
+      <main className="mx-auto flex max-w-md flex-col items-center gap-6 px-5 py-28 text-center">
+        <p className="text-sm text-dust">{t("signingIn")}</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto flex max-w-md flex-col items-center gap-6 px-4 py-24 text-center">
-      <h1 className="text-3xl font-bold">{t("title")}</h1>
-      <p className="text-zinc-500">{t("subtitle")}</p>
+    <main className="mx-auto flex max-w-md flex-col items-center gap-6 px-5 py-28 text-center">
+      <h1 className="font-display text-3xl font-black text-bone">{t("title")}</h1>
+      <p className="text-dust">{t("subtitle")}</p>
 
       {submitting ? (
-        <p className="text-sm text-zinc-500">{t("signingIn")}</p>
+        <p className="text-sm text-dust">{t("signingIn")}</p>
       ) : (
         <TelegramLoginButton onAuth={handleAuth} />
       )}
 
       {error ? (
-        <p className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+        <p className="rounded-card border border-pomegranate/35 bg-pomegranate/[0.12] p-3 text-sm text-pomegranate">
           {error}
         </p>
       ) : null}

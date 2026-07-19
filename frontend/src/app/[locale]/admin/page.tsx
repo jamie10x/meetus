@@ -27,8 +27,7 @@ type AdminUser = {
   createdAt: string;
 };
 
-const card =
-  "rounded-xl border border-zinc-200 p-4 text-center dark:border-zinc-800";
+const card = "rounded-card border border-line bg-ink-raised p-4 text-center";
 const btn =
   "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors";
 
@@ -39,11 +38,18 @@ const eventStatusKey = {
   finished: "statusFinished",
 } as const;
 
+const eventStatusStyle: Record<string, string> = {
+  draft: "border border-atlas/35 bg-atlas/[0.12] text-atlas",
+  published: "border border-registan-dim bg-registan/[0.12] text-registan-strong",
+  canceled: "border border-pomegranate/35 bg-pomegranate/[0.12] text-pomegranate",
+  finished: "border border-line bg-ink-raised text-dust",
+};
+
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
     <div className={card}>
-      <p className="text-2xl font-bold">{value}</p>
-      <p className="text-xs text-zinc-500">{label}</p>
+      <p className="text-2xl font-bold text-bone">{value}</p>
+      <p className="text-xs text-dust">{label}</p>
     </div>
   );
 }
@@ -94,7 +100,7 @@ export default function AdminPage() {
   }, [user, userQuery]);
 
   if (loading || !user?.isAdmin) {
-    return <main className="p-8 text-center text-zinc-500">{t("loading")}</main>;
+    return <main className="p-8 text-center text-dust">{t("loading")}</main>;
   }
 
   const act = async (path: string, refresh: () => void) => {
@@ -109,8 +115,8 @@ export default function AdminPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="mb-6 text-2xl font-bold">{t("title")}</h1>
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
+      <h1 className="mb-6 text-2xl font-bold text-bone">{t("title")}</h1>
+      {error ? <p className="mb-4 text-sm text-pomegranate">{error}</p> : null}
 
       {stats ? (
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -133,14 +139,14 @@ export default function AdminPage() {
 
       <section className="mb-10">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{t("eventsHeading")}</h2>
+          <h2 className="text-lg font-semibold text-bone">{t("eventsHeading")}</h2>
           <select
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
               loadEvents(e.target.value);
             }}
-            className="rounded-lg border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="rounded-lg border border-line bg-ink-raised px-2 py-1 text-sm text-bone transition-colors focus:border-registan-dim"
           >
             <option value="">{t("allStatuses")}</option>
             <option value="published">{t("statusPublished")}</option>
@@ -149,22 +155,24 @@ export default function AdminPage() {
             <option value="finished">{t("statusFinished")}</option>
           </select>
         </div>
-        <ul className="divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+        <ul className="divide-y divide-line rounded-card border border-line bg-ink-raised">
           {events.map((e) => (
             <li key={e.id} className="flex items-center gap-3 p-3">
               <div className="min-w-0 flex-1">
                 <Link
                   href={`/events/${e.id}`}
-                  className="truncate font-medium hover:text-sky-500"
+                  className="truncate font-medium text-bone hover:text-registan-strong"
                 >
                   {e.title}
                 </Link>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-dust">
                   {e.organizerName} · {new Date(e.startsAt).toLocaleString()} ·{" "}
                   {e.goingCount}
                 </p>
               </div>
-              <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs dark:bg-zinc-800">
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${eventStatusStyle[e.status] ?? eventStatusStyle.finished}`}
+              >
                 {t(eventStatusKey[e.status as keyof typeof eventStatusKey])}
               </span>
               {e.status === "published" ? (
@@ -175,7 +183,7 @@ export default function AdminPage() {
                         loadEvents(statusFilter),
                       )
                     }
-                    className={`${btn} border-zinc-400 text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-900`}
+                    className={`${btn} border-line text-dust hover:border-registan-strong hover:text-registan-strong`}
                   >
                     {t("unpublish")}
                   </button>
@@ -185,7 +193,7 @@ export default function AdminPage() {
                         loadEvents(statusFilter),
                       )
                     }
-                    className={`${btn} border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950`}
+                    className={`${btn} border-pomegranate/35 text-pomegranate hover:bg-pomegranate/[0.12]`}
                   >
                     {t("cancel")}
                   </button>
@@ -194,7 +202,7 @@ export default function AdminPage() {
             </li>
           ))}
           {events.length === 0 ? (
-            <li className="p-6 text-center text-sm text-zinc-500">
+            <li className="p-6 text-center text-sm text-dust-dim">
               {t("noEvents")}
             </li>
           ) : null}
@@ -206,27 +214,27 @@ export default function AdminPage() {
 
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{t("usersHeading")}</h2>
+          <h2 className="text-lg font-semibold text-bone">{t("usersHeading")}</h2>
           <input
             value={userQuery}
             onChange={(e) => setUserQuery(e.target.value)}
             placeholder={t("searchUsersPlaceholder")}
-            className="rounded-lg border border-zinc-300 px-3 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="rounded-lg border border-line bg-ink-raised px-3 py-1 text-sm text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim"
           />
         </div>
-        <ul className="divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+        <ul className="divide-y divide-line rounded-card border border-line bg-ink-raised">
           {users.map((u) => (
             <li key={u.id} className="flex items-center gap-3 p-3">
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">
+                <p className="truncate font-medium text-bone">
                   {u.name}
                   {u.isAdmin ? (
-                    <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-700 dark:bg-sky-900 dark:text-sky-300">
+                    <span className="ml-2 rounded-full border border-registan-dim bg-registan/[0.12] px-2 py-0.5 text-xs text-registan-strong">
                       {t("adminBadge")}
                     </span>
                   ) : null}
                 </p>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-dust">
                   {u.username ? `@${u.username} · ` : ""}
                   {t("joined", {
                     date: new Date(u.createdAt).toLocaleDateString(),
@@ -244,7 +252,7 @@ export default function AdminPage() {
                       ),
                     )
                   }
-                  className={`${btn} border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950`}
+                  className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12]`}
                 >
                   {t("unban")}
                 </button>
@@ -259,7 +267,7 @@ export default function AdminPage() {
                       ),
                     )
                   }
-                  className={`${btn} border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950`}
+                  className={`${btn} border-pomegranate/35 text-pomegranate hover:bg-pomegranate/[0.12]`}
                 >
                   {t("ban")}
                 </button>
@@ -267,7 +275,7 @@ export default function AdminPage() {
             </li>
           ))}
           {users.length === 0 ? (
-            <li className="p-6 text-center text-sm text-zinc-500">
+            <li className="p-6 text-center text-sm text-dust-dim">
               {t("noUsers")}
             </li>
           ) : null}

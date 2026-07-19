@@ -99,7 +99,7 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
 
   if (isPast) {
     return (
-      <p className="mt-6 rounded-xl bg-zinc-100 p-4 text-center text-zinc-500 dark:bg-zinc-800">
+      <p className="mt-8 rounded-card border border-line bg-ink-raised p-4 text-center text-dust">
         {t("eventStarted")}
       </p>
     );
@@ -107,11 +107,14 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
 
   if (!user) {
     return (
-      <div className="mt-6 rounded-xl border border-sky-200 bg-sky-50 p-4 text-center dark:border-sky-900 dark:bg-sky-950">
-        <Link href="/login" className="font-medium text-sky-600 hover:underline">
+      <div className="mt-8 rounded-card border border-registan-dim bg-registan/[0.08] p-4 text-center">
+        <Link
+          href="/login"
+          className="font-semibold text-registan-strong hover:underline"
+        >
           {t("signInLink")}
         </Link>{" "}
-        {t("signInSuffix")}
+        <span className="text-dust">{t("signInSuffix")}</span>
       </div>
     );
   }
@@ -130,10 +133,10 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
   };
 
   return (
-    <div className="mt-6">
+    <div className="mt-8">
       {ticket ? (
-        <div className="flex items-center justify-between rounded-xl border border-green-300 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
-          <p className="font-medium text-green-700 dark:text-green-300">
+        <div className="flex items-center justify-between rounded-card border border-registan-dim bg-registan/[0.1] p-4">
+          <p className="font-semibold text-registan-strong">
             {t("goingMessage")}{" "}
             <Link href="/tickets" className="underline">
               {t("viewTicket")}
@@ -142,25 +145,25 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
           <button
             onClick={leave}
             disabled={busy}
-            className="text-sm text-zinc-500 hover:text-red-500 disabled:opacity-50"
+            className="text-sm text-dust transition-colors hover:text-pomegranate disabled:opacity-50"
           >
             {t("cancel")}
           </button>
         </div>
       ) : canJoinViaMainButton ? (
         busy ? (
-          <p className="text-center text-sm text-zinc-500">{t("joining")}</p>
+          <p className="text-center text-sm text-dust">{t("joining")}</p>
         ) : null
       ) : (
         <button
           onClick={join}
           disabled={busy || spotsLeft === 0}
-          className="w-full rounded-xl bg-sky-500 px-6 py-3 text-lg font-semibold text-white hover:bg-sky-600 disabled:opacity-50"
+          className="w-full rounded-full bg-registan px-6 py-3.5 text-lg font-bold text-[#0A2320] shadow-[0_8px_22px_-8px_rgba(24,173,160,0.55)] transition-colors hover:bg-registan-strong disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
         >
           {spotsLeft === 0 ? t("eventFull") : busy ? t("joining") : t("joinEvent")}
         </button>
       )}
-      {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+      {error ? <p className="mt-2.5 text-sm text-pomegranate">{error}</p> : null}
     </div>
   );
 }

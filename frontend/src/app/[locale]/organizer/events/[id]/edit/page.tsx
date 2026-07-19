@@ -39,10 +39,10 @@ export default function EditEventPage({
   }, [id]);
 
   if (notFound) {
-    return <main className="p-8 text-center text-zinc-500">{t("notFound")}</main>;
+    return <main className="p-8 text-center text-dust">{t("notFound")}</main>;
   }
   if (!event) {
-    return <main className="p-8 text-center text-zinc-500">{t("loading")}</main>;
+    return <main className="p-8 text-center text-dust">{t("loading")}</main>;
   }
 
   const save = async (input: EventInput) => {
@@ -94,6 +94,12 @@ export default function EditEventPage({
 
   const btn =
     "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors";
+  const statusStyle: Record<string, string> = {
+    draft: "border border-atlas/35 bg-atlas/[0.12] text-atlas",
+    published: "border border-registan-dim bg-registan/[0.12] text-registan-strong",
+    canceled: "border border-pomegranate/35 bg-pomegranate/[0.12] text-pomegranate",
+    finished: "border border-line bg-ink-raised text-dust",
+  };
   const statusLabel: Record<string, string> = {
     draft: tStatus("statusDraft"),
     published: tStatus("statusPublished"),
@@ -104,8 +110,8 @@ export default function EditEventPage({
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t("title")}</h1>
-        <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+        <h1 className="text-2xl font-bold text-bone">{t("title")}</h1>
+        <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusStyle[event.status]}`}>
           {statusLabel[event.status]}
         </span>
       </div>
@@ -115,13 +121,13 @@ export default function EditEventPage({
           <>
             <button
               onClick={() => doAction("publish")}
-              className={`${btn} border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950`}
+              className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12]`}
             >
               {t("publish")}
             </button>
             <button
               onClick={remove}
-              className={`${btn} border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950`}
+              className={`${btn} border-pomegranate/35 text-pomegranate hover:bg-pomegranate/[0.12]`}
             >
               {t("deleteDraft")}
             </button>
@@ -131,25 +137,25 @@ export default function EditEventPage({
           <>
             <Link
               href={`/organizer/events/${event.id}/scan`}
-              className={`${btn} border-sky-500 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950`}
+              className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12]`}
             >
               {t("scanTickets")}
             </Link>
             <Link
               href={`/organizer/events/${event.id}/attendees`}
-              className={`${btn} border-zinc-400 text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-900`}
+              className={`${btn} border-line text-dust hover:border-registan-strong hover:text-registan-strong`}
             >
               {t("attendees", { count: event.goingCount })}
             </Link>
             <button
               onClick={() => doAction("unpublish")}
-              className={`${btn} border-zinc-400 text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-900`}
+              className={`${btn} border-line text-dust hover:border-registan-strong hover:text-registan-strong`}
             >
               {t("unpublish")}
             </button>
             <button
               onClick={() => doAction("cancel")}
-              className={`${btn} border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950`}
+              className={`${btn} border-pomegranate/35 text-pomegranate hover:bg-pomegranate/[0.12]`}
             >
               {t("cancelEvent")}
             </button>
@@ -158,36 +164,36 @@ export default function EditEventPage({
       </div>
 
       {actionError ? (
-        <p className="mb-4 text-sm text-red-600">{actionError}</p>
+        <p className="mb-4 text-sm text-pomegranate">{actionError}</p>
       ) : null}
 
       {event.status === "draft" && channels.length > 0 ? (
-        <p className="mb-6 text-sm text-zinc-500">
+        <p className="mb-6 text-sm text-dust">
           {t("autoAnnounceHint", { count: channels.length })}
         </p>
       ) : null}
 
       {event.status === "published" && channels.length > 0 ? (
-        <div className="mb-6 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-          <h2 className="mb-3 text-sm font-semibold">{t("announceHeading")}</h2>
+        <div className="mb-6 rounded-card border border-line bg-ink-raised p-4">
+          <h2 className="mb-3 text-sm font-semibold text-bone">{t("announceHeading")}</h2>
           <ul className="flex flex-col gap-2">
             {channels.map((ch) => {
               const state = announceState[ch.id];
               return (
                 <li key={ch.id} className="flex items-center justify-between gap-3">
-                  <span className="text-sm">{ch.chatTitle}</span>
+                  <span className="text-sm text-bone">{ch.chatTitle}</span>
                   <div className="flex items-center gap-2">
                     {state === "sent" ? (
-                      <span className="text-xs text-green-600 dark:text-green-400">
+                      <span className="text-xs text-registan-strong">
                         {t("announceSent", { channel: ch.chatTitle })}
                       </span>
                     ) : state === "failed" ? (
-                      <span className="text-xs text-red-600">{t("announceFailed")}</span>
+                      <span className="text-xs text-pomegranate">{t("announceFailed")}</span>
                     ) : null}
                     <button
                       onClick={() => announce(ch.id)}
                       disabled={state === "sending"}
-                      className={`${btn} border-sky-500 text-sky-600 hover:bg-sky-50 disabled:opacity-50 dark:hover:bg-sky-950`}
+                      className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12] disabled:opacity-50`}
                     >
                       {state === "sending" ? t("announcing") : t("announce")}
                     </button>
@@ -202,7 +208,7 @@ export default function EditEventPage({
       {event.status === "draft" || event.status === "published" ? (
         <EventForm initial={event} submitLabel={t("saveChanges")} onSubmit={save} />
       ) : (
-        <p className="text-zinc-500">
+        <p className="text-dust">
           {t("cannotEdit", { status: statusLabel[event.status] })}
         </p>
       )}

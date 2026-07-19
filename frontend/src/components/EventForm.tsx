@@ -25,8 +25,8 @@ function toRFC3339(local: string): string {
 }
 
 const inputCls =
-  "rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900";
-const labelCls = "flex flex-col gap-1 text-sm font-medium";
+  "rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim";
+const labelCls = "flex flex-col gap-1.5 text-sm font-medium text-dust";
 
 export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
   const t = useTranslations("eventForm");
@@ -159,11 +159,12 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         </label>
       </div>
 
-      <label className="flex items-center gap-2 text-sm font-medium">
+      <label className="flex items-center gap-2 text-sm font-medium text-dust">
         <input
           type="checkbox"
           checked={isOnline}
           onChange={(e) => setIsOnline(e.target.checked)}
+          className="h-4 w-4 rounded border-line bg-ink-raised accent-registan"
         />
         {t("onlineEvent")}
       </label>
@@ -237,29 +238,29 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
           type="file"
           accept="image/jpeg,image/png,image/webp"
           onChange={(e) => handleCover(e.target.files?.[0])}
-          className="text-sm"
+          className="text-sm text-dust"
         />
       </label>
       {uploading ? (
-        <p className="text-sm text-zinc-500">{t("uploading")}</p>
+        <p className="text-sm text-dust">{t("uploading")}</p>
       ) : coverUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={coverUrl}
           alt={t("coverPreviewAlt")}
-          className="max-h-48 rounded-lg object-cover"
+          className="max-h-48 rounded-card border border-line object-cover"
         />
       ) : null}
 
       <button
         type="submit"
         disabled={saving || uploading}
-        className="mt-2 rounded-lg bg-sky-500 px-4 py-2 font-medium text-white hover:bg-sky-600 disabled:opacity-50"
+        className="mt-2 rounded-full bg-registan px-4 py-2.5 font-bold text-[#0A2320] transition-colors hover:bg-registan-strong disabled:opacity-50"
       >
         {saving ? t("saving") : submitLabel}
       </button>
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error ? <p className="text-sm text-pomegranate">{error}</p> : null}
     </form>
   );
 }

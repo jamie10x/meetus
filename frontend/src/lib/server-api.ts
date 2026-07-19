@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { API_URL } from "./api";
-import type { EventItem } from "./types";
+import type { EventItem, TrendingEventItem } from "./types";
 
 /**
  * Server-side fetch of one event, deduplicated per request so the page
@@ -14,3 +14,15 @@ export const fetchEvent = cache(async (id: string): Promise<EventItem | null> =>
   const body = await res.json();
   return body.data as EventItem;
 });
+
+/** Server-side trending fetch, used for the home page hero's ticket card. */
+export const fetchTrending = cache(
+  async (limit: number): Promise<TrendingEventItem[]> => {
+    const res = await fetch(`${API_URL}/api/explore/trending?limit=${limit}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const body = await res.json();
+    return body.data as TrendingEventItem[];
+  },
+);

@@ -1,26 +1,74 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Meetus brand tokens — committed dark-first identity (not an OS-preference
+ * toggle). Palette grounded in Uzbek visual heritage rather than a generic
+ * dark+neon look: near-black surfaces carry a warm plum-dusk undertone (a
+ * Samarkand night sky, not device black); "registan" is the saturated
+ * cobalt-teal of glazed majolica tilework (Shah-i-Zinda / Registan);
+ * "atlas" is the warm marigold-gold of hand-dyed atlas silk; pomegranate is
+ * reserved strictly for semantic/error use, never decoration.
+ */
+@theme {
+  --color-ink: #160f16;
+  --color-ink-raised: #211722;
+  --color-ink-overlay: #2c1f2c;
+  --color-line: #3b2b3a;
+  --color-bone: #f6efe4;
+  --color-dust: #bba8b6;
+  --color-dust-dim: #8c7a88;
+  --color-registan: #18ada0;
+  --color-registan-strong: #3fd8c9;
+  --color-registan-dim: #0d6f67;
+  --color-atlas: #f2a73b;
+  --color-atlas-dim: #b87b22;
+  --color-pomegranate: #e1523a;
+
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-sans: var(--font-hanken), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-card: 16px;
+  --radius-chip: 100px;
+  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.4), 0 18px 40px -20px rgba(0, 0, 0, 0.65);
+  --shadow-pop: 0 24px 60px -18px rgba(0, 0, 0, 0.75);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-ink);
+  color: var(--color-bone);
+  font-family: var(--font-sans);
+  position: relative;
+}
+
+/* Faint woven-silk texture across the whole surface — kept extremely quiet. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    repeating-linear-gradient(115deg, rgba(246, 239, 228, 0.025) 0px, rgba(246, 239, 228, 0.025) 1px, transparent 1px, transparent 5px),
+    repeating-linear-gradient(25deg, rgba(24, 173, 160, 0.02) 0px, rgba(24, 173, 160, 0.02) 1px, transparent 1px, transparent 6px);
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  text-wrap: balance;
+}
+
+::selection {
+  background: var(--color-registan);
+  color: #0a2320;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-registan-strong);
+  outline-offset: 3px;
+  border-radius: 4px;
 }

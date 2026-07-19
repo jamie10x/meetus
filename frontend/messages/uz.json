@@ -8,11 +8,23 @@
     "logOut": "Chiqish"
   },
   "home": {
+    "eyebrow": "Telegram orqali · Har doim bepul",
     "titlePart1": "O'zingiz kabi odamlarni",
     "titleHighlight": "O'zbekistonda toping",
     "subtitle": "Yaqiningizdagi tadbirlar, master-klasslar va jamoalarni toping. Bir tegishda ro'yxatdan o'ting, QR-chiptangizni oling va tashrif buyuring.",
     "exploreEvents": "Tadbirlarni ko'rish",
-    "signIn": "Kirish"
+    "signIn": "Kirish",
+    "statCities": "{count} shahar va ko'paymoqda",
+    "statFree": "Har doim bepul",
+    "ticketPreviewLabel": "Hozir mashhur",
+    "ticketPreviewCta": "Ko'rish va qatnashish",
+    "howItWorksHeading": "Bu qanday ishlaydi",
+    "step1Title": "Nimadir toping",
+    "step1Body": "Shahar, kategoriya yoki qidiruv bo'yicha ko'ring — texnologik uchrashuvlar, til almashinuvi, tong sayrlari, startap kechalari.",
+    "step2Title": "Telegram orqali ro'yxatdan o'ting",
+    "step2Body": "Bir tegish, forma yo'q, parol yo'q. Telegram hisobingiz — bu sizning chiptangiz.",
+    "step3Title": "Tashrif buyuring",
+    "step3Body": "QR-chiptangiz zudlik bilan tayyor bo'ladi. Kirishda uni ko'rsating — xolos."
   },
   "login": {
     "title": "Meetus'ga kirish",
@@ -247,5 +259,62 @@
   },
   "miniApp": {
     "signingIn": "Meetus ochilmoqda…"
+  },
+  "footer": {
+    "tagline": "O'zbekiston bo'ylab tadbirlar, master-klasslar va jamoalarni toping — Telegram orqali ro'yxatdan o'ting, parol kerak emas.",
+    "exploreHeading": "Tadbirlar",
+    "exploreLink": "Tadbirlarni ko'rish",
+    "ticketsLink": "Chiptalarim",
+    "organizeLink": "Tadbir tashkil qilish",
+    "legalHeading": "Huquqiy ma'lumot",
+    "privacyLink": "Maxfiylik siyosati",
+    "botLink": "Botni ochish",
+    "copyright": "© {year} Meetus.uz. Barcha huquqlar himoyalangan.",
+    "builtFor": "O'zbekiston uchun yaratilgan 🇺🇿"
+  },
+  "privacy": {
+    "title": "Maxfiylik siyosati",
+    "updated": "Yangilangan sana: 2026-yil iyul",
+    "intro": "Meetus.uz — O'zbekiston bo'ylab tadbirlar va uchrashuvlarni topish platformasi. Ushbu sahifada biz sayt, Telegram Mini App va Telegram botimiz orqali qanday ma'lumotlarni to'plashimiz va ulardan qanday foydalanishimiz tushuntirilgan.",
+    "sections": [
+      {
+        "heading": "Telegram orqali shaxsni aniqlash",
+        "body": "Biz parollardan foydalanmaymiz. Saytdagi Telegram Login Widget, Telegram Mini App yoki botimizga yozish orqali kirganingizda, Telegram bizga Telegram ID raqamingiz, ismi va familiyangiz, foydalanuvchi nomingiz (agar mavjud bo'lsa) va profil rasmingizni beradi. Telegram ID raqamingiz sayt va botdagi hisobingizning doimiy identifikatoridir."
+      },
+      {
+        "heading": "Profil ma'lumotlari",
+        "body": "Profilingizga ixtiyoriy ravishda shahar, tuman va afzal ko'rgan tilingizni qo'shishingiz mumkin. Agar tashkilotchiga aylansangiz, ko'rsatiladigan ismingiz va bio ma'lumotingiz siz tashkil qilgan tadbirlarda ochiq ko'rinadi."
+      },
+      {
+        "heading": "Tadbir va chipta ma'lumotlari",
+        "body": "Tadbirga ro'yxatdan o'tganingizda, biz ro'yxatga olishni saqlaymiz va ro'yxatdan o'tish uchun imzolangan chipta kodini yaratamiz. Tadbir tugagach, ixtiyoriy ravishda baho va izoh qoldirishingiz mumkin. Tashkilotchilar o'z tadbirlariga kim ro'yxatdan o'tganini ko'rishlari va kirishda chiptangizning QR-kodini tekshirishlari mumkin — ular o'zlari tashkil qilmagan tadbirlar chiptalarini ko'ra olmaydi."
+      },
+      {
+        "heading": "Botimizdan xabarlar",
+        "body": "Agar siz Telegram botimiz bilan muloqot qilsangiz, biz tadbir eslatmalarini, fikr-mulohaza so'rovlarini va siz boshqaradigan kanallar uchun e'lon vositalarini yuboramiz. Bu xabarlar rasmiy Telegram Bot API orqali faqat Meetus hisobingizga bog'langan Telegram hisobiga yetkaziladi."
+      },
+      {
+        "heading": "Biz nimalarni to'plamaymiz",
+        "body": "Biz parollarni so'ramaymiz va saqlamaymiz. Meetus'dagi tadbirlar bepul, shuning uchun to'lov ma'lumotlarini to'plamaymiz. Biz uchinchi tomon reklama kuzatuvchilaridan foydalanmaymiz va ma'lumotlaringizni hech kimga sotmaymiz."
+      },
+      {
+        "heading": "Ma'lumotlar qayerda saqlanadi",
+        "body": "Ma'lumotlaringiz biz o'zimiz boshqaradigan serverlardagi ma'lumotlar bazasida saqlanadi. Kirish seanslari brauzeringizning mahalliy xotirasida saqlanadi, kuzatuv cookie'lari sifatida emas; bitta kichik cookie tanlagan tilingizni eslab qoladi. Qisqa muddatli belgi (10 daqiqadan so'ng avtomatik o'chiriladi) faqat botga yuboradigan keyingi xabaringizni fikr-mulohaza izohi sifatida aniqlash uchun ishlatiladi."
+      },
+      {
+        "heading": "Ma'lumotlarni qancha muddat saqlaymiz",
+        "body": "Hisobingiz mavjud bo'lguncha hisobingiz va tadbirlar tarixini saqlaymiz. Muddati o'tgan kirish seanslari avtomatik tozalanadi. Istalgan vaqtda quyidagi aloqa ma'lumotlari orqali hisobingiz va unga bog'liq ma'lumotlarni o'chirishimizni so'rashingiz mumkin."
+      },
+      {
+        "heading": "Sizning tanlovingiz",
+        "body": "Profilingiz, tilingiz va ro'yxatdan o'tishlaringizni istalgan vaqtda saytda o'zingiz o'zgartirishingiz mumkin. Ma'lumotlaringiz nusxasini yoki o'chirilishini so'rash, yoki ushbu siyosat haqida savol berish uchun quyidagi aloqa ma'lumotlari orqali biz bilan bog'laning."
+      },
+      {
+        "heading": "Ushbu siyosatdagi o'zgarishlar",
+        "body": "Agar ushbu siyosat sezilarli darajada o'zgarsa, sahifa yuqorisidagi sanani yangilaymiz."
+      }
+    ],
+    "contactHeading": "Biz bilan bog'laning",
+    "contactBody": "Maxfiylik bo'yicha savol, ma'lumot so'rovi yoki boshqa murojaat uchun @meetusuz_bot botimizga yozing yoki privacy@meetus.uz manziliga elektron xat yuboring."
   }
 }
