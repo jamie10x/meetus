@@ -77,6 +77,9 @@ const (
 	kErrNotOpen
 	kErrAlreadyStarted
 	kErrGeneric
+	kChannelConnected
+	kChannelConnectNeedsOrganizer
+	kAnnouncementCta
 )
 
 // catalog holds full-message templates per language. Whole sentences are
@@ -114,6 +117,11 @@ var catalog = map[lang]map[msgKey]string{
 		kErrNotOpen:        "This event isn't open for RSVPs.",
 		kErrAlreadyStarted: "This event has already started.",
 		kErrGeneric:        "Could not join this event.",
+		kChannelConnected: "✅ Channel <b>%s</b> connected! You can now send event " +
+			"announcements to it from your Meetus.uz organizer dashboard.",
+		kChannelConnectNeedsOrganizer: "This channel needs an owner with a Meetus.uz organizer " +
+			"profile. Sign in and create one first, then add me as admin here again.",
+		kAnnouncementCta: "🎟️ View & join",
 	},
 	langRu: {
 		kWelcome: "👋 Добро пожаловать в <b>Meetus.uz</b>, %s!\n\n" +
@@ -146,6 +154,12 @@ var catalog = map[lang]map[msgKey]string{
 		kErrNotOpen:        "Запись на это мероприятие закрыта.",
 		kErrAlreadyStarted: "Это мероприятие уже началось.",
 		kErrGeneric:        "Не удалось записаться на мероприятие.",
+		kChannelConnected: "✅ Канал <b>%s</b> подключён! Теперь вы можете отправлять " +
+			"анонсы мероприятий в него из панели организатора на Meetus.uz.",
+		kChannelConnectNeedsOrganizer: "У этого канала должен быть владелец с профилем " +
+			"организатора на Meetus.uz. Войдите и сначала создайте профиль, затем добавьте " +
+			"меня сюда администратором ещё раз.",
+		kAnnouncementCta: "🎟️ Смотреть и участвовать",
 	},
 	langUz: {
 		kWelcome: "👋 <b>Meetus.uz</b>ga xush kelibsiz, %s!\n\n" +
@@ -178,6 +192,12 @@ var catalog = map[lang]map[msgKey]string{
 		kErrNotOpen:        "Bu tadbirga ro'yxatdan o'tish yopiq.",
 		kErrAlreadyStarted: "Bu tadbir allaqachon boshlangan.",
 		kErrGeneric:        "Tadbirga qo'shilib bo'lmadi.",
+		kChannelConnected: "✅ <b>%s</b> kanali ulandi! Endi Meetus.uz tashkilotchi " +
+			"panelidan bu kanalga tadbir e'lonlarini yuborishingiz mumkin.",
+		kChannelConnectNeedsOrganizer: "Bu kanalning Meetus.uz'da tashkilotchi profiliga ega " +
+			"egasi bo'lishi kerak. Avval kiring va profil yarating, so'ng meni yana admin " +
+			"qilib qo'shing.",
+		kAnnouncementCta: "🎟️ Ko'rish va qatnashish",
 	},
 }
 

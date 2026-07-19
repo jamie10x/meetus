@@ -24,6 +24,7 @@ func (h *PublicHandler) Register(r gin.IRouter) {
 	g := r.Group("/explore")
 	g.GET("/events", h.list)
 	g.GET("/events/:id", h.get)
+	g.GET("/trending", h.trending)
 }
 
 type pageResponse struct {
@@ -80,6 +81,29 @@ func (h *PublicHandler) list(c *gin.Context) {
 		resp.NextCursor = &page.NextCursor
 	}
 	httpx.OK(c, http.StatusOK, resp)
+}
+
+func (h *PublicHandler) trending(c *gin.Context) {
+	limit := 0
+	if v := c.Query("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			httpx.Error(c, apperr.Validation("invalid limit"))
+			return
+		}
+		limit = n
+	}
+
+	events, err := h.repo.ListTrending(c.Request.Context(), c.Query("city"), limit)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	dtos := make([]TrendingDTO, len(events))
+	for i, te := range events {
+		dtos[i] = te.ToDTO()
+	}
+	httpx.OK(c, http.StatusOK, dtos)
 }
 
 func (h *PublicHandler) get(c *gin.Context) {

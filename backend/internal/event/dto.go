@@ -55,3 +55,12 @@ func (e *Event) ToDTO() DTO {
 		CreatedAt:     e.CreatedAt,
 	}
 }
+
+type TrendingDTO struct {
+	DTO
+	RecentGoing int32 `json:"recentGoing"`
+}
+
+func (te *TrendingEvent) ToDTO() TrendingDTO {
+	return TrendingDTO{DTO: te.Event.ToDTO(), RecentGoing: te.RecentGoing}
+}

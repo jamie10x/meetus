@@ -12,6 +12,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"meetus.uz/backend/internal/channel"
 	"meetus.uz/backend/internal/config"
 	"meetus.uz/backend/internal/event"
 	"meetus.uz/backend/internal/feedback"
@@ -73,6 +74,7 @@ func run() error {
 		event.NewRepository(pool),
 		rsvp.NewRepository(pool),
 		feedback.NewRepository(pool),
+		channel.NewRepository(pool),
 		cfg.WebBaseURL,
 	)
 	if err != nil {

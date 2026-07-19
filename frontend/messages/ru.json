@@ -54,6 +54,10 @@
     "noResults": "По этим фильтрам пока ничего не найдено.",
     "loadMore": "Показать ещё"
   },
+  "trending": {
+    "title": "В тренде на этой неделе",
+    "badge": "{count} записались на этой неделе"
+  },
   "eventCard": {
     "going": "{count} участников",
     "spotsLeft": "осталось мест: {count}"
@@ -114,7 +118,12 @@
     "statusDraft": "черновик",
     "statusPublished": "опубликовано",
     "statusCanceled": "отменено",
-    "statusFinished": "завершено"
+    "statusFinished": "завершено",
+    "channelsHeading": "Подключённые каналы",
+    "channelsHint": "Добавьте {botUsername} администратором в свой Telegram-канал, чтобы подключить его — код не нужен, привязка происходит автоматически.",
+    "noChannels": "Пока нет подключённых каналов.",
+    "disconnect": "Отключить",
+    "connectedOn": "Подключён {date}"
   },
   "eventForm": {
     "titleLabel": "Название",
@@ -157,7 +166,12 @@
     "saveChanges": "Сохранить изменения",
     "cannotEdit": "Это мероприятие {status}, редактирование недоступно.",
     "actionFailed": "Не удалось выполнить действие.",
-    "deleteFailed": "Не удалось удалить."
+    "deleteFailed": "Не удалось удалить.",
+    "announceHeading": "Анонс в канал",
+    "announce": "Анонсировать",
+    "announcing": "Отправка…",
+    "announceSent": "Отправлено в {channel}",
+    "announceFailed": "Не удалось отправить анонс."
   },
   "scan": {
     "title": "Сканер регистрации",

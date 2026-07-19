@@ -115,6 +115,14 @@ default 20). Returns published public upcoming events, soonest first.
 → `data`: `{ "items": [event...], "nextCursor": string|null }`
 Pass `nextCursor` back as `cursor` for the next page.
 
+### GET /explore/trending
+Query params (all optional): `city` (slug), `limit` (≤20, default 6). Ranks
+published public upcoming events by RSVP velocity — joins in the **last 7
+days**, not lifetime total or date — ties broken by soonest start.
+
+→ `data`: array of event objects, each with one extra field:
+`"recentGoing"` (int — the count that drove the ranking).
+
 ### GET /explore/events/:id
 → `data`: event. Resolves published, finished, and canceled events
 (unlisted events resolve by direct link); drafts → 404.
@@ -192,6 +200,31 @@ Search by name/username (ILIKE, limit 50)
 ### POST /admin/users/:id/ban · /unban
 Ban blocks login **and** token refresh. Admins cannot ban admins or
 themselves. → `data`: `{ "id", "isBanned" }`
+
+## Channels & announcements
+
+A channel is connected by adding the bot as an **admin** to a Telegram
+channel — never by submitting a chat ID. See architecture.md for the
+verified-linking flow (`my_chat_member`).
+
+### GET /organizers/me/channels (auth + organizer)
+→ `data`: `[{ "id", "chatTitle", "connectedAt" }]`
+
+### DELETE /organizers/me/channels/:id (auth + organizer, owner only)
+→ `data`: `{ "disconnected": true }`. 404 if not found, 403 if owned by
+another organizer.
+
+### POST /events/:id/announce (auth + organizer, owner only)
+Body: `{ "channelId": number }`. Posts the event to the given channel,
+rendered in the **caller's own** `users.language` (channels have no
+per-channel language setting). Requires the event to be **published**
+and the channel to belong to the caller.
+
+→ `data`: `{ "sent": true }`.
+409 if the event isn't published, 403 if the channel or event belongs to
+someone else, 400 `"channel announcements are not configured on this
+server"` if the backend has no `TELEGRAM_BOT_TOKEN` (dev default), 500 if
+Telegram rejects the send (e.g. the bot lost admin rights since connecting).
 
 ## Uploads
 

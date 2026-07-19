@@ -145,3 +145,87 @@ func (r *Repository) GetPublished(ctx context.Context, id int64) (*Event, error)
 	}
 	return e, nil
 }
+
+const trendingMaxLimit = 20
+
+// trendingSelect mirrors eventSelect but adds a 7-day RSVP-velocity count —
+// a separate query rather than parameterizing eventSelect, since that
+// constant is shared by several well-tested read paths that don't need
+// this column.
+const trendingSelect = `
+	SELECT e.id, e.organizer_id, e.title, e.description, e.category_id,
+	       e.city_id, e.district, e.location_name, e.address, e.lat, e.lng,
+	       e.is_online, e.starts_at, e.ends_at, e.capacity, e.cover_url,
+	       e.status, e.visibility, e.created_at, e.updated_at,
+	       o.display_name, c.slug, ci.slug,
+	       (SELECT count(*) FROM rsvps r WHERE r.event_id = e.id AND r.status = 'going')::int,
+	       COALESCE(rc.recent_count, 0)::int
+	FROM events e
+	JOIN organizers o ON o.id = e.organizer_id
+	JOIN categories c ON c.id = e.category_id
+	LEFT JOIN cities ci ON ci.id = e.city_id
+	LEFT JOIN (
+	    SELECT event_id, count(*) AS recent_count
+	    FROM rsvps
+	    WHERE status = 'going' AND created_at > now() - interval '7 days'
+	    GROUP BY event_id
+	) rc ON rc.event_id = e.id
+`
+
+// TrendingEvent is a published upcoming event ranked by recent RSVP
+// velocity (joins in the last 7 days), not by total popularity or date —
+// a quiet event with a sudden burst of interest outranks a stale one with
+// a bigger lifetime total.
+type TrendingEvent struct {
+	Event
+	RecentGoing int32
+}
+
+func scanTrendingEvent(row pgx.Row) (*TrendingEvent, error) {
+	var te TrendingEvent
+	e := &te.Event
+	err := row.Scan(&e.ID, &e.OrganizerID, &e.Title, &e.Description, &e.CategoryID,
+		&e.CityID, &e.District, &e.LocationName, &e.Address, &e.Lat, &e.Lng,
+		&e.IsOnline, &e.StartsAt, &e.EndsAt, &e.Capacity, &e.CoverURL,
+		&e.Status, &e.Visibility, &e.CreatedAt, &e.UpdatedAt,
+		&e.OrganizerName, &e.CategorySlug, &e.CitySlug, &e.GoingCount, &te.RecentGoing)
+	if err != nil {
+		return nil, err
+	}
+	return &te, nil
+}
+
+// ListTrending returns published public upcoming events ordered by RSVP
+// velocity descending (ties broken by soonest start). citySlug, if set,
+// restricts to one city — matching the same slug convention as ListPublic.
+func (r *Repository) ListTrending(ctx context.Context, citySlug string, limit int) ([]*TrendingEvent, error) {
+	if limit <= 0 || limit > trendingMaxLimit {
+		limit = 6
+	}
+
+	query := trendingSelect + `
+		WHERE e.status = 'published' AND e.visibility = 'public' AND e.starts_at > now()`
+	args := []any{}
+	if citySlug != "" {
+		args = append(args, citySlug)
+		query += fmt.Sprintf(" AND ci.slug = $%d", len(args))
+	}
+	args = append(args, limit)
+	query += fmt.Sprintf(" ORDER BY recent_count DESC, e.starts_at ASC LIMIT $%d", len(args))
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list trending events: %w", err)
+	}
+	defer rows.Close()
+
+	events := make([]*TrendingEvent, 0, limit)
+	for rows.Next() {
+		te, err := scanTrendingEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, te)
+	}
+	return events, rows.Err()
+}

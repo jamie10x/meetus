@@ -102,6 +102,16 @@ No `comment` column yet — ratings only; add one via a new migration if
 free-text feedback becomes a requirement (deliberately not built ahead of
 need, see roadmap.md).
 
+### channel_connections
+Links a Telegram channel to the organizer who can post to it. `chat_id`
+UNIQUE — one channel connects to exactly one organizer at a time; if the
+bot is re-added as admin by a different organizer, `ON CONFLICT (chat_id)
+DO UPDATE` reassigns ownership rather than erroring. Rows are written only
+by `channel.Repository.ConnectByTelegramID` (from tgbot's `my_chat_member`
+handler — never from a user-supplied chat ID) and deleted by `Disconnect`
+when the bot is demoted, kicked, or leaves. See architecture.md's "Channel
+connections and announcements".
+
 ## Query conventions
 
 - Repositories use explicit column lists + a `scanX(row)` helper per entity

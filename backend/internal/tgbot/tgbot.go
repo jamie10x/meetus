@@ -15,6 +15,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
+	"meetus.uz/backend/internal/channel"
 	"meetus.uz/backend/internal/event"
 	"meetus.uz/backend/internal/feedback"
 	"meetus.uz/backend/internal/notification"
@@ -39,23 +40,21 @@ type Bot struct {
 	events     *event.Repository
 	rsvps      *rsvp.Repository
 	feedback   *feedback.Repository
+	channels   *channel.Repository
 	webBaseURL string
 	loc        *time.Location
 }
 
-func New(token string, users *user.Repository, events *event.Repository, rsvps *rsvp.Repository, feedbackRepo *feedback.Repository, webBaseURL string) (*Bot, error) {
+func New(token string, users *user.Repository, events *event.Repository, rsvps *rsvp.Repository, feedbackRepo *feedback.Repository, channels *channel.Repository, webBaseURL string) (*Bot, error) {
 	b := &Bot{
 		users:      users,
 		events:     events,
 		rsvps:      rsvps,
 		feedback:   feedbackRepo,
+		channels:   channels,
 		webBaseURL: webBaseURL,
 	}
-	loc, err := time.LoadLocation("Asia/Tashkent")
-	if err != nil {
-		loc = time.FixedZone("UZT", 5*3600)
-	}
-	b.loc = loc
+	b.loc = tashkentLocation()
 
 	api, err := bot.New(token, bot.WithDefaultHandler(b.handleDefault))
 	if err != nil {
@@ -101,7 +100,21 @@ func (b *Bot) upsertUser(ctx context.Context, from *models.User) (*user.User, er
 // the bot is already speaking, instead of round-tripping through the
 // browser's own locale detection.
 func (b *Bot) webURL(l lang, path string) string {
-	return b.webBaseURL + "/" + string(l) + path
+	return buildWebURL(b.webBaseURL, l, path)
+}
+
+// tashkentLocation is shared by Bot and Announcer for date formatting —
+// there is exactly one timezone the whole product cares about.
+func tashkentLocation() *time.Location {
+	loc, err := time.LoadLocation("Asia/Tashkent")
+	if err != nil {
+		return time.FixedZone("UZT", 5*3600)
+	}
+	return loc
+}
+
+func buildWebURL(webBaseURL string, l lang, path string) string {
+	return webBaseURL + "/" + string(l) + path
 }
 
 func (b *Bot) send(ctx context.Context, chatID int64, text string, markup models.ReplyMarkup) {
@@ -131,6 +144,12 @@ func (b *Bot) handleStart(ctx context.Context, _ *bot.Bot, update *models.Update
 }
 
 func (b *Bot) handleDefault(ctx context.Context, _ *bot.Bot, update *models.Update) {
+	// No dedicated registration mechanism for non-message/callback update
+	// types in this library — my_chat_member updates land here too.
+	if update.MyChatMember != nil {
+		b.handleMyChatMember(ctx, update.MyChatMember)
+		return
+	}
 	if update.Message == nil || update.Message.From == nil {
 		return
 	}
@@ -299,6 +318,46 @@ func (b *Bot) handleLanguageCallback(ctx context.Context, _ *bot.Bot, update *mo
 	b.send(ctx, chatIDOf(cq), tf(newLang, kLanguageSet, langDisplayName(newLang)), nil)
 }
 
+// handleMyChatMember fires whenever the bot's own membership changes in a
+// chat. The only case handled: the bot is made an admin of a channel —
+// that's the verified proof needed to link the channel to whoever added
+// it, if they have an organizer profile. Any other transition (demoted,
+// removed, left) disconnects the channel, since the bot can no longer
+// post there.
+func (b *Bot) handleMyChatMember(ctx context.Context, mcm *models.ChatMemberUpdated) {
+	if mcm.Chat.Type != models.ChatTypeChannel {
+		return
+	}
+
+	adderID := mcm.From.ID
+	u, err := b.upsertUser(ctx, &mcm.From)
+	l := langEn
+	if err == nil {
+		l = normalizeLang(u.Language)
+	}
+
+	switch mcm.NewChatMember.Type {
+	case models.ChatMemberTypeAdministrator, models.ChatMemberTypeOwner:
+		organizerName, ok, err := b.channels.ConnectByTelegramID(ctx, adderID, mcm.Chat.ID, mcm.Chat.Title)
+		if err != nil {
+			slog.Error("channel connect failed", "chat_id", mcm.Chat.ID, "err", err)
+			return
+		}
+		if ok {
+			slog.Info("channel connected", "chat_id", mcm.Chat.ID, "organizer", organizerName)
+			b.send(ctx, adderID, tf(l, kChannelConnected, escape(mcm.Chat.Title)), nil)
+		} else {
+			// Best-effort DM; fails silently if they've never started the
+			// bot (Telegram requires a prior interaction to message a user).
+			b.send(ctx, adderID, t(l, kChannelConnectNeedsOrganizer), nil)
+		}
+	default:
+		if err := b.channels.Disconnect(ctx, mcm.Chat.ID); err != nil {
+			slog.Error("channel disconnect failed", "chat_id", mcm.Chat.ID, "err", err)
+		}
+	}
+}
+
 // handleFeedback records a tapped star rating. Repeated taps upsert
 // (Repository.Submit is idempotent), so no extra guard is needed here.
 func (b *Bot) handleFeedback(ctx context.Context, _ *bot.Bot, update *models.Update) {
@@ -407,12 +466,20 @@ func (b *Bot) SendFeedbackRequest(ctx context.Context, f *notification.FeedbackD
 }
 
 func (b *Bot) formatTime(l lang, tm time.Time) string {
-	local := tm.In(b.loc)
+	return formatEventTime(l, tm, b.loc)
+}
+
+func formatEventTime(l lang, tm time.Time, loc *time.Location) string {
+	local := tm.In(loc)
 	weekday := weekdayNames[l][int(local.Weekday())]
 	return weekday + ", " + local.Format("02.01 15:04")
 }
 
 func (b *Bot) placeLabel(l lang, e *event.Event) string {
+	return eventPlaceLabel(l, e)
+}
+
+func eventPlaceLabel(l lang, e *event.Event) string {
 	if e.IsOnline {
 		return t(l, kPlaceOnline)
 	}

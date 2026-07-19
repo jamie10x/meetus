@@ -29,7 +29,7 @@ Read this file first, then the doc that matches your task:
 ```text
 backend/            Go module "meetus.uz/backend"
   cmd/api           HTTP server        cmd/worker  bot + reminders     cmd/migrate  DB migrations
-  internal/<module> auth, user, organizer, event, rsvp, notification, tgbot, feedback, admin, housekeeping, meta, upload
+  internal/<module> auth, user, organizer, event, rsvp, notification, tgbot, feedback, channel, admin, housekeeping, meta, upload
   internal/platform apperr, authn (JWT+middleware), tglang (lang-code mapping), db, httpx, ratelimit, redisx
   internal/server   router.go — all wiring/DI happens here
   db/migrations     NNNN_name.up.sql / .down.sql (embedded into the migrate binary)
@@ -85,4 +85,8 @@ cd frontend && npm run build   # frontend typecheck + build (do this before comm
 - **`users.language` is set once, on insert, and never overwritten** by later logins (see `user.Repository.UpsertTelegramUser` — `language` is deliberately absent from the `ON CONFLICT DO UPDATE SET` list). Only `/language` (bot) or `PATCH /me` (web) change it after creation. Guarded by a test: `user.TestUpsertTelegramUser_LanguageSetOnInsertOnly`.
 - Bot strings live in `tgbot/i18n.go` as whole-sentence templates per language (not word-by-word) — add a new `msgKey` to both the const block and `i18n_test.go`'s `allKeys`, or the completeness test catches it, not a runtime fallback.
 - `event_feedback` has no `comment` column on purpose (ratings only) — see roadmap.md before adding one.
+- **A channel connects only via `my_chat_member`** (bot added as channel admin) — never accept a typed-in chat ID from a user; that would let anyone claim a channel they don't control. See `channel.Repository.ConnectByTelegramID` and architecture.md.
+- `channel.Announcer` is an **interface defined in `channel`**, satisfied by `*tgbot.Announcer` — `channel` must never import `tgbot` (the reverse already does, for `my_chat_member`; Go disallows the cycle). If you need the bot to call into `channel` for something new, extend the existing interface pattern rather than adding a direct import.
+- `tgbot.Announcer` and `tgbot.Bot` share formatting helpers as **package-level functions** (`formatEventTime`, `eventPlaceLabel`, `buildWebURL`, `tashkentLocation`) rather than `*Bot` methods, specifically so `Announcer` (used in the API process, never polls) can reuse them without needing a `*Bot`. Keep new shared bot logic at this level too, not as a `*Bot`-only method, if `Announcer` might ever need it.
+- `event.Repository.ListTrending` ranks by **RSVP velocity in the last 7 days**, not lifetime `goingCount` — a separate query (`trendingSelect`) from `ListPublic`, deliberately not parameterized onto the shared `eventSelect`.
 - Working directory: Go commands need `cd backend`; the Makefile handles this.

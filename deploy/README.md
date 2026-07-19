@@ -47,6 +47,15 @@ from the inline `web_app` buttons the bot already sends on event messages
 config needed for them specifically) — the menu button is the one thing
 that genuinely requires this manual step.
 
+Channel announcements need **no BotFather configuration at all** — it's
+entirely self-service per organizer. An organizer adds the bot as an
+**admin** to their own Telegram channel (Channel → Administrators → Add
+Admin), and the bot automatically links it to their organizer profile via
+Telegram's `my_chat_member` update (see architecture.md). This requires
+`TELEGRAM_BOT_TOKEN` to be set, same as everything else bot-related; a
+deployment without it simply returns a clear "not configured" error on the
+announce endpoint instead of failing to start.
+
 ## Deploying updates
 
 ```bash

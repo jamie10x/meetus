@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import type { EventItem, Organizer } from "@/lib/types";
+import type { Channel, EventItem, Organizer } from "@/lib/types";
 
 type OrganizerStats = {
   totalEvents: number;
@@ -13,6 +13,8 @@ type OrganizerStats = {
   totalRsvps: number;
   totalCheckins: number;
 };
+
+const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "";
 
 export default function OrganizerPage() {
   const t = useTranslations("organizer");
@@ -23,6 +25,7 @@ export default function OrganizerPage() {
   const [organizer, setOrganizer] = useState<Organizer | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [stats, setStats] = useState<OrganizerStats | null>(null);
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [checked, setChecked] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
@@ -56,6 +59,9 @@ export default function OrganizerPage() {
         api<OrganizerStats>("/organizers/me/stats", { auth: true })
           .then(setStats)
           .catch(() => setStats(null));
+        api<Channel[]>("/organizers/me/channels", { auth: true })
+          .then(setChannels)
+          .catch(() => setChannels([]));
       })
       .catch(() => setOrganizer(null))
       .finally(() => setChecked(true));
@@ -64,6 +70,15 @@ export default function OrganizerPage() {
   if (loading || !user || !checked) {
     return <main className="p-8 text-center text-zinc-500">{t("loading")}</main>;
   }
+
+  const disconnectChannel = async (id: number) => {
+    try {
+      await api(`/organizers/me/channels/${id}`, { method: "DELETE", auth: true });
+      setChannels((prev) => prev.filter((c) => c.id !== id));
+    } catch {
+      // Non-critical; the list will just show the stale entry until refresh.
+    }
+  };
 
   if (!organizer) {
     const become = async (e: React.FormEvent) => {
@@ -196,6 +211,44 @@ export default function OrganizerPage() {
           ))}
         </ul>
       )}
+
+      <section className="mt-10">
+        <h2 className="mb-2 text-lg font-semibold">{t("channelsHeading")}</h2>
+        {BOT_USERNAME ? (
+          <p className="mb-4 text-sm text-zinc-500">
+            {t("channelsHint", { botUsername: `@${BOT_USERNAME}` })}
+          </p>
+        ) : null}
+        {channels.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
+            {t("noChannels")}
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {channels.map((c) => (
+              <li
+                key={c.id}
+                className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-3 dark:border-zinc-800"
+              >
+                <div>
+                  <p className="font-medium">{c.chatTitle}</p>
+                  <p className="text-xs text-zinc-500">
+                    {t("connectedOn", {
+                      date: new Date(c.connectedAt).toLocaleDateString(),
+                    })}
+                  </p>
+                </div>
+                <button
+                  onClick={() => disconnectChannel(c.id)}
+                  className="rounded-lg border border-red-500 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                >
+                  {t("disconnect")}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </main>
   );
 }

@@ -33,6 +33,12 @@ export type MetaItem = {
 /** Raw payload delivered by the Telegram Login Widget callback. */
 export type TelegramAuthFields = Record<string, string>;
 
+export type Channel = {
+  id: number;
+  chatTitle: string;
+  connectedAt: string;
+};
+
 export type Organizer = {
   id: number;
   displayName: string;
@@ -67,6 +73,10 @@ export type EventItem = {
   visibility: "public" | "unlisted";
   goingCount: number;
   createdAt: string;
+};
+
+export type TrendingEventItem = EventItem & {
+  recentGoing: number;
 };
 
 export type EventInput = {

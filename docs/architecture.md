@@ -46,11 +46,12 @@ service would be pure pass-through (`meta`, `organizer`, `upload`).
 | `platform/tglang` | Telegram `language_code` → uz/ru/en mapping | leaf package — shared by `auth` (Mini App login) and `tgbot` so both first-contact paths agree |
 | `user` | users table, profile GET/PATCH | `Repository.UpsertTelegramUser` (used by auth **and** bot) |
 | `organizer` | organizer profiles, `RequireOrganizer` middleware, `OrganizerID(c)` | |
-| `event` | event CRUD + lifecycle (owner side), public explore queries | `Repository.ListPublic` (keyset pagination), `Service` lifecycle rules |
+| `event` | event CRUD + lifecycle (owner side), public explore queries, trending ranking | `Repository.ListPublic`/`ListTrending` (keyset pagination), `Service` lifecycle rules |
 | `rsvp` | RSVPs, tickets, QR signing, check-in, attendees | `TicketSigner`, transactional `Repository.Join` |
 | `notification` | due-reminder + due-feedback queries, sent log | `Repository.Due`/`MarkSent`, `DueFeedback`/`MarkFeedbackSent` |
-| `tgbot` | Telegram bot handlers, i18n catalog, reminder/feedback message sending | `Bot.Start`, `Bot.SendReminder`, `Bot.SendFeedbackRequest`, `i18n.go` |
+| `tgbot` | Telegram bot handlers, i18n catalog, reminder/feedback/announcement message sending | `Bot.Start`, `Bot.SendReminder`, `Bot.SendFeedbackRequest`, `Announcer` (non-polling sender), `i18n.go` |
 | `feedback` | post-event 1-5 star ratings | `Repository.Submit` (upsert, requires an RSVP), `SummaryFor` |
+| `channel` | verified organizer↔Telegram-channel links, announce-to-channel endpoint | `Repository.ConnectByTelegramID` (called from tgbot's `my_chat_member` handler), `Announcer` interface (defined here, satisfied by `tgbot.Announcer`, to avoid channel↔tgbot import cycle) |
 | `meta` | cities/categories reference data | |
 | `upload` | cover image upload + static serving | content-type sniffing, 5 MB cap |
 | `admin` | platform moderation (stats, event override, ban/unban) | `RequireAdmin` middleware, gated by `users.is_admin` |
@@ -173,6 +174,70 @@ server-side (deduped via React `cache`) and emits Open Graph tags — this is
 what makes event links unfurl nicely when shared in Telegram chats. That
 page is the product's viral loop; don't break its SSR.
 
+### Trending
+`event.Repository.ListTrending` ranks published public upcoming events by
+RSVP velocity — `going` RSVPs created in the **last 7 days** — not lifetime
+total or date. It's a separate query (`trendingSelect`) rather than a
+parameter on `eventSelect`/`ListPublic`, since those are shared by several
+well-tested read paths that don't need the extra column. Ties break by
+soonest start. `frontend/src/components/TrendingSection.tsx` renders it as
+its own headed rail on both the home page (nationwide) and the Explore
+page (respecting the current city filter only — category/date/search
+filters don't apply, by design, so the rail stays a stable "what's hot"
+signal rather than re-filtering with the grid below it); it renders nothing
+when there's no signal yet, so a fresh install never shows an awkward empty
+section.
+
+### Channel connections and announcements
+Organizers can push a published event to a Telegram channel they control.
+Connection is **never** a typed-in chat ID — it's proof the bot can
+actually post there:
+
+1. Organizer adds the bot as **admin** to their channel. Telegram sends a
+   `my_chat_member` update (delivered by default — no `allowed_updates`
+   config needed; excluded update types are `chat_member`,
+   `message_reaction`, `message_reaction_count`, and this isn't one of
+   them).
+2. The `go-telegram/bot` library has no dedicated handler type for
+   `my_chat_member` (only message-text/callback-data/photo-caption pattern
+   handlers exist) — it falls through to the **default handler**
+   (`tgbot.Bot.handleDefault`), which checks `update.MyChatMember != nil`
+   first, before assuming `update.Message != nil`.
+3. `channel.Repository.ConnectByTelegramID` resolves the adder's Telegram
+   ID → `users.telegram_id` → `organizers.user_id` in one query. No
+   organizer profile for that user → `ok=false`, no row written, and the
+   bot DMs a "you need an organizer profile first" message instead of
+   silently failing. A channel already connected to a different organizer
+   is reassigned (`ON CONFLICT (chat_id) DO UPDATE`) — the last person to
+   (re-)add the bot as admin owns the channel.
+4. Any other membership transition (demoted, kicked, left) calls
+   `Disconnect` — the bot can no longer post there, so the link is removed
+   rather than left dangling.
+
+Sending an announcement is **not** routed through the worker's
+send-everything-async pattern (reminders, feedback prompts) — it's an
+organizer clicking a button and wanting to know now whether it worked, not
+a scheduled batch job. So `internal/server/router.go` constructs a second,
+lightweight Telegram client — `tgbot.Announcer` — directly in the API
+process, built with `bot.WithSkipGetMe()` to skip the network round trip
+`bot.New` would otherwise make on every API server boot. It shares
+`tgbot`'s i18n catalog and formatting helpers (`formatEventTime`,
+`eventPlaceLabel`, `buildWebURL` — all package-level functions, not `*Bot`
+methods, precisely so `Announcer` can reuse them without needing a `*Bot`).
+`POST /events/:id/announce` (`channel.Handler.announce`) checks: caller
+owns the event, event is `published`, caller owns the target channel — then
+calls `Announcer.SendAnnouncement`, rendered in the **caller's own**
+`users.language` (channels have no per-channel language setting).
+
+`channel.Announcer` is a Go **interface**, defined in the `channel`
+package itself and satisfied structurally by `*tgbot.Announcer` — `channel`
+never imports `tgbot`. It can't: `tgbot` already imports `channel` for the
+`my_chat_member` handler, and Go doesn't allow the reverse. If a dev
+environment has no `TELEGRAM_BOT_TOKEN` configured, `router.go` passes a
+nil `channel.Announcer` rather than failing the whole server to boot —
+`announce` checks for that and returns a clear "not configured" error
+instead of crashing.
+
 ### Website i18n and locale routing
 The website (not just the bot) is fully translated uz/ru/en via
 [next-intl](https://next-intl.dev), with **locale-prefixed URLs**
@@ -267,3 +332,7 @@ violations are translated to `Validation` in repositories (`mapWriteErr`).
 | Locale-prefixed URLs (`localePrefix: "always"`), not cookie-only | Every language gets its own shareable, indexable, OG-taggable URL — matches why SSR/OG mattered for events in the first place |
 | Mini App reuses the same Next.js deployment | A Telegram Mini App is just this site + one SDK script; a separate build would duplicate the entire frontend for no benefit |
 | `beforeInteractive` SDK script + `suppressHydrationWarning`, not `afterInteractive` + polling | Tried the polling approach first — `afterInteractive` doesn't strictly guarantee execution after hydration finishes, so it still raced; deterministic availability + suppressing the one known benign attribute mismatch is simpler and correct |
+| Channel linking via `my_chat_member`, never a typed-in chat ID | The only way to get *proof* the bot can actually post there; a typed ID could belong to a channel the organizer doesn't control |
+| Announcer as a second, non-polling bot client (`bot.WithSkipGetMe`) in the API process, not routed through the worker's async queue pattern | Organizer wants to know *now* whether the send worked — a scheduled/queued job is the wrong shape for a one-off, user-initiated action |
+| `channel.Announcer` interface defined in `channel`, not imported from `tgbot` | `tgbot` already imports `channel` (for `my_chat_member`); Go doesn't allow the reverse, so the interface lives at the consumer instead |
+| Trending is a separate query, not a parameter on `eventSelect` | `eventSelect` backs several already-tested read paths that don't need the extra RSVP-velocity column; duplicating one query is simpler than parameterizing a shared one |

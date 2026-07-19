@@ -54,6 +54,10 @@
     "noResults": "Bu filtrlar bo'yicha tadbirlar topilmadi.",
     "loadMore": "Ko'proq ko'rsatish"
   },
+  "trending": {
+    "title": "Shu hafta mashhur",
+    "badge": "{count} kishi shu hafta qo'shildi"
+  },
   "eventCard": {
     "going": "{count} kishi ishtirok etmoqda",
     "spotsLeft": "{count} joy qoldi"
@@ -114,7 +118,12 @@
     "statusDraft": "qoralama",
     "statusPublished": "e'lon qilingan",
     "statusCanceled": "bekor qilingan",
-    "statusFinished": "yakunlangan"
+    "statusFinished": "yakunlangan",
+    "channelsHeading": "Ulangan kanallar",
+    "channelsHint": "Kanalingizni ulash uchun {botUsername} ni Telegram kanalingizga admin qilib qo'shing — kod kerak emas, ulanish avtomatik amalga oshadi.",
+    "noChannels": "Hozircha ulangan kanallar yo'q.",
+    "disconnect": "Uzish",
+    "connectedOn": "{date} da ulangan"
   },
   "eventForm": {
     "titleLabel": "Sarlavha",
@@ -157,7 +166,12 @@
     "saveChanges": "O'zgarishlarni saqlash",
     "cannotEdit": "Bu tadbir {status}, uni endi tahrirlab bo'lmaydi.",
     "actionFailed": "Amalni bajarib bo'lmadi.",
-    "deleteFailed": "O'chirib bo'lmadi."
+    "deleteFailed": "O'chirib bo'lmadi.",
+    "announceHeading": "Kanalga e'lon qilish",
+    "announce": "E'lon qilish",
+    "announcing": "Yuborilmoqda…",
+    "announceSent": "{channel} ga yuborildi",
+    "announceFailed": "E'lonni yuborib bo'lmadi."
   },
   "scan": {
     "title": "Ro'yxatga olish skaneri",

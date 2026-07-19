@@ -12,6 +12,7 @@ var allKeys = []msgKey{
 	kLanguagePrompt, kLanguageSet, kFeedbackPrompt, kFeedbackThanks,
 	kReminder24h, kReminder1h, kPlaceOnline, kPlaceSeeEventPage, kPlaceInPerson,
 	kErrAlreadyJoined, kErrEventFull, kErrNotOpen, kErrAlreadyStarted, kErrGeneric,
+	kChannelConnected, kChannelConnectNeedsOrganizer, kAnnouncementCta,
 }
 
 func TestCatalog_CompleteForEveryLanguage(t *testing.T) {

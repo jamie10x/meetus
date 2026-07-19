@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import EventForm from "@/components/EventForm";
 import { api, ApiError } from "@/lib/api";
-import type { EventInput, EventItem } from "@/lib/types";
+import type { Channel, EventInput, EventItem } from "@/lib/types";
 
 export default function EditEventPage({
   params,
@@ -20,6 +20,10 @@ export default function EditEventPage({
   const [event, setEvent] = useState<EventItem | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [announceState, setAnnounceState] = useState<
+    Record<number, "sending" | "sent" | "failed">
+  >({});
 
   useEffect(() => {
     api<EventItem[]>("/events/mine", { auth: true })
@@ -29,6 +33,9 @@ export default function EditEventPage({
         else setNotFound(true);
       })
       .catch(() => setNotFound(true));
+    api<Channel[]>("/organizers/me/channels", { auth: true })
+      .then(setChannels)
+      .catch(() => setChannels([]));
   }, [id]);
 
   if (notFound) {
@@ -57,6 +64,20 @@ export default function EditEventPage({
       setEvent(updated);
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : t("actionFailed"));
+    }
+  };
+
+  const announce = async (channelId: number) => {
+    setAnnounceState((prev) => ({ ...prev, [channelId]: "sending" }));
+    try {
+      await api(`/events/${event.id}/announce`, {
+        method: "POST",
+        auth: true,
+        body: { channelId },
+      });
+      setAnnounceState((prev) => ({ ...prev, [channelId]: "sent" }));
+    } catch {
+      setAnnounceState((prev) => ({ ...prev, [channelId]: "failed" }));
     }
   };
 
@@ -138,6 +159,38 @@ export default function EditEventPage({
 
       {actionError ? (
         <p className="mb-4 text-sm text-red-600">{actionError}</p>
+      ) : null}
+
+      {event.status === "published" && channels.length > 0 ? (
+        <div className="mb-6 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+          <h2 className="mb-3 text-sm font-semibold">{t("announceHeading")}</h2>
+          <ul className="flex flex-col gap-2">
+            {channels.map((ch) => {
+              const state = announceState[ch.id];
+              return (
+                <li key={ch.id} className="flex items-center justify-between gap-3">
+                  <span className="text-sm">{ch.chatTitle}</span>
+                  <div className="flex items-center gap-2">
+                    {state === "sent" ? (
+                      <span className="text-xs text-green-600 dark:text-green-400">
+                        {t("announceSent", { channel: ch.chatTitle })}
+                      </span>
+                    ) : state === "failed" ? (
+                      <span className="text-xs text-red-600">{t("announceFailed")}</span>
+                    ) : null}
+                    <button
+                      onClick={() => announce(ch.id)}
+                      disabled={state === "sending"}
+                      className={`${btn} border-sky-500 text-sky-600 hover:bg-sky-50 disabled:opacity-50 dark:hover:bg-sky-950`}
+                    >
+                      {state === "sending" ? t("announcing") : t("announce")}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       ) : null}
 
       {event.status === "draft" || event.status === "published" ? (

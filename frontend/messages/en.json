@@ -54,6 +54,10 @@
     "noResults": "No events match these filters yet.",
     "loadMore": "Load more"
   },
+  "trending": {
+    "title": "Trending this week",
+    "badge": "{count} joined this week"
+  },
   "eventCard": {
     "going": "{count} going",
     "spotsLeft": "{count} spots left"
@@ -114,7 +118,12 @@
     "statusDraft": "draft",
     "statusPublished": "published",
     "statusCanceled": "canceled",
-    "statusFinished": "finished"
+    "statusFinished": "finished",
+    "channelsHeading": "Connected channels",
+    "channelsHint": "Add {botUsername} as an admin to your Telegram channel to connect it — no code needed, it links automatically.",
+    "noChannels": "No channels connected yet.",
+    "disconnect": "Disconnect",
+    "connectedOn": "Connected {date}"
   },
   "eventForm": {
     "titleLabel": "Title",
@@ -157,7 +166,12 @@
     "saveChanges": "Save changes",
     "cannotEdit": "This event is {status} and can no longer be edited.",
     "actionFailed": "Action failed.",
-    "deleteFailed": "Delete failed."
+    "deleteFailed": "Delete failed.",
+    "announceHeading": "Announce to channel",
+    "announce": "Announce",
+    "announcing": "Sending…",
+    "announceSent": "Sent to {channel}",
+    "announceFailed": "Could not send the announcement."
   },
   "scan": {
     "title": "Check-in scanner",

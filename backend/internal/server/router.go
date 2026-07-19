@@ -13,6 +13,7 @@ import (
 
 	"meetus.uz/backend/internal/admin"
 	"meetus.uz/backend/internal/auth"
+	"meetus.uz/backend/internal/channel"
 	"meetus.uz/backend/internal/config"
 	"meetus.uz/backend/internal/event"
 	"meetus.uz/backend/internal/feedback"
@@ -21,6 +22,7 @@ import (
 	"meetus.uz/backend/internal/platform/authn"
 	"meetus.uz/backend/internal/platform/ratelimit"
 	"meetus.uz/backend/internal/rsvp"
+	"meetus.uz/backend/internal/tgbot"
 	"meetus.uz/backend/internal/upload"
 	"meetus.uz/backend/internal/user"
 )
@@ -81,6 +83,21 @@ func New(deps Deps) (*gin.Engine, error) {
 	admin.NewHandler(deps.Pool, eventRepo).Register(api, requireAuth, admin.RequireAdmin(userRepo))
 
 	feedback.NewHandler(feedback.NewRepository(deps.Pool), eventRepo).Register(api, requireAuth, requireOrganizer)
+
+	// The announcer needs a real bot token; dev environments without one
+	// configured simply don't get channel announcements (the endpoint
+	// returns a clear error) rather than failing the whole server to boot.
+	var announcer channel.Announcer
+	if cfg.TelegramBotToken != "" {
+		a, err := tgbot.NewAnnouncer(cfg.TelegramBotToken, cfg.WebBaseURL)
+		if err != nil {
+			return nil, err
+		}
+		announcer = a
+	}
+	channelRepo := channel.NewRepository(deps.Pool)
+	channel.NewHandler(channelRepo, eventRepo, userRepo, announcer).Register(api, requireAuth, requireOrganizer)
+
 	uploadHandler.Register(api, r, requireAuth)
 
 	return r, nil

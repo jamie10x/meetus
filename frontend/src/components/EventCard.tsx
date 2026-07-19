@@ -12,7 +12,13 @@ export function formatEventDate(iso: string, locale: string): string {
   });
 }
 
-export default function EventCard({ event }: { event: EventItem }) {
+type Props = {
+  event: EventItem;
+  /** Optional corner badge, e.g. a trending indicator. */
+  badge?: string;
+};
+
+export default function EventCard({ event, badge }: Props) {
   const t = useTranslations("eventCard");
   const tExplore = useTranslations("explore");
   const locale = useLocale();
@@ -20,8 +26,13 @@ export default function EventCard({ event }: { event: EventItem }) {
   return (
     <Link
       href={`/events/${event.id}`}
-      className="flex gap-4 rounded-xl border border-zinc-200 p-4 transition-colors hover:border-sky-400 dark:border-zinc-800"
+      className="relative flex gap-4 rounded-xl border border-zinc-200 p-4 transition-colors hover:border-sky-400 dark:border-zinc-800"
     >
+      {badge ? (
+        <span className="absolute -top-2 right-3 rounded-full bg-orange-500 px-2.5 py-0.5 text-xs font-medium text-white shadow-sm">
+          {badge}
+        </span>
+      ) : null}
       {event.coverUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img

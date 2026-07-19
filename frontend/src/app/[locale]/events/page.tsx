@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import EventCard from "@/components/EventCard";
+import TrendingSection from "@/components/TrendingSection";
 import { api } from "@/lib/api";
 import type { EventItem, MetaItem } from "@/lib/types";
 
@@ -120,6 +121,8 @@ export default function ExplorePage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="mb-6 text-3xl font-bold">{t("title")}</h1>
+
+      <TrendingSection city={city} />
 
       <div className="mb-6 flex flex-wrap gap-2">
         <input
