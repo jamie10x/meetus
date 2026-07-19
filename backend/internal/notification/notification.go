@@ -13,8 +13,9 @@ import (
 type Kind string
 
 const (
-	KindReminder24h Kind = "reminder_24h"
-	KindReminder1h  Kind = "reminder_1h"
+	KindReminder24h     Kind = "reminder_24h"
+	KindReminder1h      Kind = "reminder_1h"
+	KindFeedbackRequest Kind = "feedback_request"
 )
 
 // windows defines how far ahead each reminder kind looks, and the minimum
@@ -38,6 +39,7 @@ type Reminder struct {
 	IsOnline       bool
 	UserID         int64
 	UserTelegramID int64
+	UserLanguage   string
 }
 
 type Repository struct {
@@ -57,7 +59,7 @@ func (r *Repository) Due(ctx context.Context, kind Kind) ([]*Reminder, error) {
 
 	rows, err := r.pool.Query(ctx, `
 		SELECT e.id, e.title, e.starts_at, e.location_name, ci.slug, e.is_online,
-		       u.id, u.telegram_id
+		       u.id, u.telegram_id, u.language
 		FROM events e
 		JOIN rsvps rv ON rv.event_id = e.id AND rv.status = 'going'
 		JOIN users u ON u.id = rv.user_id
@@ -81,12 +83,69 @@ func (r *Repository) Due(ctx context.Context, kind Kind) ([]*Reminder, error) {
 		rem := &Reminder{Kind: kind}
 		if err := rows.Scan(&rem.EventID, &rem.EventTitle, &rem.StartsAt,
 			&rem.LocationName, &rem.CitySlug, &rem.IsOnline,
-			&rem.UserID, &rem.UserTelegramID); err != nil {
+			&rem.UserID, &rem.UserTelegramID, &rem.UserLanguage); err != nil {
 			return nil, err
 		}
 		reminders = append(reminders, rem)
 	}
 	return reminders, rows.Err()
+}
+
+// FeedbackDue is a pending "how was the event?" prompt for one attendee
+// of one finished event.
+type FeedbackDue struct {
+	EventID        int64
+	EventTitle     string
+	UserID         int64
+	UserTelegramID int64
+	UserLanguage   string
+}
+
+// DueFeedback returns feedback prompts not yet sent, for events already
+// flipped to "finished" by the housekeeping job. Unlike reminders there is
+// no time window: notification_log dedup means each (event, user) is
+// asked exactly once, whenever the scan next runs after the event ends.
+func (r *Repository) DueFeedback(ctx context.Context) ([]*FeedbackDue, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT e.id, e.title, u.id, u.telegram_id, u.language
+		FROM events e
+		JOIN rsvps rv ON rv.event_id = e.id AND rv.status = 'going'
+		JOIN users u ON u.id = rv.user_id
+		WHERE e.status = 'finished'
+		  AND NOT EXISTS (
+		      SELECT 1 FROM notification_log nl
+		      WHERE nl.event_id = e.id AND nl.user_id = u.id AND nl.kind = $1
+		  )
+		ORDER BY e.id`,
+		string(KindFeedbackRequest))
+	if err != nil {
+		return nil, fmt.Errorf("query due feedback: %w", err)
+	}
+	defer rows.Close()
+
+	due := make([]*FeedbackDue, 0, 32)
+	for rows.Next() {
+		f := &FeedbackDue{}
+		if err := rows.Scan(&f.EventID, &f.EventTitle, &f.UserID, &f.UserTelegramID, &f.UserLanguage); err != nil {
+			return nil, err
+		}
+		due = append(due, f)
+	}
+	return due, rows.Err()
+}
+
+// MarkFeedbackSent records the prompt attempt so it fires at most once
+// per (event, user), regardless of send outcome.
+func (r *Repository) MarkFeedbackSent(ctx context.Context, f *FeedbackDue) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO notification_log (event_id, user_id, kind)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (event_id, user_id, kind) DO NOTHING`,
+		f.EventID, f.UserID, string(KindFeedbackRequest))
+	if err != nil {
+		return fmt.Errorf("mark feedback sent: %w", err)
+	}
+	return nil
 }
 
 // MarkSent records the send attempt. It is recorded even when Telegram

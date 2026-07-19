@@ -34,16 +34,19 @@ func scanUser(row pgx.Row) (*User, error) {
 // UpsertTelegramUser creates the user on first login and refreshes
 // name/username/avatar on subsequent logins.
 func (r *Repository) UpsertTelegramUser(ctx context.Context, p TelegramProfile) (*User, error) {
+	// language is set from $5 on INSERT only — deliberately absent from
+	// the DO UPDATE SET list, so an existing user's language choice is
+	// never overwritten by a later login.
 	row := r.pool.QueryRow(ctx, `
-		INSERT INTO users (telegram_id, name, username, avatar_url)
-		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''))
+		INSERT INTO users (telegram_id, name, username, avatar_url, language)
+		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), $5)
 		ON CONFLICT (telegram_id) DO UPDATE SET
 			name       = EXCLUDED.name,
 			username   = COALESCE(EXCLUDED.username, users.username),
 			avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
 			updated_at = now()
 		RETURNING `+userColumns,
-		p.TelegramID, p.Name, p.Username, p.AvatarURL)
+		p.TelegramID, p.Name, p.Username, p.AvatarURL, p.Language)
 
 	u, err := scanUser(row)
 	if err != nil {

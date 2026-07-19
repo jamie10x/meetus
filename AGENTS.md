@@ -19,16 +19,17 @@ Read this file first, then the doc that matches your task:
 - **Backend**: Go 1.25 + Gin, pgx (no ORM), PostgreSQL 16 (full-text search), Redis 7
 - **Auth**: Telegram Login Widget → HMAC verify → JWT access (15 min) + rotating refresh (30 d)
 - **Frontend**: Next.js 16 App Router + Tailwind 4, TypeScript, web-only (no mobile app in v1)
-- **Bot**: go-telegram/bot, runs inside `cmd/worker` with the reminder loop
+- **Bot**: go-telegram/bot, runs inside `cmd/worker` with the reminder loop; i18n'd (uz/ru/en, see `tgbot/i18n.go`)
 - **Deploy**: Docker images + one systemd unit on a single VPS, Caddy for TLS
-- **Out of scope for v1**: payments, admin panel, analytics dashboard, Telegram Mini App
+- **Payments**: decided on **Payme**, not built yet — free 2-month trial, see [docs/roadmap.md](docs/roadmap.md)
+- **Out of scope for v1**: Telegram Mini App, monetization tiers
 
 ## Repo layout
 
 ```text
 backend/            Go module "meetus.uz/backend"
   cmd/api           HTTP server        cmd/worker  bot + reminders     cmd/migrate  DB migrations
-  internal/<module> auth, user, organizer, event, rsvp, notification, tgbot, meta, upload
+  internal/<module> auth, user, organizer, event, rsvp, notification, tgbot, feedback, admin, housekeeping, meta, upload
   internal/platform apperr, authn (JWT+middleware), db, httpx, ratelimit, redisx
   internal/server   router.go — all wiring/DI happens here
   db/migrations     NNNN_name.up.sql / .down.sql (embedded into the migrate binary)
@@ -71,4 +72,7 @@ cd frontend && npm run build   # frontend typecheck + build (do this before comm
 - Ticket QR = `code + "." + HMAC-SHA256(code, TICKET_SECRET)`. Verify with `rsvp.TicketSigner`, never by string comparison.
 - Reminder dedup = UNIQUE `(event_id, user_id, kind)` in `notification_log` + Redis lock `meetus:worker:reminder-scan`. Send attempts are logged even on Telegram failure (403 = user never opened the bot) to avoid retry storms.
 - Bot messages use Telegram HTML parse mode — user content must go through `tgbot.escape()`.
+- **`users.language` is set once, on insert, and never overwritten** by later logins (see `user.Repository.UpsertTelegramUser` — `language` is deliberately absent from the `ON CONFLICT DO UPDATE SET` list). Only `/language` (bot) or `PATCH /me` (web) change it after creation. Guarded by a test: `user.TestUpsertTelegramUser_LanguageSetOnInsertOnly`.
+- Bot strings live in `tgbot/i18n.go` as whole-sentence templates per language (not word-by-word) — add a new `msgKey` to both the const block and `i18n_test.go`'s `allKeys`, or the completeness test catches it, not a runtime fallback.
+- `event_feedback` has no `comment` column on purpose (ratings only) — see roadmap.md before adding one.
 - Working directory: Go commands need `cd backend`; the Makefile handles this.

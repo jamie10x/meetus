@@ -58,6 +58,10 @@ func (s *Service) LoginWithTelegram(ctx context.Context, fields map[string]strin
 		Name:       tu.DisplayName(),
 		Username:   tu.Username,
 		AvatarURL:  tu.PhotoURL,
+		// The Telegram Login Widget payload carries no language hint;
+		// "uz" matches the column's own default. The bot guesses better
+		// from the Telegram client's language_code (mapTelegramLangCode).
+		Language: "uz",
 	})
 	if err != nil {
 		return nil, err

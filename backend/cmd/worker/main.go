@@ -14,6 +14,7 @@ import (
 
 	"meetus.uz/backend/internal/config"
 	"meetus.uz/backend/internal/event"
+	"meetus.uz/backend/internal/feedback"
 	"meetus.uz/backend/internal/housekeeping"
 	"meetus.uz/backend/internal/notification"
 	"meetus.uz/backend/internal/platform/db"
@@ -71,6 +72,7 @@ func run() error {
 		user.NewRepository(pool),
 		event.NewRepository(pool),
 		rsvp.NewRepository(pool),
+		feedback.NewRepository(pool),
 		cfg.WebBaseURL,
 	)
 	if err != nil {
@@ -108,6 +110,7 @@ func reminderLoop(ctx context.Context, repo *notification.Repository, bot *tgbot
 		} {
 			sendDue(ctx, repo, bot, kind)
 		}
+		sendDueFeedback(ctx, repo, bot)
 	}
 
 	scan()
@@ -167,5 +170,24 @@ func sendDue(ctx context.Context, repo *notification.Repository, bot *tgbot.Bot,
 	}
 	if len(due) > 0 {
 		slog.Info("reminders processed", "kind", kind, "count", len(due))
+	}
+}
+
+func sendDueFeedback(ctx context.Context, repo *notification.Repository, bot *tgbot.Bot) {
+	due, err := repo.DueFeedback(ctx)
+	if err != nil {
+		slog.Error("load due feedback prompts failed", "err", err)
+		return
+	}
+	for _, f := range due {
+		if err := bot.SendFeedbackRequest(ctx, f); err != nil {
+			slog.Warn("feedback prompt send failed", "event", f.EventID, "user", f.UserID, "err", err)
+		}
+		if err := repo.MarkFeedbackSent(ctx, f); err != nil {
+			slog.Error("mark feedback sent failed", "event", f.EventID, "user", f.UserID, "err", err)
+		}
+	}
+	if len(due) > 0 {
+		slog.Info("feedback prompts processed", "count", len(due))
 	}
 }

@@ -41,10 +41,13 @@ service would be pure pass-through (`meta`, `organizer`, `upload`).
 | `organizer` | organizer profiles, `RequireOrganizer` middleware, `OrganizerID(c)` | |
 | `event` | event CRUD + lifecycle (owner side), public explore queries | `Repository.ListPublic` (keyset pagination), `Service` lifecycle rules |
 | `rsvp` | RSVPs, tickets, QR signing, check-in, attendees | `TicketSigner`, transactional `Repository.Join` |
-| `notification` | due-reminder query + sent log | `Repository.Due`, `MarkSent` |
-| `tgbot` | Telegram bot handlers + reminder message sending | `Bot.Start`, `Bot.SendReminder` |
+| `notification` | due-reminder + due-feedback queries, sent log | `Repository.Due`/`MarkSent`, `DueFeedback`/`MarkFeedbackSent` |
+| `tgbot` | Telegram bot handlers, i18n catalog, reminder/feedback message sending | `Bot.Start`, `Bot.SendReminder`, `Bot.SendFeedbackRequest`, `i18n.go` |
+| `feedback` | post-event 1-5 star ratings | `Repository.Submit` (upsert, requires an RSVP), `SummaryFor` |
 | `meta` | cities/categories reference data | |
 | `upload` | cover image upload + static serving | content-type sniffing, 5 MB cap |
+| `admin` | platform moderation (stats, event override, ban/unban) | `RequireAdmin` middleware, gated by `users.is_admin` |
+| `housekeeping` | hourly janitorial pass | `Runner.Run` — finishes past events, purges expired refresh tokens |
 | `platform/*` | apperr (typed errors), httpx (envelope), db, redisx, ratelimit | |
 
 **All dependency wiring happens in `internal/server/router.go`** — constructors
@@ -86,6 +89,45 @@ Worker ticks every minute. Steps:
    `notification_log` so each (event, user, kind) fires once.
 3. `tgbot.Bot.SendReminder` → Telegram; `MarkSent` **always** logs the attempt,
    even on send failure (a user who never opened the bot chat 403s forever).
+4. Same tick, same lock: `notification.Repository.DueFeedback` finds attendees
+   of events the hourly `housekeeping.Runner` has already flipped to
+   `finished` and sends a 1-5 star rating prompt (`tgbot.Bot.SendFeedbackRequest`).
+   No time window here — dedup via `notification_log` is the only guard,
+   since "ask once, whenever the scan next runs after the event ends" is
+   sufficient and needs no extra state.
+
+### Bot i18n and language selection
+Bot messages render in the caller's `users.language` (uz/ru/en; `tgbot/i18n.go`
+holds whole-sentence templates per language — not word-by-word — so grammar
+stays natural). Language is resolved once per user, at row creation, and
+never silently changed again:
+- **New user via the bot**: `mapTelegramLangCode(from.LanguageCode)` guesses
+  from Telegram's own IETF language tag.
+- **New user via web login**: defaults to `"uz"` (the Login Widget payload
+  carries no language hint).
+- **Existing user, any subsequent login/upsert**: language is left untouched
+  — the SQL `ON CONFLICT DO UPDATE SET` list in
+  `user.Repository.UpsertTelegramUser` deliberately omits `language`.
+- **Explicit change**: the bot's `/language` command (inline uz/ru/en picker)
+  or `PATCH /me` on the website — both go through `user.Repository.UpdateProfile`.
+
+Feedback and RSVP-error messages reuse the same catalog; `friendlyError`
+maps the small closed set of known service error strings (event full,
+already joined, ...) to a translated equivalent, falling back to a generic
+translated message for anything unrecognized — service-layer error text
+itself stays English (it also serves the JSON API), only the bot's
+*rendering* of a handful of known cases is translated.
+
+### Post-event feedback
+Attendees of a `finished` event get one Telegram prompt (5 inline star
+buttons, `fb:<eventID>:<rating>` callback data) via the flow above. Tapping
+calls `feedback.Repository.Submit`, which requires an existing `rsvps` row
+(any status) and upserts into `event_feedback` — repeat taps just update
+the rating, no special dedup needed beyond that. Organizers see the
+aggregate via `GET /events/:id/feedback` (owner-only, same ownership-check
+pattern as attendees/CSV). There is no web submission UI by design — the
+bot is the only place a rating is collected; the website only displays
+the resulting average (attendees page).
 
 ### Explore
 `event.Repository.ListPublic` builds a dynamic WHERE (status published + public,

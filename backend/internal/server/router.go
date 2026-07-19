@@ -15,6 +15,7 @@ import (
 	"meetus.uz/backend/internal/auth"
 	"meetus.uz/backend/internal/config"
 	"meetus.uz/backend/internal/event"
+	"meetus.uz/backend/internal/feedback"
 	"meetus.uz/backend/internal/meta"
 	"meetus.uz/backend/internal/organizer"
 	"meetus.uz/backend/internal/platform/authn"
@@ -78,6 +79,8 @@ func New(deps Deps) (*gin.Engine, error) {
 	rsvp.NewHandler(rsvpService, eventRepo).Register(rsvpGroup, requireAuth, requireOrganizer)
 
 	admin.NewHandler(deps.Pool, eventRepo).Register(api, requireAuth, admin.RequireAdmin(userRepo))
+
+	feedback.NewHandler(feedback.NewRepository(deps.Pool), eventRepo).Register(api, requireAuth, requireOrganizer)
 	uploadHandler.Register(api, r, requireAuth)
 
 	return r, nil

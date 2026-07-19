@@ -24,4 +24,10 @@ type TelegramProfile struct {
 	Name       string
 	Username   string
 	AvatarURL  string
+	// Language seeds the language column on first insert only — it is
+	// never applied to an existing user, since they may have since
+	// changed it via /language or the web profile page. Callers without
+	// a language hint (e.g. web login) should pass "uz", matching the
+	// column's own default.
+	Language string
 }

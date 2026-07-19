@@ -1,6 +1,7 @@
 // Package tgbot implements the Meetus Telegram bot: browsing events,
-// one-tap RSVP, and reminder delivery. Users are identified by their
-// Telegram ID — the same identity used for website login.
+// one-tap RSVP, reminder delivery, and post-event feedback. Users are
+// identified by their Telegram ID — the same identity used for website
+// login. Messages are rendered in the user's language (see i18n.go).
 package tgbot
 
 import (
@@ -15,6 +16,7 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"meetus.uz/backend/internal/event"
+	"meetus.uz/backend/internal/feedback"
 	"meetus.uz/backend/internal/notification"
 	"meetus.uz/backend/internal/rsvp"
 	"meetus.uz/backend/internal/user"
@@ -22,20 +24,31 @@ import (
 
 const browseLimit = 6
 
+// weekday abbreviations per language, for date formatting. Month names
+// are deliberately left numeric (DD.MM) — a common format in Uzbekistan
+// and Russia — to avoid needing a second locale table.
+var weekdayNames = map[lang][7]string{
+	langEn: {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"},
+	langRu: {"Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"},
+	langUz: {"Yak", "Dush", "Sesh", "Chor", "Pay", "Jum", "Shan"},
+}
+
 type Bot struct {
 	api        *bot.Bot
 	users      *user.Repository
 	events     *event.Repository
 	rsvps      *rsvp.Repository
+	feedback   *feedback.Repository
 	webBaseURL string
 	loc        *time.Location
 }
 
-func New(token string, users *user.Repository, events *event.Repository, rsvps *rsvp.Repository, webBaseURL string) (*Bot, error) {
+func New(token string, users *user.Repository, events *event.Repository, rsvps *rsvp.Repository, feedbackRepo *feedback.Repository, webBaseURL string) (*Bot, error) {
 	b := &Bot{
 		users:      users,
 		events:     events,
 		rsvps:      rsvps,
+		feedback:   feedbackRepo,
 		webBaseURL: webBaseURL,
 	}
 	loc, err := time.LoadLocation("Asia/Tashkent")
@@ -52,8 +65,11 @@ func New(token string, users *user.Repository, events *event.Repository, rsvps *
 
 	api.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, b.handleStart)
 	api.RegisterHandler(bot.HandlerTypeMessageText, "/events", bot.MatchTypePrefix, b.handleEvents)
+	api.RegisterHandler(bot.HandlerTypeMessageText, "/language", bot.MatchTypePrefix, b.handleLanguageCommand)
 	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, "ev:", bot.MatchTypePrefix, b.handleEventDetail)
 	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, "join:", bot.MatchTypePrefix, b.handleJoin)
+	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, "lang:", bot.MatchTypePrefix, b.handleLanguageCallback)
+	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, "fb:", bot.MatchTypePrefix, b.handleFeedback)
 	return b, nil
 }
 
@@ -64,7 +80,9 @@ func (b *Bot) Start(ctx context.Context) {
 }
 
 // upsertUser registers or refreshes the Telegram user and returns the
-// internal user record.
+// internal user record. A brand-new user's language is guessed from
+// Telegram's own language_code; an existing user's choice is untouched
+// (see user.TelegramProfile.Language).
 func (b *Bot) upsertUser(ctx context.Context, from *models.User) (*user.User, error) {
 	name := from.FirstName
 	if from.LastName != "" {
@@ -74,6 +92,7 @@ func (b *Bot) upsertUser(ctx context.Context, from *models.User) (*user.User, er
 		TelegramID: from.ID,
 		Name:       name,
 		Username:   from.Username,
+		Language:   mapTelegramLangCode(from.LanguageCode),
 	})
 }
 
@@ -94,23 +113,25 @@ func (b *Bot) handleStart(ctx context.Context, _ *bot.Bot, update *models.Update
 	if msg == nil || msg.From == nil {
 		return
 	}
-	if _, err := b.upsertUser(ctx, msg.From); err != nil {
+	u, err := b.upsertUser(ctx, msg.From)
+	if err != nil {
 		slog.Error("bot start upsert failed", "err", err)
+		return
 	}
 	b.send(ctx, msg.Chat.ID,
-		fmt.Sprintf("👋 Welcome to <b>Meetus.uz</b>, %s!\n\n"+
-			"Discover meetups across Uzbekistan and join with one tap.\n\n"+
-			"• /events — upcoming events\n"+
-			"• Tickets and profile: %s", msg.From.FirstName, b.webBaseURL),
-		nil)
+		tf(normalizeLang(u.Language), kWelcome, msg.From.FirstName, b.webBaseURL), nil)
 }
 
 func (b *Bot) handleDefault(ctx context.Context, _ *bot.Bot, update *models.Update) {
 	if update.Message == nil || update.Message.From == nil {
 		return
 	}
-	b.send(ctx, update.Message.Chat.ID,
-		"Try /events to browse upcoming meetups, or visit "+b.webBaseURL, nil)
+	u, err := b.upsertUser(ctx, update.Message.From)
+	l := langEn
+	if err == nil {
+		l = normalizeLang(u.Language)
+	}
+	b.send(ctx, update.Message.Chat.ID, tf(l, kDefaultHint, b.webBaseURL), nil)
 }
 
 func (b *Bot) handleEvents(ctx context.Context, _ *bot.Bot, update *models.Update) {
@@ -123,29 +144,28 @@ func (b *Bot) handleEvents(ctx context.Context, _ *bot.Bot, update *models.Updat
 		slog.Error("bot events upsert failed", "err", err)
 		return
 	}
+	l := normalizeLang(u.Language)
 
 	// Prefer the user's city when they have one set.
 	filters := event.ListFilters{Limit: browseLimit}
 	page, err := b.events.ListPublic(ctx, filters)
 	if err != nil {
 		slog.Error("bot list events failed", "err", err)
-		b.send(ctx, msg.Chat.ID, "Something went wrong, please try again.", nil)
+		b.send(ctx, msg.Chat.ID, t(l, kErrGeneric), nil)
 		return
 	}
-	_ = u
 
 	if len(page.Items) == 0 {
-		b.send(ctx, msg.Chat.ID,
-			"No upcoming events yet. Check back soon or explore "+b.webBaseURL+"/events", nil)
+		b.send(ctx, msg.Chat.ID, tf(l, kNoEvents, b.webBaseURL), nil)
 		return
 	}
 
 	rows := make([][]models.InlineKeyboardButton, 0, len(page.Items))
 	var sb strings.Builder
-	sb.WriteString("📅 <b>Upcoming events</b>\n\n")
+	sb.WriteString(t(l, kEventsHeader))
 	for i, e := range page.Items {
 		sb.WriteString(fmt.Sprintf("%d. <b>%s</b>\n    %s · %s\n",
-			i+1, escape(e.Title), b.formatTime(e.StartsAt), escape(b.placeLabel(e))))
+			i+1, escape(e.Title), b.formatTime(l, e.StartsAt), escape(b.placeLabel(l, e))))
 		rows = append(rows, []models.InlineKeyboardButton{{
 			Text:         fmt.Sprintf("%d. %s", i+1, truncate(e.Title, 28)),
 			CallbackData: "ev:" + strconv.FormatInt(e.ID, 10),
@@ -162,32 +182,38 @@ func (b *Bot) handleEventDetail(ctx context.Context, _ *bot.Bot, update *models.
 	}
 	b.answerCallback(ctx, cq.ID, "")
 
+	u, err := b.upsertUser(ctx, &cq.From)
+	l := langEn
+	if err == nil {
+		l = normalizeLang(u.Language)
+	}
+
 	id, err := strconv.ParseInt(strings.TrimPrefix(cq.Data, "ev:"), 10, 64)
 	if err != nil {
 		return
 	}
 	e, err := b.events.GetPublished(ctx, id)
 	if err != nil {
-		b.send(ctx, chatIDOf(cq), "This event is no longer available.", nil)
+		b.send(ctx, chatIDOf(cq), t(l, kEventUnavailable), nil)
 		return
 	}
 
 	var sb strings.Builder
 	sb.WriteString("🎟️ <b>" + escape(e.Title) + "</b>\n\n")
-	sb.WriteString("🕐 " + b.formatTime(e.StartsAt) + "\n")
-	sb.WriteString("📍 " + escape(b.placeLabel(e)) + "\n")
+	sb.WriteString("🕐 " + b.formatTime(l, e.StartsAt) + "\n")
+	sb.WriteString("📍 " + escape(b.placeLabel(l, e)) + "\n")
 	sb.WriteString("👤 " + escape(e.OrganizerName) + "\n")
-	sb.WriteString(fmt.Sprintf("👥 %d going", e.GoingCount))
+	sb.WriteString("👥 " + tf(l, kGoingCount, e.GoingCount))
 	if e.Capacity != nil {
-		sb.WriteString(fmt.Sprintf(" / %d spots", *e.Capacity))
+		sb.WriteString(tf(l, kSpotsLeft, *e.Capacity))
 	}
 	if e.Description != "" {
 		sb.WriteString("\n\n" + escape(truncate(e.Description, 300)))
 	}
 
 	markup := &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
-		{{Text: "✅ Join event", CallbackData: "join:" + strconv.FormatInt(e.ID, 10)}},
-		{{Text: "🌐 Open on Meetus.uz", URL: fmt.Sprintf("%s/events/%d", b.webBaseURL, e.ID)}},
+		{{Text: t(l, kJoinButton), CallbackData: "join:" + strconv.FormatInt(e.ID, 10)}},
+		{{Text: t(l, kOpenWebButton), URL: fmt.Sprintf("%s/events/%d", b.webBaseURL, e.ID)}},
 	}}
 	b.send(ctx, chatIDOf(cq), sb.String(), markup)
 }
@@ -203,20 +229,102 @@ func (b *Bot) handleJoin(ctx context.Context, _ *bot.Bot, update *models.Update)
 	}
 	u, err := b.upsertUser(ctx, &cq.From)
 	if err != nil {
-		b.answerCallback(ctx, cq.ID, "Something went wrong.")
+		b.answerCallback(ctx, cq.ID, t(langEn, kErrGeneric))
 		return
 	}
+	l := normalizeLang(u.Language)
 
 	_, err = b.rsvps.Join(ctx, id, u.ID)
 	if err != nil {
-		// Service errors carry user-friendly messages ("event is full", ...).
-		b.answerCallback(ctx, cq.ID, friendlyError(err))
+		b.answerCallback(ctx, cq.ID, friendlyError(l, err))
 		return
 	}
-	b.answerCallback(ctx, cq.ID, "You're in! 🎉")
-	b.send(ctx, chatIDOf(cq),
-		fmt.Sprintf("✅ You joined! Your QR ticket is ready:\n%s/tickets\n\n"+
-			"I'll remind you before the event starts.", b.webBaseURL), nil)
+	b.answerCallback(ctx, cq.ID, t(l, kJoinedAlert))
+	b.send(ctx, chatIDOf(cq), tf(l, kJoinedSuccess, b.webBaseURL), nil)
+}
+
+// handleLanguageCommand shows the language picker.
+func (b *Bot) handleLanguageCommand(ctx context.Context, _ *bot.Bot, update *models.Update) {
+	msg := update.Message
+	if msg == nil || msg.From == nil {
+		return
+	}
+	u, err := b.upsertUser(ctx, msg.From)
+	l := langEn
+	if err == nil {
+		l = normalizeLang(u.Language)
+	}
+	b.send(ctx, msg.Chat.ID, t(l, kLanguagePrompt), languagePickerMarkup())
+}
+
+func languagePickerMarkup() *models.InlineKeyboardMarkup {
+	return &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+		{{Text: langDisplayName(langUz), CallbackData: "lang:uz"}},
+		{{Text: langDisplayName(langRu), CallbackData: "lang:ru"}},
+		{{Text: langDisplayName(langEn), CallbackData: "lang:en"}},
+	}}
+}
+
+func (b *Bot) handleLanguageCallback(ctx context.Context, _ *bot.Bot, update *models.Update) {
+	cq := update.CallbackQuery
+	if cq == nil {
+		return
+	}
+	b.answerCallback(ctx, cq.ID, "")
+
+	newLang := normalizeLang(strings.TrimPrefix(cq.Data, "lang:"))
+	u, err := b.upsertUser(ctx, &cq.From)
+	if err != nil {
+		return
+	}
+	code := string(newLang)
+	if _, err := b.users.UpdateProfile(ctx, u.ID, user.ProfileUpdate{Language: &code}); err != nil {
+		slog.Error("bot language update failed", "err", err)
+		return
+	}
+	b.send(ctx, chatIDOf(cq), tf(newLang, kLanguageSet, langDisplayName(newLang)), nil)
+}
+
+// handleFeedback records a tapped star rating. Repeated taps upsert
+// (Repository.Submit is idempotent), so no extra guard is needed here.
+func (b *Bot) handleFeedback(ctx context.Context, _ *bot.Bot, update *models.Update) {
+	cq := update.CallbackQuery
+	if cq == nil {
+		return
+	}
+	u, err := b.upsertUser(ctx, &cq.From)
+	if err != nil {
+		b.answerCallback(ctx, cq.ID, t(langEn, kErrGeneric))
+		return
+	}
+	l := normalizeLang(u.Language)
+
+	eventID, rating, ok := parseFeedbackCallback(cq.Data)
+	if !ok {
+		return
+	}
+	if err := b.feedback.Submit(ctx, eventID, u.ID, rating); err != nil {
+		b.answerCallback(ctx, cq.ID, friendlyError(l, err))
+		return
+	}
+	b.answerCallback(ctx, cq.ID, t(l, kFeedbackThanks))
+}
+
+// parseFeedbackCallback parses "fb:<eventID>:<rating>".
+func parseFeedbackCallback(data string) (eventID int64, rating int, ok bool) {
+	rest, ratingStr, found := strings.Cut(strings.TrimPrefix(data, "fb:"), ":")
+	if !found {
+		return 0, 0, false
+	}
+	eventID, err := strconv.ParseInt(rest, 10, 64)
+	if err != nil {
+		return 0, 0, false
+	}
+	rating, err = strconv.Atoi(ratingStr)
+	if err != nil {
+		return 0, 0, false
+	}
+	return eventID, rating, true
 }
 
 func (b *Bot) answerCallback(ctx context.Context, id, text string) {
@@ -232,11 +340,12 @@ func (b *Bot) answerCallback(ctx context.Context, id, text string) {
 
 // SendReminder delivers one reminder message; used by the worker.
 func (b *Bot) SendReminder(ctx context.Context, rem *notification.Reminder) error {
-	lead := "starts in about an hour"
+	l := normalizeLang(rem.UserLanguage)
+	key := kReminder1h
 	if rem.Kind == notification.KindReminder24h {
-		lead = "is coming up"
+		key = kReminder24h
 	}
-	place := "Online"
+	place := t(l, kPlaceOnline)
 	if !rem.IsOnline {
 		parts := []string{}
 		if rem.LocationName != nil {
@@ -248,11 +357,10 @@ func (b *Bot) SendReminder(ctx context.Context, rem *notification.Reminder) erro
 		if len(parts) > 0 {
 			place = strings.Join(parts, ", ")
 		} else {
-			place = "see event page"
+			place = t(l, kPlaceSeeEventPage)
 		}
 	}
-	text := fmt.Sprintf("⏰ <b>%s</b> %s!\n\n🕐 %s\n📍 %s\n\n🎫 Your ticket: %s/tickets",
-		escape(rem.EventTitle), lead, b.formatTime(rem.StartsAt), escape(place), b.webBaseURL)
+	text := tf(l, key, escape(rem.EventTitle), b.formatTime(l, rem.StartsAt), escape(place), b.webBaseURL)
 
 	_, err := b.api.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:    rem.UserTelegramID,
@@ -262,13 +370,37 @@ func (b *Bot) SendReminder(ctx context.Context, rem *notification.Reminder) erro
 	return err
 }
 
-func (b *Bot) formatTime(t time.Time) string {
-	return t.In(b.loc).Format("Mon, 2 Jan 15:04")
+// SendFeedbackRequest prompts one attendee to rate a finished event.
+func (b *Bot) SendFeedbackRequest(ctx context.Context, f *notification.FeedbackDue) error {
+	l := normalizeLang(f.UserLanguage)
+	text := tf(l, kFeedbackPrompt, escape(f.EventTitle))
+
+	buttons := make([]models.InlineKeyboardButton, 5)
+	for i := 1; i <= 5; i++ {
+		buttons[i-1] = models.InlineKeyboardButton{
+			Text:         strings.Repeat("⭐", i),
+			CallbackData: fmt.Sprintf("fb:%d:%d", f.EventID, i),
+		}
+	}
+
+	_, err := b.api.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      f.UserTelegramID,
+		Text:        text,
+		ParseMode:   models.ParseModeHTML,
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{buttons}},
+	})
+	return err
 }
 
-func (b *Bot) placeLabel(e *event.Event) string {
+func (b *Bot) formatTime(l lang, tm time.Time) string {
+	local := tm.In(b.loc)
+	weekday := weekdayNames[l][int(local.Weekday())]
+	return weekday + ", " + local.Format("02.01 15:04")
+}
+
+func (b *Bot) placeLabel(l lang, e *event.Event) string {
 	if e.IsOnline {
-		return "Online"
+		return t(l, kPlaceOnline)
 	}
 	if e.LocationName != nil && *e.LocationName != "" {
 		return *e.LocationName
@@ -276,7 +408,7 @@ func (b *Bot) placeLabel(e *event.Event) string {
 	if e.CitySlug != nil {
 		return *e.CitySlug
 	}
-	return "In person"
+	return t(l, kPlaceInPerson)
 }
 
 func chatIDOf(cq *models.CallbackQuery) int64 {
@@ -286,14 +418,23 @@ func chatIDOf(cq *models.CallbackQuery) int64 {
 	return cq.From.ID
 }
 
-func friendlyError(err error) string {
-	s := err.Error()
-	// apperr messages look like "conflict: this event is full" — show the
-	// human part only.
-	if _, after, ok := strings.Cut(s, ": "); ok {
-		return after
+// friendlyError translates the small closed set of known service error
+// messages (RSVP/feedback conflicts); anything else falls back to a
+// generic translated message rather than leaking raw English internals.
+func friendlyError(l lang, err error) string {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "already joined"):
+		return t(l, kErrAlreadyJoined)
+	case strings.Contains(msg, "event is full"):
+		return t(l, kErrEventFull)
+	case strings.Contains(msg, "not open for RSVPs"):
+		return t(l, kErrNotOpen)
+	case strings.Contains(msg, "already started"):
+		return t(l, kErrAlreadyStarted)
+	default:
+		return t(l, kErrGeneric)
 	}
-	return "Could not join this event."
 }
 
 func escape(s string) string {

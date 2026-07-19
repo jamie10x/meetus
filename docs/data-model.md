@@ -29,8 +29,9 @@ Identity = Telegram account. Created lazily on first login (web or bot).
 | username, avatar_url | text NULL | refreshed on login (COALESCE keeps old value if Telegram omits) |
 | city_id | int FK cities NULL | user-chosen, drives future personalization |
 | district | text NULL | free text |
-| language | text default 'uz' | `uz` \| `ru` \| `en` (validated in handler) |
+| language | text default 'uz' | `uz` \| `ru` \| `en` (validated in handler). Set **only on insert** — from the Telegram client's `language_code` when the bot creates the user, or `'uz'` for web logins (the widget has no language hint). Never overwritten by later logins; only `/language` (bot) or `PATCH /me` (web) change it after creation — see `user.Repository.UpsertTelegramUser` and `docs/architecture.md`'s i18n note. |
 | is_banned | bool | checked at login **and** refresh |
+| is_admin | bool | granted by SQL only, no endpoint — see `docs/api.md`'s Admin section |
 
 ### organizers
 1:1 with users (UNIQUE user_id). Existence of a row == organizer role;
@@ -83,13 +84,23 @@ QR value = `code.HMAC-SHA256(code, TICKET_SECRET)` — computed, never stored.
 
 ### refresh_tokens
 `token_hash` = SHA-256 hex of the raw token (raw value never stored).
-`revoked_at` set on rotation/logout. Rows accumulate; a periodic
-`DELETE WHERE expires_at < now()` is a fine future housekeeping job.
+`revoked_at` set on rotation/logout. Purged hourly by the housekeeping
+worker job (`WHERE expires_at < now()`).
 
 ### notification_log
 Dedup ledger: UNIQUE `(event_id, user_id, kind)`,
-kind ∈ `reminder_24h` | `reminder_1h`. Inserted with `ON CONFLICT DO NOTHING`
-after every send **attempt** (success or failure) — see architecture.md.
+kind ∈ `reminder_24h` | `reminder_1h` | `feedback_request`. Inserted with
+`ON CONFLICT DO NOTHING` after every send **attempt** (success or failure)
+— see architecture.md.
+
+### event_feedback
+Post-event ratings. UNIQUE `(event_id, user_id)` — one rating per user per
+event, upserted (resubmitting changes the rating, doesn't add a row).
+`rating` SMALLINT CHECK 1-5. Submitting requires an existing `rsvps` row
+for the pair (checked in `feedback.Repository.Submit`, not a DB constraint).
+No `comment` column yet — ratings only; add one via a new migration if
+free-text feedback becomes a requirement (deliberately not built ahead of
+need, see roadmap.md).
 
 ## Query conventions
 

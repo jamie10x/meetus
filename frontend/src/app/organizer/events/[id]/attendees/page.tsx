@@ -13,6 +13,11 @@ type Attendee = {
   checkedInAt: string | null;
 };
 
+type FeedbackSummary = {
+  count: number;
+  average: number;
+};
+
 export default function AttendeesPage({
   params,
 }: {
@@ -20,12 +25,16 @@ export default function AttendeesPage({
 }) {
   const { id } = use(params);
   const [attendees, setAttendees] = useState<Attendee[] | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackSummary | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     api<Attendee[]>(`/events/${id}/attendees`, { auth: true })
       .then(setAttendees)
       .catch(() => setFailed(true));
+    api<FeedbackSummary>(`/events/${id}/feedback`, { auth: true })
+      .then(setFeedback)
+      .catch(() => setFeedback(null));
   }, [id]);
 
   if (failed) {
@@ -56,6 +65,9 @@ export default function AttendeesPage({
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-zinc-500">
           {attendees.length} going · {checkedIn} checked in
+          {feedback && feedback.count > 0 ? (
+            <> · ★ {feedback.average.toFixed(1)} ({feedback.count} ratings)</>
+          ) : null}
         </p>
         {attendees.length > 0 ? (
           <button

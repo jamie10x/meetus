@@ -142,6 +142,21 @@ ticket is unused. → `data`: `{ "attendeeName", "eventTitle", "checkedInAt" }`.
 ### GET /events/:id/attendees.csv (auth + organizer, owner only)
 CSV download (`name`, `username`, `rsvp_at`, `checked_in_at`), not the JSON envelope.
 
+## Feedback
+
+### POST /events/:id/feedback (auth)
+Body: `{ "rating": 1-5 }`. Caller must have an RSVP row for the event (any
+status — canceling afterward doesn't retract the right to rate). Upserts:
+resubmitting changes the rating. → `data`: `{ "submitted": true }`.
+403 if the caller never RSVP'd.
+
+### GET /events/:id/feedback (auth + organizer, owner only)
+→ `data`: `{ "count", "average" }` (average is `0` when count is `0`).
+
+Delivery: the worker prompts each attendee once via the Telegram bot
+(inline 1-5 star buttons) shortly after their event is auto-marked
+`finished` — see [architecture.md](architecture.md).
+
 ## Admin
 
 All routes require auth **and** `users.is_admin` (403 otherwise). Admin is
