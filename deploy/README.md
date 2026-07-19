@@ -58,6 +58,16 @@ announce endpoint instead of failing to start.
 
 ## Deploying updates
 
+**Automatic (CI/CD):** every push to `main` runs the backend + frontend
+test jobs in `.github/workflows/ci.yml`; if they pass, the `deploy` job
+SSHs into the VPS (using the `VPS_HOST`/`VPS_USER`/`VPS_SSH_KEY`/
+`VPS_HOST_KEY` repo secrets — a dedicated deploy keypair, not any personal
+credential) and runs the same script below. No manual step needed for a
+normal change. Trigger it manually from the Actions tab
+(`workflow_dispatch`) if you need to redeploy without a new commit.
+
+**Manual:**
+
 ```bash
 cd /opt/meetus && ./deploy/scripts/deploy.sh
 ```
