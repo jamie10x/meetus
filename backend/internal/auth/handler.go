@@ -20,6 +20,7 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) Register(r gin.IRouter) {
 	g := r.Group("/auth")
 	g.POST("/telegram", h.loginWithTelegram)
+	g.POST("/telegram-miniapp", h.loginWithMiniApp)
 	g.POST("/refresh", h.refresh)
 	g.POST("/logout", h.logout)
 }
@@ -33,6 +34,27 @@ func (h *Handler) loginWithTelegram(c *gin.Context) {
 		return
 	}
 	result, err := h.service.LoginWithTelegram(c.Request.Context(), fields)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	httpx.OK(c, http.StatusOK, result)
+}
+
+type miniAppLoginRequest struct {
+	InitData string `json:"initData" binding:"required"`
+}
+
+// loginWithMiniApp accepts the raw initData string from
+// window.Telegram.WebApp.initData, unparsed — VerifyMiniAppInitData does
+// its own URL-query decoding.
+func (h *Handler) loginWithMiniApp(c *gin.Context) {
+	var req miniAppLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Error(c, apperr.Validation("initData is required"))
+		return
+	}
+	result, err := h.service.LoginWithMiniApp(c.Request.Context(), req.InitData)
 	if err != nil {
 		httpx.Error(c, err)
 		return

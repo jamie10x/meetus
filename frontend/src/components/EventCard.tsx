@@ -1,8 +1,9 @@
-import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import type { EventItem } from "@/lib/types";
 
-export function formatEventDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+export function formatEventDate(iso: string, locale: string): string {
+  return new Date(iso).toLocaleString(locale, {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -12,6 +13,10 @@ export function formatEventDate(iso: string): string {
 }
 
 export default function EventCard({ event }: { event: EventItem }) {
+  const t = useTranslations("eventCard");
+  const tExplore = useTranslations("explore");
+  const locale = useLocale();
+
   return (
     <Link
       href={`/events/${event.id}`}
@@ -31,19 +36,21 @@ export default function EventCard({ event }: { event: EventItem }) {
       )}
       <div className="min-w-0">
         <p className="text-sm font-medium text-sky-600 dark:text-sky-400">
-          {formatEventDate(event.startsAt)}
+          {formatEventDate(event.startsAt, locale)}
         </p>
         <h3 className="truncate text-lg font-semibold">{event.title}</h3>
         <p className="truncate text-sm text-zinc-500">
           {event.isOnline
-            ? "Online"
+            ? tExplore("online")
             : (event.locationName ?? event.citySlug ?? "")}
           {" · "}
           {event.organizerName}
         </p>
         <p className="mt-1 text-xs text-zinc-400">
-          {event.goingCount} going
-          {event.capacity ? ` · ${event.capacity - event.goingCount} spots left` : ""}
+          {t("going", { count: event.goingCount })}
+          {event.capacity
+            ? ` · ${t("spotsLeft", { count: event.capacity - event.goingCount })}`
+            : ""}
         </p>
       </div>
     </Link>

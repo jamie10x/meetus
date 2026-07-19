@@ -22,6 +22,9 @@ type TelegramUser struct {
 	LastName  string
 	Username  string
 	PhotoURL  string
+	// LanguageCode is only ever populated by Mini App login (initData's
+	// user.language_code) — the Login Widget payload has no such field.
+	LanguageCode string
 }
 
 // VerifyTelegramLogin validates a payload from the Telegram Login Widget.

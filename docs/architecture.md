@@ -5,15 +5,21 @@
 ```text
                     ┌────────────────────────────── VPS ──────────────────────────────┐
  Browser ── HTTPS ──►  Caddy (:443, auto-TLS)                                         │
- Telegram app       │    ├── /api/*, /uploads/*, /healthz ──► api (Go/Gin :8080)      │
-    │               │    └── everything else ──────────────► frontend (Next.js :3000) │
-    │ long polling  │                                                                 │
-    └───────────────┼──► worker (Go: Telegram bot + reminder loop)                    │
-                    │         │                │                                      │
-                    │      PostgreSQL 16    Redis 7                                   │
-                    │      (data + FTS)     (locks, rate limits)                      │
+ Telegram app ──┐   │    ├── /api/*, /uploads/*, /healthz ──► api (Go/Gin :8080)      │
+  (Mini App,    │   │    └── everything else ──────────────► frontend (Next.js :3000) │
+   web_app btn) │   │                                                                 │
+    │ long poll │   │                                                                 │
+    └───────────┼───┼──► worker (Go: Telegram bot + reminder loop)                    │
+                │   │         │                │                                      │
+   (same site,  │   │      PostgreSQL 16    Redis 7                                   │
+    HTTPS)──────┘   │      (data + FTS)     (locks, rate limits)                      │
                     └─────────────────────────────────────────────────────────────────┘
 ```
+
+The frontend serves both regular browsers and Telegram Mini Apps from the
+same Next.js deployment — a Mini App is just the same site loaded in
+Telegram's in-app WebView with an extra SDK script; there is no separate
+build or route tree for it. See "Telegram Mini App" below.
 
 Three deployable processes, one database:
 
@@ -35,8 +41,9 @@ service would be pure pass-through (`meta`, `organizer`, `upload`).
 
 | Module | Owns | Notable exports |
 |---|---|---|
-| `auth` | Telegram login verification, refresh-token store, login/refresh/logout | `VerifyTelegramLogin`, `Service` |
+| `auth` | Telegram login verification (widget **and** Mini App), refresh-token store, login/refresh/logout | `VerifyTelegramLogin`, `VerifyMiniAppInitData`, `Service` |
 | `platform/authn` | JWT issue/parse, `RequireAuth` middleware, `UserID(c)` | leaf package — `auth` and `user` both import it (avoids an import cycle) |
+| `platform/tglang` | Telegram `language_code` → uz/ru/en mapping | leaf package — shared by `auth` (Mini App login) and `tgbot` so both first-contact paths agree |
 | `user` | users table, profile GET/PATCH | `Repository.UpsertTelegramUser` (used by auth **and** bot) |
 | `organizer` | organizer profiles, `RequireOrganizer` middleware, `OrganizerID(c)` | |
 | `event` | event CRUD + lifecycle (owner side), public explore queries | `Repository.ListPublic` (keyset pagination), `Service` lifecycle rules |
@@ -55,7 +62,7 @@ take their dependencies explicitly; there is no DI framework and no globals.
 
 ## Key flows
 
-### Login (web)
+### Login (web browser)
 1. Telegram Login Widget on the Next.js site calls `onTelegramAuth` with a signed field map.
 2. `POST /api/auth/telegram` → `auth.VerifyTelegramLogin`: rebuild data-check-string
    (sorted `key=value` lines minus `hash`), secret = SHA256(bot token),
@@ -67,6 +74,32 @@ take their dependencies explicitly; there is no DI framework and no globals.
 
 The bot shares identity for free: bot users have the same `telegram_id`,
 so `/start` and inline RSVP call the same `UpsertTelegramUser`.
+
+### Login (Telegram Mini App) — a different signing scheme, not a variant
+`window.Telegram.WebApp.initData` uses a **different HMAC derivation** from
+the Login Widget — don't reuse `VerifyTelegramLogin` for it:
+- Widget: `secret = SHA256(botToken)`.
+- Mini App: `secret = HMAC-SHA256(key="WebAppData", message=botToken)`.
+- Both then do `hash = HMAC-SHA256(key=secret, message=dataCheckString)` —
+  same final step, different secret, so a payload valid for one never
+  verifies under the other (guarded by a test:
+  `auth.TestVerifyMiniAppInitData_NotInterchangeableWithLoginWidget`).
+
+`auth.VerifyMiniAppInitData` also excludes `signature` (not just `hash`)
+from the data-check-string — that field belongs to a separate, newer
+ed25519 verification scheme this project doesn't implement — and rejects
+`auth_date` older than **1 hour** (tighter than the widget's 24h, since
+initData is minted fresh every time the Mini App launches, not something
+that sits on a static page). `POST /api/auth/telegram-miniapp` wraps it;
+`auth.Service.loginTelegramUser` is the shared tail (upsert, ban check,
+issue tokens) both login paths call.
+
+Frontend (`src/lib/auth-context.tsx`): on mount, if a session is already
+stored, restore it as before. Otherwise check
+`window.Telegram.WebApp.initData` (populated by the SDK script — see
+"Telegram Mini App" below) — if present, silently POST it to
+`/auth/telegram-miniapp` and sign the user in with no tap required; if
+empty (a plain browser), fall through to the normal Login Widget page.
 
 ### RSVP + ticket (the concurrency-sensitive path)
 `rsvp.Repository.Join` runs one transaction:
@@ -135,10 +168,69 @@ upcoming by default, optional city/category slug, date range, online flag,
 `websearch_to_tsquery` against the generated `search` tsvector). Ordering is
 `(starts_at, id)` with an opaque base64 keyset cursor — no OFFSET.
 
-SSR: `frontend/src/app/events/[id]/page.tsx` fetches the event server-side
-(deduped via React `cache`) and emits Open Graph tags — this is what makes
-event links unfurl nicely when shared in Telegram chats. That page is the
-product's viral loop; don't break its SSR.
+SSR: `frontend/src/app/[locale]/events/[id]/page.tsx` fetches the event
+server-side (deduped via React `cache`) and emits Open Graph tags — this is
+what makes event links unfurl nicely when shared in Telegram chats. That
+page is the product's viral loop; don't break its SSR.
+
+### Website i18n and locale routing
+The website (not just the bot) is fully translated uz/ru/en via
+[next-intl](https://next-intl.dev), with **locale-prefixed URLs**
+(`/uz/events`, `/ru/events/5`, `/en/tickets`, ...) rather than a
+cookie-only scheme — every language gets its own clean, indexable,
+shareable URL, which matters here specifically because event links are
+the product's viral loop (see above).
+
+- `frontend/src/app/[locale]/...` — every page lives under the `[locale]`
+  dynamic segment; there is no separate root layout above it (`[locale]/layout.tsx`
+  *is* the root layout, returning `<html>`/`<body>`).
+- `frontend/src/i18n/routing.ts` — `defineRouting({locales: ["uz","ru","en"], defaultLocale: "uz", localePrefix: "always"})`.
+- `frontend/src/proxy.ts` — Next.js 16 renamed `middleware.ts` → `proxy.ts`
+  (same `NextRequest`-based API); this just re-exports next-intl's
+  `createMiddleware(routing)` under the new name. Visiting `/` redirects
+  to a locale via cookie → `Accept-Language` → `uz` default.
+- `frontend/messages/{uz,ru,en}.json` — one flat-ish namespaced catalog per
+  language, kept in exact key-parity across all three (an out-of-sync key
+  set is a bug — check with a script before adding new keys by hand).
+- `frontend/src/i18n/navigation.ts` — locale-aware `Link`/`redirect`/
+  `useRouter`/`usePathname` via `createNavigation(routing)`. **Always**
+  import these instead of `next/link`/`next/navigation` inside
+  `src/app/[locale]/**` and its components — the plain Next.js versions
+  don't carry the locale prefix and will send users to the wrong language.
+  (`notFound()` from `next/navigation` is the one exception — it's
+  locale-agnostic and fine to use directly.)
+- Server Components use `getTranslations()`/`getMessages()` from
+  `next-intl/server`; Client Components use `useTranslations()`/`useLocale()`
+  from `next-intl` — same message keys, different hook source per next-intl's
+  dual react-server/react-client design.
+
+### Telegram Mini App
+The same Next.js deployment doubles as a Telegram Mini App: `[locale]/layout.tsx`
+loads `https://telegram.org/js/telegram-web-app.js` with
+`strategy="beforeInteractive"`, guaranteeing `window.Telegram.WebApp` exists
+by the time `AuthProvider`'s mount effect runs (see the Mini App login flow
+above) — no polling or timing guesswork needed. Outside Telegram, the SDK
+object still loads (it's just a script tag) but `initData` stays empty, so
+the code correctly falls through to the normal browser Login Widget.
+
+One documented quirk: the SDK sets `--tg-viewport-height`/`--tg-viewport-stable-height`
+CSS custom properties on `<html>` as soon as it runs, in **every** browser,
+not just inside real Telegram. Since this happens before React hydrates,
+it's a genuine (if benign) server/client attribute mismatch on `<html>` —
+`suppressHydrationWarning` is set there deliberately for exactly this
+reason, not as a blanket "hide problems" workaround. If you see a real
+hydration bug, it will still surface as a *content* mismatch, which
+`suppressHydrationWarning` does not silence.
+
+The bot's event-detail message uses a `web_app` inline button (not a plain
+`URL` button) for "Open on Meetus.uz" (`tgbot.go`, `handleEventDetail`) —
+Telegram opens `web_app` buttons as a Mini App in place instead of
+switching to an external browser tab. This button type is only valid in
+private-chat messages, which is the bot's only context, and requires an
+HTTPS URL. Bot-generated links use `Bot.webURL(lang, path)` to build
+locale-correct URLs (`webBaseURL + "/" + lang + path`) so a message already
+being read in Russian, say, opens the Russian page rather than bouncing
+through the site's own browser-side locale detection.
 
 ## Error handling
 
@@ -172,3 +264,6 @@ violations are translated to `Validation` in repositories (`mapWriteErr`).
 | Reminder log even on failure | Prevents infinite retries to unreachable users |
 | Local-disk uploads | Single VPS; swap for S3-compatible storage only when a second server appears |
 | Bot inside worker binary | One process to babysit; split later if polling load demands |
+| Locale-prefixed URLs (`localePrefix: "always"`), not cookie-only | Every language gets its own shareable, indexable, OG-taggable URL — matches why SSR/OG mattered for events in the first place |
+| Mini App reuses the same Next.js deployment | A Telegram Mini App is just this site + one SDK script; a separate build would duplicate the entire frontend for no benefit |
+| `beforeInteractive` SDK script + `suppressHydrationWarning`, not `afterInteractive` + polling | Tried the polling approach first — `afterInteractive` doesn't strictly guarantee execution after hydration finishes, so it still raced; deterministic availability + suppressing the one known benign attribute mismatch is simpler and correct |

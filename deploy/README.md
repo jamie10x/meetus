@@ -39,6 +39,14 @@ certificates automatically once the domain resolves.
 Telegram: in @BotFather run `/setdomain` for the bot and set `meetus.uz`
 so the Login Widget works on the site.
 
+Telegram Mini App: also in @BotFather, run `/newapp` (or Bot Settings →
+Mini App via `/mybots`) and point it at `https://meetus.uz` (or a specific
+path) to give the bot a persistent Mini App menu button. This is separate
+from the inline `web_app` buttons the bot already sends on event messages
+(those work as soon as `WEB_BASE_URL` is HTTPS and correct — no BotFather
+config needed for them specifically) — the menu button is the one thing
+that genuinely requires this manual step.
+
 ## Deploying updates
 
 ```bash

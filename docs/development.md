@@ -127,11 +127,17 @@ Handler method on `tgbot.Bot`, register it in `tgbot.New` with
 convention: `"<verb>:<id>"` with `MatchTypePrefix`.
 
 ### Add a frontend page
-File under `src/app/<route>/page.tsx`. Client pages needing auth follow the
-guard pattern in `profile/page.tsx` (`useAuth()` + redirect). Server pages
-that fetch API data follow `events/[id]/page.tsx` (async component +
-`generateMetadata`, `params` is a Promise). Always `npm run build` before
-committing — it's the typecheck.
+File under `src/app/[locale]/<route>/page.tsx`. Client pages needing auth
+follow the guard pattern in `profile/page.tsx` (`useAuth()` + redirect).
+Server pages that fetch API data follow `events/[id]/page.tsx` (async
+component + `generateMetadata`, `params` is a Promise — and now also
+carries `locale`). Import `Link`/`useRouter`/`redirect`/`usePathname` from
+`@/i18n/navigation`, never `next/link`/`next/navigation`. Add every UI
+string to all three `messages/*.json` catalogs (same key, same nesting) —
+use `useTranslations()` in Client Components, `getTranslations()` in
+Server Components. Always `npm run build` before committing — it's the
+typecheck, and it also statically renders all three locales for every
+static route so a missing message key can show up there too.
 
 ## Debugging
 

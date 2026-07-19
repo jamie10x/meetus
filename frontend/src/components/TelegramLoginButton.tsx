@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import type { TelegramAuthFields } from "@/lib/types";
 
 declare global {
@@ -21,6 +22,7 @@ const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "";
  * to the backend for verification.
  */
 export default function TelegramLoginButton({ onAuth }: Props) {
+  const t = useTranslations("telegramLogin");
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,9 +56,10 @@ export default function TelegramLoginButton({ onAuth }: Props) {
   if (!BOT_USERNAME) {
     return (
       <p className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
-        Telegram login is not configured. Set{" "}
-        <code className="font-mono">NEXT_PUBLIC_TELEGRAM_BOT_USERNAME</code> in{" "}
-        <code className="font-mono">frontend/.env.local</code>.
+        {t("notConfigured", {
+          envVar: "NEXT_PUBLIC_TELEGRAM_BOT_USERNAME",
+          envFile: "frontend/.env.local",
+        })}
       </p>
     );
   }

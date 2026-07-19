@@ -1,10 +1,12 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { Link, useRouter } from "@/i18n/navigation";
 import { useAuth } from "@/lib/auth-context";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 export default function Header() {
+  const t = useTranslations("nav");
   const { user, loading, logout } = useAuth();
   const router = useRouter();
 
@@ -17,19 +19,19 @@ export default function Header() {
 
         <nav className="flex items-center gap-4 text-sm">
           <Link href="/events" className="hover:text-sky-500">
-            Explore
+            {t("explore")}
           </Link>
           {loading ? null : user ? (
             <>
               <Link href="/tickets" className="hover:text-sky-500">
-                Tickets
+                {t("tickets")}
               </Link>
               <Link href="/organizer" className="hover:text-sky-500">
-                Organize
+                {t("organize")}
               </Link>
               {user.isAdmin ? (
                 <Link href="/admin" className="hover:text-sky-500">
-                  Admin
+                  {t("admin")}
                 </Link>
               ) : null}
               <Link
@@ -53,7 +55,7 @@ export default function Header() {
                 }}
                 className="text-zinc-500 hover:text-red-500"
               >
-                Log out
+                {t("logOut")}
               </button>
             </>
           ) : (
@@ -61,9 +63,10 @@ export default function Header() {
               href="/login"
               className="rounded-lg bg-sky-500 px-3 py-1.5 font-medium text-white hover:bg-sky-600"
             >
-              Sign in
+              {t("signIn")}
             </Link>
           )}
+          <LanguageSwitcher />
         </nav>
       </div>
     </header>

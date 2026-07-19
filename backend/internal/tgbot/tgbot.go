@@ -96,6 +96,14 @@ func (b *Bot) upsertUser(ctx context.Context, from *models.User) (*user.User, er
 	})
 }
 
+// webURL builds a locale-correct site link (path must start with "/", or
+// be "" for the home page) so bot-shared links land on the same language
+// the bot is already speaking, instead of round-tripping through the
+// browser's own locale detection.
+func (b *Bot) webURL(l lang, path string) string {
+	return b.webBaseURL + "/" + string(l) + path
+}
+
 func (b *Bot) send(ctx context.Context, chatID int64, text string, markup models.ReplyMarkup) {
 	_, err := b.api.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
@@ -118,8 +126,8 @@ func (b *Bot) handleStart(ctx context.Context, _ *bot.Bot, update *models.Update
 		slog.Error("bot start upsert failed", "err", err)
 		return
 	}
-	b.send(ctx, msg.Chat.ID,
-		tf(normalizeLang(u.Language), kWelcome, msg.From.FirstName, b.webBaseURL), nil)
+	l := normalizeLang(u.Language)
+	b.send(ctx, msg.Chat.ID, tf(l, kWelcome, msg.From.FirstName, b.webURL(l, "")), nil)
 }
 
 func (b *Bot) handleDefault(ctx context.Context, _ *bot.Bot, update *models.Update) {
@@ -131,7 +139,7 @@ func (b *Bot) handleDefault(ctx context.Context, _ *bot.Bot, update *models.Upda
 	if err == nil {
 		l = normalizeLang(u.Language)
 	}
-	b.send(ctx, update.Message.Chat.ID, tf(l, kDefaultHint, b.webBaseURL), nil)
+	b.send(ctx, update.Message.Chat.ID, tf(l, kDefaultHint, b.webURL(l, "")), nil)
 }
 
 func (b *Bot) handleEvents(ctx context.Context, _ *bot.Bot, update *models.Update) {
@@ -156,7 +164,7 @@ func (b *Bot) handleEvents(ctx context.Context, _ *bot.Bot, update *models.Updat
 	}
 
 	if len(page.Items) == 0 {
-		b.send(ctx, msg.Chat.ID, tf(l, kNoEvents, b.webBaseURL), nil)
+		b.send(ctx, msg.Chat.ID, tf(l, kNoEvents, b.webURL(l, "")), nil)
 		return
 	}
 
@@ -211,9 +219,15 @@ func (b *Bot) handleEventDetail(ctx context.Context, _ *bot.Bot, update *models.
 		sb.WriteString("\n\n" + escape(truncate(e.Description, 300)))
 	}
 
+	// WebApp (not URL) keeps the user inside Telegram: the event page opens
+	// as a Mini App in place instead of switching to an external browser.
+	// Telegram only allows this button type in private-chat messages,
+	// which is the bot's only context.
 	markup := &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
 		{{Text: t(l, kJoinButton), CallbackData: "join:" + strconv.FormatInt(e.ID, 10)}},
-		{{Text: t(l, kOpenWebButton), URL: fmt.Sprintf("%s/events/%d", b.webBaseURL, e.ID)}},
+		{{Text: t(l, kOpenWebButton), WebApp: &models.WebAppInfo{
+			URL: b.webURL(l, fmt.Sprintf("/events/%d", e.ID)),
+		}}},
 	}}
 	b.send(ctx, chatIDOf(cq), sb.String(), markup)
 }
@@ -240,7 +254,7 @@ func (b *Bot) handleJoin(ctx context.Context, _ *bot.Bot, update *models.Update)
 		return
 	}
 	b.answerCallback(ctx, cq.ID, t(l, kJoinedAlert))
-	b.send(ctx, chatIDOf(cq), tf(l, kJoinedSuccess, b.webBaseURL), nil)
+	b.send(ctx, chatIDOf(cq), tf(l, kJoinedSuccess, b.webURL(l, "/tickets")), nil)
 }
 
 // handleLanguageCommand shows the language picker.
@@ -360,7 +374,7 @@ func (b *Bot) SendReminder(ctx context.Context, rem *notification.Reminder) erro
 			place = t(l, kPlaceSeeEventPage)
 		}
 	}
-	text := tf(l, key, escape(rem.EventTitle), b.formatTime(l, rem.StartsAt), escape(place), b.webBaseURL)
+	text := tf(l, key, escape(rem.EventTitle), b.formatTime(l, rem.StartsAt), escape(place), b.webURL(l, "/tickets"))
 
 	_, err := b.api.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:    rem.UserTelegramID,

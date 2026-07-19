@@ -10,6 +10,7 @@ import (
 
 	"meetus.uz/backend/internal/platform/apperr"
 	"meetus.uz/backend/internal/platform/authn"
+	"meetus.uz/backend/internal/platform/tglang"
 	"meetus.uz/backend/internal/user"
 )
 
@@ -52,16 +53,33 @@ func (s *Service) LoginWithTelegram(ctx context.Context, fields map[string]strin
 	if err != nil {
 		return nil, err
 	}
+	// The Login Widget payload carries no language hint; "uz" matches the
+	// column's own default.
+	return s.loginTelegramUser(ctx, tu, "uz")
+}
 
+// LoginWithMiniApp verifies initData from a Telegram Mini App launch,
+// upserts the user, and issues a fresh token pair. Unlike the Login
+// Widget, initData does carry a language hint (the Telegram client's own
+// language_code), so a brand-new Mini App user gets a better first guess.
+func (s *Service) LoginWithMiniApp(ctx context.Context, initData string) (*LoginResult, error) {
+	tu, err := VerifyMiniAppInitData(initData, s.botToken, s.now())
+	if err != nil {
+		return nil, err
+	}
+	return s.loginTelegramUser(ctx, tu, tglang.MapCode(tu.LanguageCode))
+}
+
+// loginTelegramUser is the shared tail of both login flows: upsert, ban
+// check, issue tokens. defaultLanguage seeds a brand-new user's language
+// column (ignored for existing users — see user.TelegramProfile.Language).
+func (s *Service) loginTelegramUser(ctx context.Context, tu *TelegramUser, defaultLanguage string) (*LoginResult, error) {
 	u, err := s.users.UpsertTelegramUser(ctx, user.TelegramProfile{
 		TelegramID: tu.ID,
 		Name:       tu.DisplayName(),
 		Username:   tu.Username,
 		AvatarURL:  tu.PhotoURL,
-		// The Telegram Login Widget payload carries no language hint;
-		// "uz" matches the column's own default. The bot guesses better
-		// from the Telegram client's language_code (mapTelegramLangCode).
-		Language: "uz",
+		Language:   defaultLanguage,
 	})
 	if err != nil {
 		return nil, err

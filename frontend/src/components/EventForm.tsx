@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { api, uploadImage, ApiError } from "@/lib/api";
 import type { EventInput, EventItem, MetaItem } from "@/lib/types";
 
@@ -28,6 +29,7 @@ const inputCls =
 const labelCls = "flex flex-col gap-1 text-sm font-medium";
 
 export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
+  const t = useTranslations("eventForm");
   const [categories, setCategories] = useState<MetaItem[]>([]);
   const [cities, setCities] = useState<MetaItem[]>([]);
 
@@ -68,7 +70,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
     try {
       setCoverUrl(await uploadImage(file));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Upload failed.");
+      setError(e instanceof ApiError ? e.message : t("uploadFailed"));
     } finally {
       setUploading(false);
     }
@@ -94,7 +96,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         coverUrl: coverUrl || null,
       });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to save event.");
+      setError(err instanceof ApiError ? err.message : t("saveFailed"));
       setSaving(false);
     }
   };
@@ -102,7 +104,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <label className={labelCls}>
-        Title
+        {t("titleLabel")}
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -113,7 +115,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
       </label>
 
       <label className={labelCls}>
-        Description
+        {t("description")}
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -124,14 +126,14 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
 
       <div className="grid grid-cols-2 gap-4">
         <label className={labelCls}>
-          Category
+          {t("category")}
           <select
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
             required
             className={inputCls}
           >
-            <option value="">Choose…</option>
+            <option value="">{t("chooseOption")}</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.nameEn}
@@ -141,13 +143,13 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         </label>
 
         <label className={labelCls}>
-          City
+          {t("city")}
           <select
             value={cityId}
             onChange={(e) => setCityId(e.target.value)}
             className={inputCls}
           >
-            <option value="">{isOnline ? "Not needed" : "Choose…"}</option>
+            <option value="">{isOnline ? t("notNeeded") : t("chooseOption")}</option>
             {cities.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.nameEn}
@@ -163,22 +165,22 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
           checked={isOnline}
           onChange={(e) => setIsOnline(e.target.checked)}
         />
-        Online event
+        {t("onlineEvent")}
       </label>
 
       {!isOnline ? (
         <div className="grid grid-cols-2 gap-4">
           <label className={labelCls}>
-            Venue name
+            {t("venueName")}
             <input
               value={locationName}
               onChange={(e) => setLocationName(e.target.value)}
-              placeholder="e.g. Impact Hub"
+              placeholder={t("venuePlaceholder")}
               className={inputCls}
             />
           </label>
           <label className={labelCls}>
-            District
+            {t("district")}
             <input
               value={district}
               onChange={(e) => setDistrict(e.target.value)}
@@ -186,7 +188,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
             />
           </label>
           <label className={`${labelCls} col-span-2`}>
-            Address
+            {t("address")}
             <input
               value={address}
               onChange={(e) => setAddress(e.target.value)}
@@ -198,7 +200,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
 
       <div className="grid grid-cols-2 gap-4">
         <label className={labelCls}>
-          Starts at
+          {t("startsAt")}
           <input
             type="datetime-local"
             value={startsAt}
@@ -208,7 +210,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
           />
         </label>
         <label className={labelCls}>
-          Ends at (optional)
+          {t("endsAtOptional")}
           <input
             type="datetime-local"
             value={endsAt}
@@ -219,7 +221,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
       </div>
 
       <label className={labelCls}>
-        Capacity (leave empty for unlimited)
+        {t("capacity")}
         <input
           type="number"
           min={1}
@@ -230,7 +232,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
       </label>
 
       <label className={labelCls}>
-        Cover image
+        {t("coverImage")}
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp"
@@ -239,12 +241,12 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         />
       </label>
       {uploading ? (
-        <p className="text-sm text-zinc-500">Uploading…</p>
+        <p className="text-sm text-zinc-500">{t("uploading")}</p>
       ) : coverUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={coverUrl}
-          alt="Cover preview"
+          alt={t("coverPreviewAlt")}
           className="max-h-48 rounded-lg object-cover"
         />
       ) : null}
@@ -254,7 +256,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         disabled={saving || uploading}
         className="mt-2 rounded-lg bg-sky-500 px-4 py-2 font-medium text-white hover:bg-sky-600 disabled:opacity-50"
       >
-        {saving ? "Saving…" : submitLabel}
+        {saving ? t("saving") : submitLabel}
       </button>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}

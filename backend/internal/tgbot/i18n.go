@@ -2,7 +2,8 @@ package tgbot
 
 import (
 	"fmt"
-	"strings"
+
+	"meetus.uz/backend/internal/platform/tglang"
 )
 
 // lang is one of the three languages the bot supports, mirroring
@@ -28,17 +29,11 @@ func normalizeLang(s string) lang {
 
 // mapTelegramLangCode guesses a supported language from Telegram's IETF
 // language_code (e.g. "ru", "en-US") for a brand-new user, before they've
-// set anything explicitly via /language or the web profile page.
+// set anything explicitly via /language or the web profile page. Shared
+// with Mini App login via internal/platform/tglang so both first-contact
+// paths agree.
 func mapTelegramLangCode(code string) string {
-	c := strings.ToLower(code)
-	switch {
-	case strings.HasPrefix(c, "ru"):
-		return string(langRu)
-	case strings.HasPrefix(c, "en"):
-		return string(langEn)
-	default:
-		return string(langUz)
-	}
+	return tglang.MapCode(code)
 }
 
 // langDisplayName is the language's own native name, used as a button
@@ -95,22 +90,22 @@ var catalog = map[lang]map[msgKey]string{
 			"• /language — change language\n" +
 			"• Tickets and profile: %s",
 		kDefaultHint:      "Try /events to browse upcoming meetups, or visit %s",
-		kNoEvents:         "No upcoming events yet. Check back soon or explore %s/events",
+		kNoEvents:         "No upcoming events yet. Check back soon or explore %s",
 		kEventsHeader:     "📅 <b>Upcoming events</b>\n\n",
 		kGoingCount:       "%d going",
 		kSpotsLeft:        " / %d spots",
 		kJoinButton:       "✅ Join event",
 		kOpenWebButton:    "🌐 Open on Meetus.uz",
 		kEventUnavailable: "This event is no longer available.",
-		kJoinedSuccess: "✅ You joined! Your QR ticket is ready:\n%s/tickets\n\n" +
+		kJoinedSuccess: "✅ You joined! Your QR ticket is ready:\n%s\n\n" +
 			"I'll remind you before the event starts.",
 		kJoinedAlert:       "You're in! 🎉",
 		kLanguagePrompt:    "🌐 Choose your language:",
 		kLanguageSet:       "✅ Language set to %s.",
 		kFeedbackPrompt:    "🎉 How was <b>%s</b>? Tap a rating below:",
 		kFeedbackThanks:    "🙏 Thanks for your feedback!",
-		kReminder24h:       "⏰ <b>%s</b> is coming up!\n\n🕐 %s\n📍 %s\n\n🎫 Your ticket: %s/tickets",
-		kReminder1h:        "⏰ <b>%s</b> starts in about an hour!\n\n🕐 %s\n📍 %s\n\n🎫 Your ticket: %s/tickets",
+		kReminder24h:       "⏰ <b>%s</b> is coming up!\n\n🕐 %s\n📍 %s\n\n🎫 Your ticket: %s",
+		kReminder1h:        "⏰ <b>%s</b> starts in about an hour!\n\n🕐 %s\n📍 %s\n\n🎫 Your ticket: %s",
 		kPlaceOnline:       "Online",
 		kPlaceSeeEventPage: "see event page",
 		kPlaceInPerson:     "In person",
@@ -127,22 +122,22 @@ var catalog = map[lang]map[msgKey]string{
 			"• /language — сменить язык\n" +
 			"• Билеты и профиль: %s",
 		kDefaultHint:      "Введите /events, чтобы посмотреть мероприятия, или откройте %s",
-		kNoEvents:         "Пока нет предстоящих мероприятий. Загляните позже или откройте %s/events",
+		kNoEvents:         "Пока нет предстоящих мероприятий. Загляните позже или откройте %s",
 		kEventsHeader:     "📅 <b>Предстоящие мероприятия</b>\n\n",
 		kGoingCount:       "%d участников",
 		kSpotsLeft:        " / %d мест",
 		kJoinButton:       "✅ Участвовать",
 		kOpenWebButton:    "🌐 Открыть на Meetus.uz",
 		kEventUnavailable: "Это мероприятие больше недоступно.",
-		kJoinedSuccess: "✅ Вы записаны! Ваш QR-билет готов:\n%s/tickets\n\n" +
+		kJoinedSuccess: "✅ Вы записаны! Ваш QR-билет готов:\n%s\n\n" +
 			"Я напомню вам перед началом мероприятия.",
 		kJoinedAlert:       "Вы участвуете! 🎉",
 		kLanguagePrompt:    "🌐 Выберите язык:",
 		kLanguageSet:       "✅ Язык изменён на %s.",
 		kFeedbackPrompt:    "🎉 Как прошло <b>%s</b>? Оцените ниже:",
 		kFeedbackThanks:    "🙏 Спасибо за отзыв!",
-		kReminder24h:       "⏰ <b>%s</b> уже скоро!\n\n🕐 %s\n📍 %s\n\n🎫 Ваш билет: %s/tickets",
-		kReminder1h:        "⏰ <b>%s</b> начнётся примерно через час!\n\n🕐 %s\n📍 %s\n\n🎫 Ваш билет: %s/tickets",
+		kReminder24h:       "⏰ <b>%s</b> уже скоро!\n\n🕐 %s\n📍 %s\n\n🎫 Ваш билет: %s",
+		kReminder1h:        "⏰ <b>%s</b> начнётся примерно через час!\n\n🕐 %s\n📍 %s\n\n🎫 Ваш билет: %s",
 		kPlaceOnline:       "Онлайн",
 		kPlaceSeeEventPage: "см. страницу мероприятия",
 		kPlaceInPerson:     "Очно",
@@ -159,22 +154,22 @@ var catalog = map[lang]map[msgKey]string{
 			"• /language — tilni o'zgartirish\n" +
 			"• Chiptalar va profil: %s",
 		kDefaultHint:      "Tadbirlarni ko'rish uchun /events buyrug'ini yuboring yoki %s ga o'ting",
-		kNoEvents:         "Hozircha tadbirlar yo'q. Birozdan so'ng qayta tekshiring yoki %s/events sahifasiga o'ting",
+		kNoEvents:         "Hozircha tadbirlar yo'q. Birozdan so'ng qayta tekshiring yoki %s sahifasiga o'ting",
 		kEventsHeader:     "📅 <b>Yaqinlashib kelayotgan tadbirlar</b>\n\n",
 		kGoingCount:       "%d kishi ishtirok etmoqda",
 		kSpotsLeft:        " / %d joy",
 		kJoinButton:       "✅ Qatnashish",
 		kOpenWebButton:    "🌐 Meetus.uz'da ochish",
 		kEventUnavailable: "Bu tadbir endi mavjud emas.",
-		kJoinedSuccess: "✅ Siz qatnashuvchi sifatida qo'shildingiz! QR-chiptangiz tayyor:\n%s/tickets\n\n" +
+		kJoinedSuccess: "✅ Siz qatnashuvchi sifatida qo'shildingiz! QR-chiptangiz tayyor:\n%s\n\n" +
 			"Tadbir boshlanishidan oldin sizga eslataman.",
 		kJoinedAlert:       "Siz ro'yxatdasiz! 🎉",
 		kLanguagePrompt:    "🌐 Tilni tanlang:",
 		kLanguageSet:       "✅ Til %s qilib o'zgartirildi.",
 		kFeedbackPrompt:    "🎉 <b>%s</b> qanday o'tdi? Bahoni tanlang:",
 		kFeedbackThanks:    "🙏 Fikringiz uchun rahmat!",
-		kReminder24h:       "⏰ <b>%s</b> tez orada boshlanadi!\n\n🕐 %s\n📍 %s\n\n🎫 Chiptangiz: %s/tickets",
-		kReminder1h:        "⏰ <b>%s</b> taxminan bir soatdan so'ng boshlanadi!\n\n🕐 %s\n📍 %s\n\n🎫 Chiptangiz: %s/tickets",
+		kReminder24h:       "⏰ <b>%s</b> tez orada boshlanadi!\n\n🕐 %s\n📍 %s\n\n🎫 Chiptangiz: %s",
+		kReminder1h:        "⏰ <b>%s</b> taxminan bir soatdan so'ng boshlanadi!\n\n🕐 %s\n📍 %s\n\n🎫 Chiptangiz: %s",
 		kPlaceOnline:       "Onlayn",
 		kPlaceSeeEventPage: "tadbir sahifasiga qarang",
 		kPlaceInPerson:     "Yuzma-yuz",

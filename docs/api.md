@@ -22,11 +22,23 @@ Response `data`:
 ```json
 {
   "user": { "id": 1, "name": "...", "username": null, "avatarUrl": null,
-             "cityId": null, "district": null, "language": "uz", "createdAt": "..." },
+             "cityId": null, "district": null, "language": "uz", "isAdmin": false, "createdAt": "..." },
   "tokens": { "accessToken": "...", "refreshToken": "...",
                "accessExpiresIn": 900, "refreshExpiresIn": 2592000 }
 }
 ```
+
+### POST /auth/telegram-miniapp
+Body: `{ "initData": "<raw window.Telegram.WebApp.initData string>" }` — pass
+it through unparsed; the backend does its own URL-query decoding.
+
+Different signing scheme from the Login Widget (see architecture.md) — do
+not confuse `VerifyMiniAppInitData` with `VerifyTelegramLogin`, and initData
+is rejected if older than 1 hour (vs. 24h for the widget, since initData is
+minted fresh on every Mini App launch). Response shape is identical to
+`/auth/telegram`. A brand-new user's language is guessed from initData's
+`user.language_code` (the widget has no such field, so it defaults to `uz`
+there instead).
 
 ### POST /auth/refresh
 Body: `{ "refreshToken": "..." }` → `data`: token pair (rotation: old token is revoked).

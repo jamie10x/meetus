@@ -1,13 +1,14 @@
 # Meetus.uz
 
 Events and meetup platform for Uzbekistan: discover events, RSVP, get a QR ticket, check in.
+Fully translated uz/ru/en, and runs as both a regular website and a Telegram Mini App.
 
 ## Stack
 
 - **Backend:** Go + Gin, PostgreSQL 16 (full-text search), Redis 7
-- **Frontend:** Next.js (App Router) + Tailwind CSS
-- **Auth:** Telegram Login → JWT (access + refresh)
-- **Bot:** Telegram bot for browsing, RSVP, and reminders
+- **Frontend:** Next.js (App Router) + Tailwind CSS, i18n via next-intl (uz/ru/en, locale-prefixed URLs)
+- **Auth:** Telegram Login Widget (browser) + Telegram Mini App `initData` (in-Telegram) → JWT (access + refresh)
+- **Bot:** Telegram bot for browsing, RSVP, reminders, and post-event feedback — i18n'd, opens events as an in-app Mini App
 - **Deploy:** Docker + systemd on a VPS, Caddy reverse proxy
 
 ## Layout

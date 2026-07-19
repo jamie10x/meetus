@@ -15,6 +15,7 @@ import {
   getRefreshToken,
   storeTokens,
 } from "./api";
+import { getTelegramWebApp } from "./telegram-webapp";
 import type { LoginResult, TelegramAuthFields, User } from "./types";
 
 type AuthContextValue = {
@@ -32,14 +33,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!getAccessToken() && !getRefreshToken()) {
-      setLoading(false);
-      return;
-    }
-    api<User>("/me", { auth: true })
-      .then(setUserState)
-      .catch(() => clearTokens())
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    // The SDK loads with strategy="beforeInteractive" (see layout.tsx),
+    // so window.Telegram.WebApp is already populated by the time this
+    // mount effect runs — no polling needed.
+    const tg = getTelegramWebApp();
+    tg?.ready();
+    tg?.expand();
+
+    (async () => {
+      if (getAccessToken() || getRefreshToken()) {
+        // An existing session takes priority over Mini App auto-login.
+        try {
+          const me = await api<User>("/me", { auth: true });
+          if (!cancelled) setUserState(me);
+        } catch {
+          clearTokens();
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+        return;
+      }
+
+      if (tg?.initData) {
+        try {
+          const result = await api<LoginResult>("/auth/telegram-miniapp", {
+            method: "POST",
+            body: { initData: tg.initData },
+          });
+          if (!cancelled) {
+            storeTokens(result.tokens);
+            setUserState(result.user);
+          }
+        } catch {
+          // Not fatal — falls through to the normal Login Widget.
+        }
+      }
+      if (!cancelled) setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loginWithTelegram = useCallback(
