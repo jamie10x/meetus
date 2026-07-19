@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import TrendingSection from "@/components/TrendingSection";
 import TicketPreview from "@/components/TicketPreview";
+import HeroSignInCta from "@/components/HeroSignInCta";
 import { API_URL } from "@/lib/api";
 import { fetchTrending } from "@/lib/server-api";
 import type { MetaItem } from "@/lib/types";
@@ -57,12 +58,7 @@ export default async function HomePage() {
               >
                 {t("exploreEvents")}
               </Link>
-              <Link
-                href="/login"
-                className="rounded-full border border-line px-6 py-3 text-base font-bold text-bone transition-colors hover:border-registan-strong hover:text-registan-strong"
-              >
-                {t("signIn")}
-              </Link>
+              <HeroSignInCta />
             </div>
             <div className="mt-10 flex flex-wrap gap-8 border-t border-bone/[0.09] pt-7">
               {cityCount > 0 ? (
