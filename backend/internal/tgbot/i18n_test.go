@@ -10,6 +10,7 @@ var allKeys = []msgKey{
 	kWelcome, kDefaultHint, kNoEvents, kEventsHeader, kGoingCount, kSpotsLeft,
 	kJoinButton, kOpenWebButton, kEventUnavailable, kJoinedSuccess, kJoinedAlert,
 	kLanguagePrompt, kLanguageSet, kFeedbackPrompt, kFeedbackThanks,
+	kFeedbackCommentPrompt, kFeedbackCommentThanks, kSkipButton,
 	kReminder24h, kReminder1h, kPlaceOnline, kPlaceSeeEventPage, kPlaceInPerson,
 	kErrAlreadyJoined, kErrEventFull, kErrNotOpen, kErrAlreadyStarted, kErrGeneric,
 	kChannelConnected, kChannelConnectNeedsOrganizer, kAnnouncementCta,
@@ -28,9 +29,9 @@ func TestCatalog_CompleteForEveryLanguage(t *testing.T) {
 func TestNormalizeLang(t *testing.T) {
 	cases := map[string]lang{
 		"uz": langUz, "ru": langRu, "en": langEn,
-		"":     langEn,
-		"fr":   langEn,
-		"UZ":   langEn, // case-sensitive by design — DB values are always lowercase
+		"":   langEn,
+		"fr": langEn,
+		"UZ": langEn, // case-sensitive by design — DB values are always lowercase
 	}
 	for in, want := range cases {
 		if got := normalizeLang(in); got != want {

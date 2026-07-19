@@ -36,6 +36,7 @@ export type TelegramAuthFields = Record<string, string>;
 export type Channel = {
   id: number;
   chatTitle: string;
+  language: string | null;
   connectedAt: string;
 };
 

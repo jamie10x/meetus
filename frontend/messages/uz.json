@@ -123,7 +123,9 @@
     "channelsHint": "Kanalingizni ulash uchun {botUsername} ni Telegram kanalingizga admin qilib qo'shing — kod kerak emas, ulanish avtomatik amalga oshadi.",
     "noChannels": "Hozircha ulangan kanallar yo'q.",
     "disconnect": "Uzish",
-    "connectedOn": "{date} da ulangan"
+    "connectedOn": "{date} da ulangan",
+    "channelLanguageLabel": "E'lonlar tili",
+    "channelLanguageDefault": "Mening tilimga mos"
   },
   "eventForm": {
     "titleLabel": "Sarlavha",
@@ -171,7 +173,8 @@
     "announce": "E'lon qilish",
     "announcing": "Yuborilmoqda…",
     "announceSent": "{channel} ga yuborildi",
-    "announceFailed": "E'lonni yuborib bo'lmadi."
+    "announceFailed": "E'lonni yuborib bo'lmadi.",
+    "autoAnnounceHint": "E'lon qilinganda tadbir ulangan {count} ta kanalga avtomatik yuboriladi."
   },
   "scan": {
     "title": "Ro'yxatga olish skaneri",
@@ -191,7 +194,8 @@
     "exportCsv": "CSV eksport",
     "noRsvps": "Hozircha ro'yxatdan o'tganlar yo'q.",
     "checkedIn": "ro'yxatga olingan",
-    "going": "ishtirokchi"
+    "going": "ishtirokchi",
+    "commentsHeading": "Izohlar ({count})"
   },
   "admin": {
     "title": "Admin",
@@ -220,7 +224,21 @@
     "joined": "{date} da qo'shilgan",
     "unban": "Blokdan chiqarish",
     "ban": "Bloklash",
-    "noUsers": "Foydalanuvchilar topilmadi."
+    "noUsers": "Foydalanuvchilar topilmadi.",
+    "citiesHeading": "Shaharlar",
+    "categoriesHeading": "Kategoriyalar",
+    "metaSlug": "Slug",
+    "metaNameUz": "O'zbekcha nomi",
+    "metaNameRu": "Ruscha nomi",
+    "metaNameEn": "Inglizcha nomi",
+    "metaAdd": "+ Qo'shish",
+    "metaEdit": "Tahrirlash",
+    "metaSave": "Saqlash",
+    "metaCancel": "Bekor qilish",
+    "metaDelete": "O'chirish",
+    "metaDeleteConfirm": "O'chirilsinmi? Bu amalni bekor qilib bo'lmaydi.",
+    "metaSaveFailed": "Saqlab bo'lmadi.",
+    "metaDeleteFailed": "O'chirib bo'lmadi."
   },
   "languageSwitcher": {
     "uz": "Oʻzbekcha",

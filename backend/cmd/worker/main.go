@@ -75,6 +75,7 @@ func run() error {
 		rsvp.NewRepository(pool),
 		feedback.NewRepository(pool),
 		channel.NewRepository(pool),
+		rdb,
 		cfg.WebBaseURL,
 	)
 	if err != nil {

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import MetaManager from "@/components/MetaManager";
 import type { EventItem } from "@/lib/types";
 
 type AdminStats = {
@@ -199,6 +200,9 @@ export default function AdminPage() {
           ) : null}
         </ul>
       </section>
+
+      <MetaManager resource="cities" heading={t("citiesHeading")} />
+      <MetaManager resource="categories" heading={t("categoriesHeading")} />
 
       <section>
         <div className="mb-3 flex items-center justify-between">

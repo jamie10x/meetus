@@ -32,8 +32,8 @@ func NewAnnouncer(token, webBaseURL string) (*Announcer, error) {
 }
 
 // SendAnnouncement posts one event to one connected channel, rendered in
-// langCode — the triggering organizer's own language, since channels have
-// no per-channel language setting of their own.
+// langCode — the channel's own language override if the caller set one,
+// else the triggering organizer's language.
 func (a *Announcer) SendAnnouncement(ctx context.Context, chatID int64, langCode string, e *event.Event) error {
 	l := normalizeLang(langCode)
 

@@ -123,7 +123,9 @@
     "channelsHint": "Добавьте {botUsername} администратором в свой Telegram-канал, чтобы подключить его — код не нужен, привязка происходит автоматически.",
     "noChannels": "Пока нет подключённых каналов.",
     "disconnect": "Отключить",
-    "connectedOn": "Подключён {date}"
+    "connectedOn": "Подключён {date}",
+    "channelLanguageLabel": "Язык анонсов",
+    "channelLanguageDefault": "Как в моём профиле"
   },
   "eventForm": {
     "titleLabel": "Название",
@@ -171,7 +173,8 @@
     "announce": "Анонсировать",
     "announcing": "Отправка…",
     "announceSent": "Отправлено в {channel}",
-    "announceFailed": "Не удалось отправить анонс."
+    "announceFailed": "Не удалось отправить анонс.",
+    "autoAnnounceHint": "После публикации анонс автоматически отправится в ваши подключённые каналы ({count})."
   },
   "scan": {
     "title": "Сканер регистрации",
@@ -191,7 +194,8 @@
     "exportCsv": "Экспорт в CSV",
     "noRsvps": "Пока нет записей.",
     "checkedIn": "зарегистрирован",
-    "going": "участвует"
+    "going": "участвует",
+    "commentsHeading": "Комментарии ({count})"
   },
   "admin": {
     "title": "Админ-панель",
@@ -220,7 +224,21 @@
     "joined": "регистрация {date}",
     "unban": "Разблокировать",
     "ban": "Заблокировать",
-    "noUsers": "Пользователи не найдены."
+    "noUsers": "Пользователи не найдены.",
+    "citiesHeading": "Города",
+    "categoriesHeading": "Категории",
+    "metaSlug": "Slug",
+    "metaNameUz": "Название (узб.)",
+    "metaNameRu": "Название (рус.)",
+    "metaNameEn": "Название (англ.)",
+    "metaAdd": "+ Добавить",
+    "metaEdit": "Изменить",
+    "metaSave": "Сохранить",
+    "metaCancel": "Отмена",
+    "metaDelete": "Удалить",
+    "metaDeleteConfirm": "Удалить это? Действие нельзя отменить.",
+    "metaSaveFailed": "Не удалось сохранить.",
+    "metaDeleteFailed": "Не удалось удалить."
   },
   "languageSwitcher": {
     "uz": "Oʻzbekcha",

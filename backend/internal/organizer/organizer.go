@@ -81,6 +81,21 @@ func (r *Repository) GetByUserID(ctx context.Context, userID int64) (*Organizer,
 	return &o, nil
 }
 
+// GetLanguage returns the language preference of the user who owns the
+// given organizer profile — used as the default announcement language
+// for channels without their own per-channel override.
+func (r *Repository) GetLanguage(ctx context.Context, organizerID int64) (string, error) {
+	var lang string
+	err := r.pool.QueryRow(ctx, `
+		SELECT u.language FROM organizers o
+		JOIN users u ON u.id = o.user_id
+		WHERE o.id = $1`, organizerID).Scan(&lang)
+	if err != nil {
+		return "", fmt.Errorf("get organizer language: %w", err)
+	}
+	return lang, nil
+}
+
 const ctxOrganizerIDKey = "organizerID"
 
 // RequireOrganizer loads the caller's organizer profile and stores its ID

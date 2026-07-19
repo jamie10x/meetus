@@ -8,6 +8,7 @@ import "./globals.css";
 import { routing, type AppLocale } from "@/i18n/routing";
 import { AuthProvider } from "@/lib/auth-context";
 import Header from "@/components/Header";
+import TelegramChrome from "@/components/TelegramChrome";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -75,6 +76,7 @@ export default async function LocaleLayout({
         />
         <NextIntlClientProvider messages={messages}>
           <AuthProvider>
+            <TelegramChrome />
             <Header />
             <div className="flex-1">{children}</div>
           </AuthProvider>

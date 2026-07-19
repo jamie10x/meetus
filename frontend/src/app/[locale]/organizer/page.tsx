@@ -80,6 +80,21 @@ export default function OrganizerPage() {
     }
   };
 
+  const setChannelLanguage = async (id: number, language: string) => {
+    const value = language === "" ? null : language;
+    const prev = channels;
+    setChannels((cs) => cs.map((c) => (c.id === id ? { ...c, language: value } : c)));
+    try {
+      await api(`/organizers/me/channels/${id}`, {
+        method: "PATCH",
+        auth: true,
+        body: { language: value },
+      });
+    } catch {
+      setChannels(prev);
+    }
+  };
+
   if (!organizer) {
     const become = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -238,12 +253,25 @@ export default function OrganizerPage() {
                     })}
                   </p>
                 </div>
-                <button
-                  onClick={() => disconnectChannel(c.id)}
-                  className="rounded-lg border border-red-500 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                >
-                  {t("disconnect")}
-                </button>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={c.language ?? ""}
+                    onChange={(e) => setChannelLanguage(c.id, e.target.value)}
+                    className="rounded-lg border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                    aria-label={t("channelLanguageLabel")}
+                  >
+                    <option value="">{t("channelLanguageDefault")}</option>
+                    <option value="uz">O&apos;zbekcha</option>
+                    <option value="ru">Русский</option>
+                    <option value="en">English</option>
+                  </select>
+                  <button
+                    onClick={() => disconnectChannel(c.id)}
+                    className="rounded-lg border border-red-500 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                  >
+                    {t("disconnect")}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

@@ -123,7 +123,9 @@
     "channelsHint": "Add {botUsername} as an admin to your Telegram channel to connect it — no code needed, it links automatically.",
     "noChannels": "No channels connected yet.",
     "disconnect": "Disconnect",
-    "connectedOn": "Connected {date}"
+    "connectedOn": "Connected {date}",
+    "channelLanguageLabel": "Announcement language",
+    "channelLanguageDefault": "Same as my language"
   },
   "eventForm": {
     "titleLabel": "Title",
@@ -171,7 +173,8 @@
     "announce": "Announce",
     "announcing": "Sending…",
     "announceSent": "Sent to {channel}",
-    "announceFailed": "Could not send the announcement."
+    "announceFailed": "Could not send the announcement.",
+    "autoAnnounceHint": "Publishing will automatically announce this event to your {count} connected channel(s)."
   },
   "scan": {
     "title": "Check-in scanner",
@@ -191,7 +194,8 @@
     "exportCsv": "Export CSV",
     "noRsvps": "No RSVPs yet.",
     "checkedIn": "checked in",
-    "going": "going"
+    "going": "going",
+    "commentsHeading": "Comments ({count})"
   },
   "admin": {
     "title": "Admin",
@@ -220,7 +224,21 @@
     "joined": "joined {date}",
     "unban": "Unban",
     "ban": "Ban",
-    "noUsers": "No users found."
+    "noUsers": "No users found.",
+    "citiesHeading": "Cities",
+    "categoriesHeading": "Categories",
+    "metaSlug": "Slug",
+    "metaNameUz": "Uzbek name",
+    "metaNameRu": "Russian name",
+    "metaNameEn": "English name",
+    "metaAdd": "+ Add",
+    "metaEdit": "Edit",
+    "metaSave": "Save",
+    "metaCancel": "Cancel",
+    "metaDelete": "Delete",
+    "metaDeleteConfirm": "Delete this? It cannot be undone.",
+    "metaSaveFailed": "Failed to save.",
+    "metaDeleteFailed": "Failed to delete."
   },
   "languageSwitcher": {
     "uz": "Oʻzbekcha",

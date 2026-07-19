@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
@@ -55,6 +56,53 @@ func (r *Repository) Submit(ctx context.Context, eventID, userID int64, rating i
 	return nil
 }
 
+// SetComment attaches free-text feedback to a rating the user already
+// submitted (the bot asks for a comment as a follow-up message after the
+// star tap, so the row is expected to exist). A no-op if it doesn't.
+func (r *Repository) SetComment(ctx context.Context, eventID, userID int64, comment string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE event_feedback SET comment = $3
+		WHERE event_id = $1 AND user_id = $2`,
+		eventID, userID, comment)
+	if err != nil {
+		return fmt.Errorf("set feedback comment: %w", err)
+	}
+	return nil
+}
+
+type Comment struct {
+	UserName  string    `json:"userName"`
+	Rating    int       `json:"rating"`
+	Comment   string    `json:"comment"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// ListComments returns the most recent non-empty comments for an event,
+// newest first, for the owning organizer to read.
+func (r *Repository) ListComments(ctx context.Context, eventID int64, limit int) ([]*Comment, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT u.name, ef.rating, ef.comment, ef.created_at
+		FROM event_feedback ef
+		JOIN users u ON u.id = ef.user_id
+		WHERE ef.event_id = $1 AND ef.comment IS NOT NULL AND ef.comment <> ''
+		ORDER BY ef.created_at DESC
+		LIMIT $2`, eventID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list feedback comments: %w", err)
+	}
+	defer rows.Close()
+
+	comments := make([]*Comment, 0, 8)
+	for rows.Next() {
+		var c Comment
+		if err := rows.Scan(&c.UserName, &c.Rating, &c.Comment, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		comments = append(comments, &c)
+	}
+	return comments, rows.Err()
+}
+
 type Summary struct {
 	Count   int64   `json:"count"`
 	Average float64 `json:"average"`
@@ -83,9 +131,12 @@ func NewHandler(repo *Repository, eventRepo *event.Repository) *Handler {
 	return &Handler{repo: repo, eventRepo: eventRepo}
 }
 
+const commentListLimit = 100
+
 func (h *Handler) Register(r gin.IRouter, requireAuth, requireOrganizer gin.HandlerFunc) {
 	r.POST("/events/:id/feedback", requireAuth, h.submit)
 	r.GET("/events/:id/feedback", requireAuth, requireOrganizer, h.summary)
+	r.GET("/events/:id/feedback/comments", requireAuth, requireOrganizer, h.comments)
 }
 
 func eventID(c *gin.Context) (int64, error) {
@@ -140,4 +191,28 @@ func (h *Handler) summary(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, http.StatusOK, s)
+}
+
+// comments is owner-only, same ownership check as summary.
+func (h *Handler) comments(c *gin.Context) {
+	id, err := eventID(c)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	e, err := h.eventRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	if e.OrganizerID != organizer.OrganizerID(c) {
+		httpx.Error(c, apperr.Forbidden("you do not own this event"))
+		return
+	}
+	comments, err := h.repo.ListComments(c.Request.Context(), id, commentListLimit)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	httpx.OK(c, http.StatusOK, comments)
 }

@@ -39,8 +39,11 @@ Identity = Telegram account. Created lazily on first login (web or bot).
 
 ### cities, categories
 Reference data, seeded in `0002_seed.up.sql` (14 cities, 10 categories) with
-`slug` + `name_uz/ru/en`. Served by `GET /api/meta/*`. Add rows via a new
-migration, not by hand.
+`slug` + `name_uz/ru/en`. Served publicly by `GET /api/meta/*`; admins can
+also create/update/delete rows via `POST`/`PATCH`/`DELETE /api/admin/{cities,categories}`
+(`meta.Handler.RegisterAdmin`) instead of only through a migration now.
+Deleting a row still fails (409) if an existing event — or, for cities, a
+user — references it.
 
 ### events
 
@@ -98,9 +101,9 @@ Post-event ratings. UNIQUE `(event_id, user_id)` — one rating per user per
 event, upserted (resubmitting changes the rating, doesn't add a row).
 `rating` SMALLINT CHECK 1-5. Submitting requires an existing `rsvps` row
 for the pair (checked in `feedback.Repository.Submit`, not a DB constraint).
-No `comment` column yet — ratings only; add one via a new migration if
-free-text feedback becomes a requirement (deliberately not built ahead of
-need, see roadmap.md).
+`comment` TEXT NULL (added in `0007_feedback_comment`) — set separately via
+`feedback.Repository.SetComment` once the bot's follow-up prompt gets a
+reply; most rows have no comment, which is expected, not an error state.
 
 ### channel_connections
 Links a Telegram channel to the organizer who can post to it. `chat_id`
@@ -109,8 +112,10 @@ bot is re-added as admin by a different organizer, `ON CONFLICT (chat_id)
 DO UPDATE` reassigns ownership rather than erroring. Rows are written only
 by `channel.Repository.ConnectByTelegramID` (from tgbot's `my_chat_member`
 handler — never from a user-supplied chat ID) and deleted by `Disconnect`
-when the bot is demoted, kicked, or leaves. See architecture.md's "Channel
-connections and announcements".
+when the bot is demoted, kicked, or leaves. `language` TEXT NULL (added in
+`0006_channel_language`) — a per-channel announcement-language override;
+`NULL` means "use whichever organizer triggers the send's own language". See
+architecture.md's "Channel connections and announcements".
 
 ## Query conventions
 

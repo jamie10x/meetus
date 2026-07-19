@@ -161,6 +161,12 @@ export default function EditEventPage({
         <p className="mb-4 text-sm text-red-600">{actionError}</p>
       ) : null}
 
+      {event.status === "draft" && channels.length > 0 ? (
+        <p className="mb-6 text-sm text-zinc-500">
+          {t("autoAnnounceHint", { count: channels.length })}
+        </p>
+      ) : null}
+
       {event.status === "published" && channels.length > 0 ? (
         <div className="mb-6 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
           <h2 className="mb-3 text-sm font-semibold">{t("announceHeading")}</h2>

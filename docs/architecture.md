@@ -46,13 +46,13 @@ service would be pure pass-through (`meta`, `organizer`, `upload`).
 | `platform/tglang` | Telegram `language_code` → uz/ru/en mapping | leaf package — shared by `auth` (Mini App login) and `tgbot` so both first-contact paths agree |
 | `user` | users table, profile GET/PATCH | `Repository.UpsertTelegramUser` (used by auth **and** bot) |
 | `organizer` | organizer profiles, `RequireOrganizer` middleware, `OrganizerID(c)` | |
-| `event` | event CRUD + lifecycle (owner side), public explore queries, trending ranking | `Repository.ListPublic`/`ListTrending` (keyset pagination), `Service` lifecycle rules |
+| `event` | event CRUD + lifecycle (owner side), public explore queries, trending ranking | `Repository.ListPublic`/`ListTrending` (keyset pagination), `Service` lifecycle rules, `Handler.SetOnPublished` (auto-announce hook, fired async after a successful publish) |
 | `rsvp` | RSVPs, tickets, QR signing, check-in, attendees | `TicketSigner`, transactional `Repository.Join` |
 | `notification` | due-reminder + due-feedback queries, sent log | `Repository.Due`/`MarkSent`, `DueFeedback`/`MarkFeedbackSent` |
-| `tgbot` | Telegram bot handlers, i18n catalog, reminder/feedback/announcement message sending | `Bot.Start`, `Bot.SendReminder`, `Bot.SendFeedbackRequest`, `Announcer` (non-polling sender), `i18n.go` |
-| `feedback` | post-event 1-5 star ratings | `Repository.Submit` (upsert, requires an RSVP), `SummaryFor` |
-| `channel` | verified organizer↔Telegram-channel links, announce-to-channel endpoint | `Repository.ConnectByTelegramID` (called from tgbot's `my_chat_member` handler), `Announcer` interface (defined here, satisfied by `tgbot.Announcer`, to avoid channel↔tgbot import cycle) |
-| `meta` | cities/categories reference data | |
+| `tgbot` | Telegram bot handlers, i18n catalog, reminder/feedback/announcement message sending | `Bot.Start`, `Bot.SendReminder`, `Bot.SendFeedbackRequest`, `Announcer` (non-polling sender), `i18n.go`, Redis-backed pending-comment marker (`awaitFeedbackComment`/`popPendingFeedbackComment`) |
+| `feedback` | post-event 1-5 star ratings + optional free-text comment | `Repository.Submit` (upsert, requires an RSVP), `SetComment`, `ListComments`, `SummaryFor` |
+| `channel` | verified organizer↔Telegram-channel links, per-channel language override, announce-to-channel endpoint | `Repository.ConnectByTelegramID` (called from tgbot's `my_chat_member` handler), `Repository.SetLanguage`, `Announcer` interface (defined here, satisfied by `tgbot.Announcer`, to avoid channel↔tgbot import cycle) |
+| `meta` | cities/categories reference data + admin CRUD | `Handler.RegisterAdmin` (generic create/update/delete keyed by a hardcoded table name, never user input) |
 | `upload` | cover image upload + static serving | content-type sniffing, 5 MB cap |
 | `admin` | platform moderation (stats, event override, ban/unban) | `RequireAdmin` middleware, gated by `users.is_admin` |
 | `housekeeping` | hourly janitorial pass | `Runner.Run` — finishes past events, purges expired refresh tokens |
@@ -159,9 +159,28 @@ calls `feedback.Repository.Submit`, which requires an existing `rsvps` row
 (any status) and upserts into `event_feedback` — repeat taps just update
 the rating, no special dedup needed beyond that. Organizers see the
 aggregate via `GET /events/:id/feedback` (owner-only, same ownership-check
-pattern as attendees/CSV). There is no web submission UI by design — the
-bot is the only place a rating is collected; the website only displays
-the resulting average (attendees page).
+pattern as attendees/CSV). There is no web submission UI for the *rating*
+by design — the bot is the only place a rating is collected; the website
+only displays the result (attendees page).
+
+**Free-text comment (bot conversational follow-up)**: right after a star
+tap, the bot sends a second message — "want to add a comment?" with an
+inline Skip button — and sets a Redis key
+(`meetus:feedback-comment-await:<telegramID>` → eventID, 10 min TTL) marking
+that user as "awaiting a comment". This is necessary because Telegram bot
+updates are stateless per-request; Redis is the only place to park
+"what was this user just asked" between messages. The attendee's very next
+plain-text message (checked in `handleDefault`, before the generic fallback
+hint) is popped via `GETDEL` — atomic, so a message can only ever be
+consumed once, even under concurrent webhook delivery — and, if a marker was
+found, attached via `feedback.Repository.SetComment` and cleared; otherwise
+it falls through to the ordinary "try /events" hint. Tapping Skip (a
+separate `fbskip:<eventID>` callback) just deletes the marker. Comments
+never block the underlying rating: `Submit` and `SetComment` are separate
+calls, so a skipped or abandoned (TTL-expired) comment prompt still leaves
+the star rating recorded. Organizers read comments via
+`GET /events/:id/feedback/comments` (owner-only), rendered on the
+attendees page below the attendee list.
 
 ### Explore
 `event.Repository.ListPublic` builds a dynamic WHERE (status published + public,
@@ -226,8 +245,9 @@ process, built with `bot.WithSkipGetMe()` to skip the network round trip
 methods, precisely so `Announcer` can reuse them without needing a `*Bot`).
 `POST /events/:id/announce` (`channel.Handler.announce`) checks: caller
 owns the event, event is `published`, caller owns the target channel — then
-calls `Announcer.SendAnnouncement`, rendered in the **caller's own**
-`users.language` (channels have no per-channel language setting).
+calls `Announcer.SendAnnouncement`, rendered in the channel's own
+`language` override if one is set, else the **caller's own**
+`users.language`.
 
 `channel.Announcer` is a Go **interface**, defined in the `channel`
 package itself and satisfied structurally by `*tgbot.Announcer` — `channel`
@@ -237,6 +257,33 @@ environment has no `TELEGRAM_BOT_TOKEN` configured, `router.go` passes a
 nil `channel.Announcer` rather than failing the whole server to boot —
 `announce` checks for that and returns a clear "not configured" error
 instead of crashing.
+
+**Per-channel language override**: `channel_connections.language` is
+nullable — `NULL` means "use whatever language the organizer who
+publishes/announces happens to have", a non-null value pins that one
+channel to a language regardless of who triggers the send. Set via
+`PATCH /organizers/me/channels/:id`. This matters because one organizer
+account often runs channels for different audiences (e.g. a uz-language
+channel and a separate ru-language one) — the override lives on the
+channel, not the event or the organizer, since it's a property of *that
+audience*.
+
+**Auto-announce on publish**: `event.Handler` accepts an optional
+`onPublished func(ctx context.Context, e *Event)` hook (`SetOnPublished`),
+fired only by the `/:id/publish` route (not unpublish/cancel) and only in
+a background goroutine with `context.Background()` — the request's own
+context is canceled the moment the HTTP response is written, so reusing it
+would abort the send before it even starts. `router.go` wires the actual
+closure: list the organizer's connected channels, resolve the organizer's
+own language (`organizer.Repository.GetLanguage`, a join to `users`), then
+call `Announcer.SendAnnouncement` per channel — channel override wins,
+organizer's language is the fallback, same precedence as manual announce.
+Failures are logged (`slog.Error("auto-announce failed", ...)`), never
+surfaced to the publish response, since publish already succeeded by the
+time announcing runs — a channel that lost bot admin rights shouldn't make
+publishing *look* like it failed. The manual `POST /events/:id/announce`
+endpoint still exists for re-sends (e.g. after editing channel language, or
+if auto-announce failed and the organizer wants to retry one channel).
 
 ### Website i18n and locale routing
 The website (not just the bot) is fully translated uz/ru/en via
@@ -297,6 +344,40 @@ locale-correct URLs (`webBaseURL + "/" + lang + path`) so a message already
 being read in Russian, say, opens the Russian page rather than bouncing
 through the site's own browser-side locale detection.
 
+**Native chrome (BackButton, MainButton, header color)**: the Mini App
+WebView has no browser chrome of its own — no back gesture bar, no
+address-bar-colored status area — so the SDK exposes a few controls to fake
+it convincingly:
+
+- `useTelegramBackButton()` (`frontend/src/lib/useTelegramBackButton.ts`)
+  wires Telegram's native `BackButton` to `router.back()`, shown/hidden by
+  `usePathname()` — hidden on the home page (nowhere to go back to), shown
+  everywhere else. Mounted once via `TelegramChrome`
+  (`frontend/src/components/TelegramChrome.tsx`) in the root layout, so it
+  applies across every route without each page wiring it individually.
+- `RsvpSection` swaps its on-page "Join event" button for Telegram's native
+  `MainButton` when running inside the Mini App (`isTelegramMiniApp()`) and
+  there's actually something to join (logged in, no ticket yet, event not
+  full/past) — `MainButton.showProgress()`/`disable()` during the request,
+  `hide()` once a ticket exists. Outside Telegram, or once joined/full/past,
+  the ordinary in-page button (or ticket/cancel UI) is used instead — the
+  two never show at once.
+- `TelegramChrome` also calls `setHeaderColor`/`setBackgroundColor` once on
+  mount, picking between the same two background colors the rest of the UI
+  already uses (`#ffffff` light / `#09090b` dark, matching `bg-white` /
+  `dark:bg-zinc-950` elsewhere) based on `tg.colorScheme`. Deliberately
+  scoped to *that* and nothing more — it does not attempt to override
+  Tailwind's `prefers-color-scheme` dark mode with Telegram's `colorScheme`;
+  doing so risked regressing plain-browser visitors for a Mini-App-only
+  cosmetic win.
+
+All three read from the same extended `TelegramWebApp` type
+(`frontend/src/lib/telegram-webapp.ts`: `BackButton`, `MainButton`,
+`themeParams`, `colorScheme`, `setHeaderColor`, `setBackgroundColor`) —
+outside Telegram, `getTelegramWebApp()` returns `null` and every one of
+these call sites no-ops via its own `if (!tg) return` guard, so none of
+this affects plain-browser visitors.
+
 ## Error handling
 
 Services return `*apperr.Error` (`Validation`, `Unauthorized`, `Forbidden`,
@@ -336,3 +417,10 @@ violations are translated to `Validation` in repositories (`mapWriteErr`).
 | Announcer as a second, non-polling bot client (`bot.WithSkipGetMe`) in the API process, not routed through the worker's async queue pattern | Organizer wants to know *now* whether the send worked — a scheduled/queued job is the wrong shape for a one-off, user-initiated action |
 | `channel.Announcer` interface defined in `channel`, not imported from `tgbot` | `tgbot` already imports `channel` (for `my_chat_member`); Go doesn't allow the reverse, so the interface lives at the consumer instead |
 | Trending is a separate query, not a parameter on `eventSelect` | `eventSelect` backs several already-tested read paths that don't need the extra RSVP-velocity column; duplicating one query is simpler than parameterizing a shared one |
+| Per-channel language lives on `channel_connections`, not `events` or `organizers` | It's a property of the channel's *audience*, not the event or the organizer — one organizer commonly runs channels for different language audiences |
+| Auto-announce hook fires in a goroutine with `context.Background()`, not the request context | The request context is canceled the instant the HTTP response is written; reusing it would abort the Telegram send before it starts |
+| Auto-announce failures are logged, never surfaced on the publish response | Publishing already succeeded by the time announcing runs; a channel that lost bot admin rights shouldn't make publish *look* like it failed |
+| Feedback comment state lives in Redis (`GETDEL`), not a new DB table or in-memory map | Bot updates are stateless per-request — Redis is the only place to park "what was this user just asked" between two separate Telegram messages; `GETDEL` makes the pop atomic against concurrent webhook delivery |
+| Comment prompt and rating submission are separate calls (`Submit` then `SetComment`), not one combined call | A skipped or TTL-expired comment prompt must not affect the already-recorded star rating |
+| Admin meta CRUD uses one generic handler keyed by a hardcoded table name string, not two near-identical handlers | `cities` and `categories` share the exact same shape and validation; the table name is never user-supplied, so there's no injection risk, just de-duplication |
+| Mini App theme sync only sets header/background color, doesn't override Tailwind's `prefers-color-scheme` dark mode | Overriding the OS-driven dark mode with Telegram's `colorScheme` risked regressing plain-browser visitors for a Mini-App-only cosmetic win |

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { getTelegramWebApp, isTelegramMiniApp } from "@/lib/telegram-webapp";
 
 type Ticket = {
   code: string;
@@ -25,6 +26,11 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inMiniApp, setInMiniApp] = useState(false);
+
+  useEffect(() => {
+    setInMiniApp(isTelegramMiniApp());
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -36,6 +42,58 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
       .catch(() => setTicket(null))
       .finally(() => setChecked(true));
   }, [user, eventId]);
+
+  const join = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setTicket(await api<Ticket>(`/events/${eventId}/rsvp`, {
+        method: "POST",
+        auth: true,
+      }));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : t("joinFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Inside Telegram, joining happens through the native MainButton instead
+  // of the in-page button, so it feels like a first-class Telegram action.
+  // Only shown once there's actually something to join.
+  const canJoinViaMainButton =
+    inMiniApp && checked && !loading && !!user && !ticket && !isPast && spotsLeft !== 0;
+
+  useEffect(() => {
+    const tg = getTelegramWebApp();
+    if (!tg) return;
+    if (!canJoinViaMainButton) {
+      tg.MainButton.hide();
+      return;
+    }
+    tg.MainButton.setText(t("joinEvent"));
+    tg.MainButton.onClick(join);
+    tg.MainButton.show();
+    return () => {
+      tg.MainButton.offClick(join);
+    };
+    // join is intentionally omitted — it's recreated every render but does
+    // the same thing each time, and re-subscribing on every render would
+    // thrash Telegram's native button.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canJoinViaMainButton]);
+
+  useEffect(() => {
+    const tg = getTelegramWebApp();
+    if (!tg || !canJoinViaMainButton) return;
+    if (busy) {
+      tg.MainButton.showProgress(false);
+      tg.MainButton.disable();
+    } else {
+      tg.MainButton.hideProgress();
+      tg.MainButton.enable();
+    }
+  }, [busy, canJoinViaMainButton]);
 
   if (loading || !checked) return null;
 
@@ -57,21 +115,6 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
       </div>
     );
   }
-
-  const join = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      setTicket(await api<Ticket>(`/events/${eventId}/rsvp`, {
-        method: "POST",
-        auth: true,
-      }));
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : t("joinFailed"));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const leave = async () => {
     setBusy(true);
@@ -104,6 +147,10 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
             {t("cancel")}
           </button>
         </div>
+      ) : canJoinViaMainButton ? (
+        busy ? (
+          <p className="text-center text-sm text-zinc-500">{t("joining")}</p>
+        ) : null
       ) : (
         <button
           onClick={join}

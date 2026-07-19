@@ -2,6 +2,7 @@
 package server
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"time"
@@ -71,16 +72,22 @@ func New(deps Deps) (*gin.Engine, error) {
 	authGroup := api.Group("", ratelimit.PerIP(deps.Redis, "auth", 20, time.Minute))
 	auth.NewHandler(authService).Register(authGroup)
 	user.NewHandler(userRepo).Register(api, requireAuth)
-	meta.NewHandler(deps.Pool).Register(api)
+
+	requireAdmin := admin.RequireAdmin(userRepo)
+	metaHandler := meta.NewHandler(deps.Pool)
+	metaHandler.Register(api)
+	metaHandler.RegisterAdmin(api, requireAuth, requireAdmin)
+
 	organizer.NewHandler(organizerRepo).Register(api, requireAuth)
-	event.NewHandler(eventService).Register(api, requireAuth, requireOrganizer)
+	eventHandler := event.NewHandler(eventService)
+	eventHandler.Register(api, requireAuth, requireOrganizer)
 	event.NewPublicHandler(eventRepo).Register(api)
 
 	rsvpService := rsvp.NewService(rsvp.NewRepository(deps.Pool), rsvp.NewTicketSigner(cfg.TicketSecret))
 	rsvpGroup := api.Group("", ratelimit.PerIP(deps.Redis, "rsvp", 60, time.Minute))
 	rsvp.NewHandler(rsvpService, eventRepo).Register(rsvpGroup, requireAuth, requireOrganizer)
 
-	admin.NewHandler(deps.Pool, eventRepo).Register(api, requireAuth, admin.RequireAdmin(userRepo))
+	admin.NewHandler(deps.Pool, eventRepo).Register(api, requireAuth, requireAdmin)
 
 	feedback.NewHandler(feedback.NewRepository(deps.Pool), eventRepo).Register(api, requireAuth, requireOrganizer)
 
@@ -97,6 +104,30 @@ func New(deps Deps) (*gin.Engine, error) {
 	}
 	channelRepo := channel.NewRepository(deps.Pool)
 	channel.NewHandler(channelRepo, eventRepo, userRepo, announcer).Register(api, requireAuth, requireOrganizer)
+
+	eventHandler.SetOnPublished(func(ctx context.Context, e *event.Event) {
+		if announcer == nil {
+			return
+		}
+		channels, err := channelRepo.ListForOrganizer(ctx, e.OrganizerID)
+		if err != nil || len(channels) == 0 {
+			return
+		}
+		orgLang, err := organizerRepo.GetLanguage(ctx, e.OrganizerID)
+		if err != nil {
+			slog.Error("auto-announce: could not load organizer language", "event_id", e.ID, "err", err)
+			return
+		}
+		for _, ch := range channels {
+			lang := orgLang
+			if ch.Language != nil {
+				lang = *ch.Language
+			}
+			if err := announcer.SendAnnouncement(ctx, ch.ChatID, lang, e); err != nil {
+				slog.Error("auto-announce failed", "event_id", e.ID, "channel_id", ch.ID, "err", err)
+			}
+		}
+	})
 
 	uploadHandler.Register(api, r, requireAuth)
 

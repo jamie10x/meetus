@@ -14,10 +14,22 @@ import (
 
 type Handler struct {
 	service *Service
+
+	// onPublished, if set, is fired (in a background goroutine, since the
+	// request context is canceled once the response is written) after an
+	// event is successfully published — used to auto-announce to the
+	// organizer's connected channels.
+	onPublished func(ctx context.Context, e *Event)
 }
 
 func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
+}
+
+// SetOnPublished registers the auto-announce hook. Must be called before
+// the server starts serving requests; not safe to change concurrently.
+func (h *Handler) SetOnPublished(fn func(ctx context.Context, e *Event)) {
+	h.onPublished = fn
 }
 
 // Register mounts organizer event-management routes. Public discovery
@@ -27,10 +39,17 @@ func (h *Handler) Register(r gin.IRouter, requireAuth, requireOrganizer gin.Hand
 	g.POST("", h.create)
 	g.GET("/mine", h.listMine)
 	g.PATCH("/:id", h.update)
-	g.POST("/:id/publish", h.transition(h.service.Publish))
-	g.POST("/:id/unpublish", h.transition(h.service.Unpublish))
-	g.POST("/:id/cancel", h.transition(h.service.Cancel))
+	g.POST("/:id/publish", h.transition(h.service.Publish, h.firePublished))
+	g.POST("/:id/unpublish", h.transition(h.service.Unpublish, nil))
+	g.POST("/:id/cancel", h.transition(h.service.Cancel, nil))
 	g.DELETE("/:id", h.delete)
+}
+
+func (h *Handler) firePublished(e *Event) {
+	if h.onPublished == nil {
+		return
+	}
+	go h.onPublished(context.Background(), e)
 }
 
 func eventID(c *gin.Context) (int64, error) {
@@ -88,8 +107,8 @@ func (h *Handler) update(c *gin.Context) {
 }
 
 // transition wraps the publish/unpublish/cancel service calls that share
-// a signature.
-func (h *Handler) transition(fn func(ctx context.Context, organizerID, eventID int64) (*Event, error)) gin.HandlerFunc {
+// a signature. after, if non-nil, runs once the transition succeeds.
+func (h *Handler) transition(fn func(ctx context.Context, organizerID, eventID int64) (*Event, error), after func(e *Event)) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, err := eventID(c)
 		if err != nil {
@@ -100,6 +119,9 @@ func (h *Handler) transition(fn func(ctx context.Context, organizerID, eventID i
 		if err != nil {
 			httpx.Error(c, err)
 			return
+		}
+		if after != nil {
+			after(e)
 		}
 		httpx.OK(c, http.StatusOK, e.ToDTO())
 	}

@@ -113,6 +113,40 @@ func TestConnectByTelegramID_RequiresOrganizer(t *testing.T) {
 		}
 	})
 
+	t.Run("SetLanguage sets and clears the override", func(t *testing.T) {
+		channels, err := repo.ListForOrganizer(ctx, org2ID)
+		if err != nil || len(channels) != 1 {
+			t.Fatalf("setup: ListForOrganizer = %+v, %v", channels, err)
+		}
+		ch := channels[0]
+		if ch.Language != nil {
+			t.Fatalf("expected no language override initially, got %v", *ch.Language)
+		}
+
+		ru := "ru"
+		if err := repo.SetLanguage(ctx, ch.ID, &ru); err != nil {
+			t.Fatal(err)
+		}
+		got, err := repo.GetOwned(ctx, org2ID, ch.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Language == nil || *got.Language != "ru" {
+			t.Fatalf("Language = %v, want \"ru\"", got.Language)
+		}
+
+		if err := repo.SetLanguage(ctx, ch.ID, nil); err != nil {
+			t.Fatal(err)
+		}
+		got, err = repo.GetOwned(ctx, org2ID, ch.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Language != nil {
+			t.Fatalf("Language = %v, want nil after clearing", *got.Language)
+		}
+	})
+
 	t.Run("disconnect removes the row", func(t *testing.T) {
 		if err := repo.Disconnect(ctx, chatID); err != nil {
 			t.Fatal(err)

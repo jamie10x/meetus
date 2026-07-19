@@ -19,6 +19,13 @@ type FeedbackSummary = {
   average: number;
 };
 
+type FeedbackComment = {
+  userName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+};
+
 export default function AttendeesPage({
   params,
 }: {
@@ -28,6 +35,7 @@ export default function AttendeesPage({
   const { id } = use(params);
   const [attendees, setAttendees] = useState<Attendee[] | null>(null);
   const [feedback, setFeedback] = useState<FeedbackSummary | null>(null);
+  const [comments, setComments] = useState<FeedbackComment[]>([]);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -37,6 +45,9 @@ export default function AttendeesPage({
     api<FeedbackSummary>(`/events/${id}/feedback`, { auth: true })
       .then(setFeedback)
       .catch(() => setFeedback(null));
+    api<FeedbackComment[]>(`/events/${id}/feedback/comments`, { auth: true })
+      .then(setComments)
+      .catch(() => setComments([]));
   }, [id]);
 
   if (failed) {
@@ -135,6 +146,33 @@ export default function AttendeesPage({
           ))}
         </ul>
       )}
+
+      {comments.length > 0 ? (
+        <section className="mt-8">
+          <h2 className="mb-3 text-lg font-semibold">
+            {t("commentsHeading", { count: comments.length })}
+          </h2>
+          <ul className="flex flex-col gap-3">
+            {comments.map((c, i) => (
+              <li
+                key={i}
+                className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
+              >
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-sm font-medium">{c.userName}</span>
+                  <span className="text-xs text-amber-500">
+                    {"★".repeat(c.rating)}
+                    <span className="text-zinc-300 dark:text-zinc-700">
+                      {"★".repeat(5 - c.rating)}
+                    </span>
+                  </span>
+                </div>
+                <p className="text-sm text-zinc-600 dark:text-zinc-300">{c.comment}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </main>
   );
 }

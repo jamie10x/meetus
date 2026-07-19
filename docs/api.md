@@ -60,6 +60,17 @@ Body (all optional): `{ "name", "cityId", "district", "language" }`.
 ### GET /meta/cities · GET /meta/categories
 → `data`: `[{ "id", "slug", "nameUz", "nameRu", "nameEn" }]`
 
+### POST /admin/cities · POST /admin/categories (auth + admin)
+Body: `{ "slug"* (≤50), "nameUz"* (≤100), "nameRu"* (≤100), "nameEn"* (≤100) }`
+→ 201 `data`: the created row. 400 if the slug is already in use.
+
+### PATCH /admin/cities/:id · PATCH /admin/categories/:id (auth + admin)
+Body: any subset of the fields above → `data`: the updated row.
+
+### DELETE /admin/cities/:id · DELETE /admin/categories/:id (auth + admin)
+409 if still referenced by an existing event (cities: or a user) — delete or
+reassign those first. → `data`: `{ "deleted": true }`.
+
 ## Organizers
 
 ### POST /organizers (auth)
@@ -101,6 +112,14 @@ Same body as create. Rejected for canceled/finished events (409).
 ### POST /events/:id/publish · /unpublish · /cancel
 Lifecycle transitions: draft→published (start must be in the future),
 published→draft, any active→canceled. Invalid transitions → 409.
+
+A successful publish also fires an **auto-announcement**: the organizer's
+connected channels each get the event posted automatically, in the
+background, right after the response is sent — no extra request needed. See
+[Channels & announcements](#channels--announcements) below for the language
+each channel gets it in. Auto-announce failures (e.g. the bot lost admin
+rights in a channel) are logged server-side, not surfaced in the publish
+response.
 
 ### DELETE /events/:id
 Drafts only (409 otherwise) → `data`: `{ "deleted": true }`.
@@ -173,9 +192,16 @@ resubmitting changes the rating. → `data`: `{ "submitted": true }`.
 ### GET /events/:id/feedback (auth + organizer, owner only)
 → `data`: `{ "count", "average" }` (average is `0` when count is `0`).
 
+### GET /events/:id/feedback/comments (auth + organizer, owner only)
+→ `data`: `[{ "userName", "rating", "comment", "createdAt" }]` — newest
+first, only rows that actually have a comment (most ratings won't).
+
 Delivery: the worker prompts each attendee once via the Telegram bot
 (inline 1-5 star buttons) shortly after their event is auto-marked
-`finished` — see [architecture.md](architecture.md).
+`finished` — see [architecture.md](architecture.md). After tapping a star,
+the bot asks a follow-up "want to add a comment?" with a Skip button; the
+attendee's next free-text reply (within 10 minutes) is attached as the
+comment, via a short-lived Redis marker.
 
 ## Admin
 
@@ -208,7 +234,13 @@ channel — never by submitting a chat ID. See architecture.md for the
 verified-linking flow (`my_chat_member`).
 
 ### GET /organizers/me/channels (auth + organizer)
-→ `data`: `[{ "id", "chatTitle", "connectedAt" }]`
+→ `data`: `[{ "id", "chatTitle", "language", "connectedAt" }]`. `language` is
+`null` until the organizer sets a per-channel override (see below).
+
+### PATCH /organizers/me/channels/:id (auth + organizer, owner only)
+Body: `{ "language": "uz" | "ru" | "en" | null }`. Sets or clears (`null`)
+the channel's own announcement language, overriding the organizer's own
+language for that one channel. → `data`: the updated channel.
 
 ### DELETE /organizers/me/channels/:id (auth + organizer, owner only)
 → `data`: `{ "disconnected": true }`. 404 if not found, 403 if owned by
@@ -216,9 +248,11 @@ another organizer.
 
 ### POST /events/:id/announce (auth + organizer, owner only)
 Body: `{ "channelId": number }`. Posts the event to the given channel,
-rendered in the **caller's own** `users.language` (channels have no
-per-channel language setting). Requires the event to be **published**
-and the channel to belong to the caller.
+rendered in the channel's own `language` override if one is set, else the
+**caller's own** `users.language`. Requires the event to be **published**
+and the channel to belong to the caller. (Publishing an event also
+auto-announces to every connected channel this same way — see
+`POST /events/:id/publish` above — this endpoint exists for manual re-sends.)
 
 → `data`: `{ "sent": true }`.
 409 if the event isn't published, 403 if the channel or event belongs to

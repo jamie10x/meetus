@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -25,6 +26,8 @@ import (
 	"meetus.uz/backend/internal/user"
 )
 
+var allowedLanguages = []string{"uz", "ru", "en"}
+
 // Announcer sends a formatted event announcement to a Telegram chat.
 // Satisfied by *tgbot.Announcer. Defined here rather than imported, so
 // this package doesn't depend on tgbot — tgbot already depends on
@@ -39,6 +42,7 @@ type Channel struct {
 	OrganizerID int64
 	ChatID      int64
 	ChatTitle   string
+	Language    *string
 	ConnectedAt time.Time
 }
 
@@ -88,7 +92,7 @@ func (r *Repository) Disconnect(ctx context.Context, chatID int64) error {
 
 func (r *Repository) ListForOrganizer(ctx context.Context, organizerID int64) ([]*Channel, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, organizer_id, chat_id, chat_title, connected_at
+		SELECT id, organizer_id, chat_id, chat_title, language, connected_at
 		FROM channel_connections WHERE organizer_id = $1
 		ORDER BY connected_at DESC`, organizerID)
 	if err != nil {
@@ -99,7 +103,7 @@ func (r *Repository) ListForOrganizer(ctx context.Context, organizerID int64) ([
 	channels := make([]*Channel, 0, 4)
 	for rows.Next() {
 		var ch Channel
-		if err := rows.Scan(&ch.ID, &ch.OrganizerID, &ch.ChatID, &ch.ChatTitle, &ch.ConnectedAt); err != nil {
+		if err := rows.Scan(&ch.ID, &ch.OrganizerID, &ch.ChatID, &ch.ChatTitle, &ch.Language, &ch.ConnectedAt); err != nil {
 			return nil, err
 		}
 		channels = append(channels, &ch)
@@ -112,9 +116,9 @@ func (r *Repository) ListForOrganizer(ctx context.Context, organizerID int64) ([
 func (r *Repository) GetOwned(ctx context.Context, organizerID, channelID int64) (*Channel, error) {
 	var ch Channel
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, organizer_id, chat_id, chat_title, connected_at
+		SELECT id, organizer_id, chat_id, chat_title, language, connected_at
 		FROM channel_connections WHERE id = $1`, channelID).
-		Scan(&ch.ID, &ch.OrganizerID, &ch.ChatID, &ch.ChatTitle, &ch.ConnectedAt)
+		Scan(&ch.ID, &ch.OrganizerID, &ch.ChatID, &ch.ChatTitle, &ch.Language, &ch.ConnectedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperr.NotFound("channel not found")
 	}
@@ -127,14 +131,24 @@ func (r *Repository) GetOwned(ctx context.Context, organizerID, channelID int64)
 	return &ch, nil
 }
 
+// SetLanguage sets or clears (nil) the per-channel language override.
+func (r *Repository) SetLanguage(ctx context.Context, channelID int64, language *string) error {
+	_, err := r.pool.Exec(ctx, `UPDATE channel_connections SET language = $2 WHERE id = $1`, channelID, language)
+	if err != nil {
+		return fmt.Errorf("set channel language: %w", err)
+	}
+	return nil
+}
+
 type DTO struct {
 	ID          int64     `json:"id"`
 	ChatTitle   string    `json:"chatTitle"`
+	Language    *string   `json:"language"`
 	ConnectedAt time.Time `json:"connectedAt"`
 }
 
 func (ch *Channel) ToDTO() DTO {
-	return DTO{ID: ch.ID, ChatTitle: ch.ChatTitle, ConnectedAt: ch.ConnectedAt}
+	return DTO{ID: ch.ID, ChatTitle: ch.ChatTitle, Language: ch.Language, ConnectedAt: ch.ConnectedAt}
 }
 
 type Handler struct {
@@ -151,6 +165,7 @@ func NewHandler(repo *Repository, eventRepo *event.Repository, users *user.Repos
 func (h *Handler) Register(r gin.IRouter, requireAuth, requireOrganizer gin.HandlerFunc) {
 	g := r.Group("/organizers/me/channels", requireAuth, requireOrganizer)
 	g.GET("", h.list)
+	g.PATCH("/:id", h.updateLanguage)
 	g.DELETE("/:id", h.disconnect)
 
 	r.POST("/events/:id/announce", requireAuth, requireOrganizer, h.announce)
@@ -167,6 +182,41 @@ func (h *Handler) list(c *gin.Context) {
 		dtos[i] = ch.ToDTO()
 	}
 	httpx.OK(c, http.StatusOK, dtos)
+}
+
+type updateLanguageRequest struct {
+	Language *string `json:"language"`
+}
+
+// updateLanguage sets or clears the channel's language override. Passing
+// language: null reverts announcements to the organizer's own language.
+func (h *Handler) updateLanguage(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		httpx.Error(c, apperr.Validation("invalid channel id"))
+		return
+	}
+	var req updateLanguageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Error(c, apperr.Validation("invalid request body"))
+		return
+	}
+	if req.Language != nil && !slices.Contains(allowedLanguages, *req.Language) {
+		httpx.Error(c, apperr.Validation("language must be one of uz, ru, en"))
+		return
+	}
+
+	ch, err := h.repo.GetOwned(c.Request.Context(), organizer.OrganizerID(c), id)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	if err := h.repo.SetLanguage(c.Request.Context(), ch.ID, req.Language); err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	ch.Language = req.Language
+	httpx.OK(c, http.StatusOK, ch.ToDTO())
 }
 
 func (h *Handler) disconnect(c *gin.Context) {
@@ -192,7 +242,8 @@ type announceRequest struct {
 }
 
 // announce posts a published event to one of the caller's connected
-// channels, in the caller's own language.
+// channels, using the channel's language override if set, else the
+// caller's own language.
 func (h *Handler) announce(c *gin.Context) {
 	if h.announcer == nil {
 		httpx.Error(c, apperr.Validation("channel announcements are not configured on this server"))
@@ -233,13 +284,17 @@ func (h *Handler) announce(c *gin.Context) {
 		return
 	}
 
-	caller, err := h.users.GetByID(ctx, authn.UserID(c))
-	if err != nil {
-		httpx.Error(c, err)
-		return
+	lang := ch.Language
+	if lang == nil {
+		caller, err := h.users.GetByID(ctx, authn.UserID(c))
+		if err != nil {
+			httpx.Error(c, err)
+			return
+		}
+		lang = &caller.Language
 	}
 
-	if err := h.announcer.SendAnnouncement(ctx, ch.ChatID, caller.Language, e); err != nil {
+	if err := h.announcer.SendAnnouncement(ctx, ch.ChatID, *lang, e); err != nil {
 		httpx.Error(c, apperr.Wrap(apperr.CodeInternal,
 			"could not send the announcement — check the bot still has admin rights in that channel", err))
 		return

@@ -20,10 +20,21 @@ deployment doubles as a Mini App — silent `initData` auto-login, falls
 back to the normal Login Widget in a plain browser; bot's "Open on
 Meetus.uz" button opens the event page as a Mini App in place instead of
 an external tab), **trending sections** (RSVP-velocity ranking on the home
-and Explore pages), and **bot channel announcements** (organizers add the
+and Explore pages), **bot channel announcements** (organizers add the
 bot as channel admin to connect it — verified via `my_chat_member`, never
 a typed-in chat ID — then push a published event to the channel from the
-organizer dashboard). See docs/architecture.md for how all of these work.
+organizer dashboard), **admin category/city CRUD** (create/edit/delete
+directly in `/admin`, not just via migration), **per-channel language
+override** (a channel can pin its own announcement language, independent
+of whichever organizer triggers the send), **auto-announce on publish**
+(publishing a draft now pushes to every connected channel automatically, in
+the background — the manual announce button still exists for re-sends),
+**feedback comments** (a bot conversational follow-up after the star
+rating — reply with a message or tap Skip — shown to organizers on the
+attendees page), and **Mini App native chrome** (Telegram's `BackButton`
+wired to in-app navigation, `MainButton` replacing the on-page join button,
+header/background color synced to Telegram's own theme). See
+docs/architecture.md for how all of these work.
 
 ## Payments
 
@@ -51,32 +62,12 @@ Confirm with the user first; these attach to different parts of the schema.
    too, worth revisiting whether Telegram Bot Payments (launched from
    inside the Mini App, not just the plain website) makes more sense than
    it did when only the plain website existed.
-2. **Category/city management in admin** — reference data is
-   migration-seeded today.
-3. **Monetization tiers** (Free/Pro/Business) — plan table + limits
+2. **Monetization tiers** (Free/Pro/Business) — plan table + limits
    middleware; depends on payments.
-4. **Object storage for uploads** — S3-compatible; needed only when a second
+3. **Object storage for uploads** — S3-compatible; needed only when a second
    app server appears.
-5. **Google auth fallback** — only if data shows Telegram-only login loses
+4. **Google auth fallback** — only if data shows Telegram-only login loses
    users.
-6. **Feedback comments** — `event_feedback` currently has no `comment`
-   column (deliberately, see data-model.md); add one only if free-text
-   feedback becomes a real requirement, alongside a bot conversational-reply
-   flow to collect it.
-7. **Mini App native chrome** — Telegram's `BackButton`/`MainButton` APIs
-   and theme-param mirroring aren't wired up; the Mini App today relies on
-   in-page nav and the app's own light/dark Tailwind theme, which works
-   fine but doesn't feel fully native. Low priority polish.
-8. **Multiple channels per organizer, per-channel language** — connecting
-   more than one channel already works (`channel_connections` has no
-   uniqueness constraint on `organizer_id`), but there's no per-channel
-   language override yet — an announcement always uses the *organizer's*
-   language, not a per-channel setting. Add only if an organizer actually
-   runs channels in different languages.
-9. **Channel announcement scheduling / auto-post on publish** — today,
-   announcing is a manual click per channel per event; auto-posting when
-   an event is published is a natural next step once the manual flow has
-   seen real use.
 
 ## Operational debt (small, do opportunistically)
 

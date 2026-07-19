@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/redis/go-redis/v9"
 
 	"meetus.uz/backend/internal/channel"
 	"meetus.uz/backend/internal/event"
@@ -24,6 +25,11 @@ import (
 )
 
 const browseLimit = 6
+
+// feedbackCommentTTL bounds how long the bot waits for a follow-up
+// comment after a star rating before giving up and treating any later
+// message as ordinary chat again.
+const feedbackCommentTTL = 10 * time.Minute
 
 // weekday abbreviations per language, for date formatting. Month names
 // are deliberately left numeric (DD.MM) — a common format in Uzbekistan
@@ -41,17 +47,19 @@ type Bot struct {
 	rsvps      *rsvp.Repository
 	feedback   *feedback.Repository
 	channels   *channel.Repository
+	redis      *redis.Client
 	webBaseURL string
 	loc        *time.Location
 }
 
-func New(token string, users *user.Repository, events *event.Repository, rsvps *rsvp.Repository, feedbackRepo *feedback.Repository, channels *channel.Repository, webBaseURL string) (*Bot, error) {
+func New(token string, users *user.Repository, events *event.Repository, rsvps *rsvp.Repository, feedbackRepo *feedback.Repository, channels *channel.Repository, rdb *redis.Client, webBaseURL string) (*Bot, error) {
 	b := &Bot{
 		users:      users,
 		events:     events,
 		rsvps:      rsvps,
 		feedback:   feedbackRepo,
 		channels:   channels,
+		redis:      rdb,
 		webBaseURL: webBaseURL,
 	}
 	b.loc = tashkentLocation()
@@ -69,6 +77,7 @@ func New(token string, users *user.Repository, events *event.Repository, rsvps *
 	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, "join:", bot.MatchTypePrefix, b.handleJoin)
 	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, "lang:", bot.MatchTypePrefix, b.handleLanguageCallback)
 	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, "fb:", bot.MatchTypePrefix, b.handleFeedback)
+	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, "fbskip:", bot.MatchTypePrefix, b.handleFeedbackSkip)
 	return b, nil
 }
 
@@ -158,7 +167,46 @@ func (b *Bot) handleDefault(ctx context.Context, _ *bot.Bot, update *models.Upda
 	if err == nil {
 		l = normalizeLang(u.Language)
 	}
+
+	text := update.Message.Text
+	if b.redis != nil && text != "" && !strings.HasPrefix(text, "/") {
+		if eventID, ok := b.popPendingFeedbackComment(ctx, update.Message.From.ID); ok {
+			if err := b.feedback.SetComment(ctx, eventID, u.ID, text); err != nil {
+				slog.Error("set feedback comment failed", "event_id", eventID, "err", err)
+			}
+			b.send(ctx, update.Message.Chat.ID, t(l, kFeedbackCommentThanks), nil)
+			return
+		}
+	}
+
 	b.send(ctx, update.Message.Chat.ID, tf(l, kDefaultHint, b.webURL(l, "")), nil)
+}
+
+// feedbackAwaitKey scopes the pending-comment marker to one Telegram user;
+// eventID is stored as the value so the later free-text reply knows which
+// event's feedback row to attach the comment to.
+func feedbackAwaitKey(telegramID int64) string {
+	return fmt.Sprintf("meetus:feedback-comment-await:%d", telegramID)
+}
+
+func (b *Bot) awaitFeedbackComment(ctx context.Context, telegramID, eventID int64) {
+	if err := b.redis.Set(ctx, feedbackAwaitKey(telegramID), eventID, feedbackCommentTTL).Err(); err != nil {
+		slog.Error("set pending feedback comment failed", "err", err)
+	}
+}
+
+// popPendingFeedbackComment atomically reads and clears the pending marker,
+// so a message can only ever be consumed as one event's comment.
+func (b *Bot) popPendingFeedbackComment(ctx context.Context, telegramID int64) (eventID int64, ok bool) {
+	val, err := b.redis.GetDel(ctx, feedbackAwaitKey(telegramID)).Result()
+	if err != nil {
+		return 0, false
+	}
+	eventID, err = strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return eventID, true
 }
 
 func (b *Bot) handleEvents(ctx context.Context, _ *bot.Bot, update *models.Update) {
@@ -381,6 +429,28 @@ func (b *Bot) handleFeedback(ctx context.Context, _ *bot.Bot, update *models.Upd
 		return
 	}
 	b.answerCallback(ctx, cq.ID, t(l, kFeedbackThanks))
+
+	if b.redis == nil {
+		return
+	}
+	b.awaitFeedbackComment(ctx, cq.From.ID, eventID)
+	markup := &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+		{{Text: t(l, kSkipButton), CallbackData: "fbskip:" + strconv.FormatInt(eventID, 10)}},
+	}}
+	b.send(ctx, chatIDOf(cq), t(l, kFeedbackCommentPrompt), markup)
+}
+
+// handleFeedbackSkip cancels the pending comment prompt when the attendee
+// taps Skip instead of typing a reply.
+func (b *Bot) handleFeedbackSkip(ctx context.Context, _ *bot.Bot, update *models.Update) {
+	cq := update.CallbackQuery
+	if cq == nil {
+		return
+	}
+	b.answerCallback(ctx, cq.ID, "")
+	if b.redis != nil {
+		b.redis.Del(ctx, feedbackAwaitKey(cq.From.ID))
+	}
 }
 
 // parseFeedbackCallback parses "fb:<eventID>:<rating>".
