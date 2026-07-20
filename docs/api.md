@@ -115,7 +115,10 @@ published→draft, any active→canceled. Invalid transitions → 409.
 
 A successful publish also fires an **auto-announcement**: the organizer's
 connected channels each get the event posted automatically, in the
-background, right after the response is sent — no extra request needed. See
+background, right after the response is sent — no extra request needed. If
+`TELEGRAM_OFFICIAL_CHANNEL_ID` is configured, Meetus.uz's own channel gets
+*every* published event this same way too, regardless of which organizer
+published it or whether they have any channels of their own. See
 [Channels & announcements](#channels--announcements) below for the language
 each channel gets it in. Auto-announce failures (e.g. the bot lost admin
 rights in a channel) are logged server-side, not surfaced in the publish

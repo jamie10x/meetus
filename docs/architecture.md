@@ -285,6 +285,21 @@ publishing *look* like it failed. The manual `POST /events/:id/announce`
 endpoint still exists for re-sends (e.g. after editing channel language, or
 if auto-announce failed and the organizer wants to retry one channel).
 
+**Official channel**: the same hook also, unconditionally, posts to
+Meetus.uz's own channel (`cfg.OfficialChannelID`) if one is configured —
+every published event from every organizer, not just organizers who've
+connected their own channel. This is deliberately a `config.Config` field
+(`TELEGRAM_OFFICIAL_CHANNEL_ID` / `TELEGRAM_OFFICIAL_CHANNEL_LANGUAGE`, see
+deploy/README.md for how to obtain the chat ID), **not** a
+`channel_connections` row — it isn't owned by any organizer, so it doesn't
+fit that table's `organizer_id`-scoped model, and a single platform-wide
+value needs no admin UI, just the same env-var pattern already used for
+`TELEGRAM_BOT_TOKEN`/`TICKET_SECRET`. In the hook, the official-channel
+send happens *before* the per-organizer channel lookup and is never gated
+on it — an organizer with zero channels of their own still triggers the
+official-channel post; only the per-organizer loop below it depends on
+`channel_connections` having rows.
+
 ### Website i18n and locale routing
 The website (not just the bot) is fully translated uz/ru/en via
 [next-intl](https://next-intl.dev), with **locale-prefixed URLs**
@@ -450,6 +465,8 @@ violations are translated to `Validation` in repositories (`mapWriteErr`).
 | Trending is a separate query, not a parameter on `eventSelect` | `eventSelect` backs several already-tested read paths that don't need the extra RSVP-velocity column; duplicating one query is simpler than parameterizing a shared one |
 | Per-channel language lives on `channel_connections`, not `events` or `organizers` | It's a property of the channel's *audience*, not the event or the organizer — one organizer commonly runs channels for different language audiences |
 | Auto-announce hook fires in a goroutine with `context.Background()`, not the request context | The request context is canceled the instant the HTTP response is written; reusing it would abort the Telegram send before it starts |
+| Official channel is an env var (`TELEGRAM_OFFICIAL_CHANNEL_ID`), not a `channel_connections` row or admin UI | It isn't owned by any single organizer, so it doesn't fit that table's model; a one-time platform-wide value doesn't justify a new admin screen — same reasoning already applied to `TELEGRAM_BOT_TOKEN` |
+| Official channel posts every published event with no approval/moderation gate | Matches the existing per-organizer auto-announce (also ungated); a moderation queue is real added complexity not justified without evidence of abuse — admins can still unpublish/cancel a bad event after the fact |
 | Auto-announce failures are logged, never surfaced on the publish response | Publishing already succeeded by the time announcing runs; a channel that lost bot admin rights shouldn't make publish *look* like it failed |
 | Feedback comment state lives in Redis (`GETDEL`), not a new DB table or in-memory map | Bot updates are stateless per-request — Redis is the only place to park "what was this user just asked" between two separate Telegram messages; `GETDEL` makes the pop atomic against concurrent webhook delivery |
 | Comment prompt and rating submission are separate calls (`Submit` then `SetComment`), not one combined call | A skipped or TTL-expired comment prompt must not affect the already-recorded star rating |

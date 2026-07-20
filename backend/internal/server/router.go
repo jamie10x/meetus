@@ -109,6 +109,17 @@ func New(deps Deps) (*gin.Engine, error) {
 		if announcer == nil {
 			return
 		}
+
+		// The platform's own channel gets every published event,
+		// independent of whatever the publishing organizer has (or
+		// hasn't) connected — never gated on the per-organizer lookup
+		// below.
+		if cfg.OfficialChannelID != 0 {
+			if err := announcer.SendAnnouncement(ctx, cfg.OfficialChannelID, cfg.OfficialChannelLanguage, e); err != nil {
+				slog.Error("official channel auto-announce failed", "event_id", e.ID, "err", err)
+			}
+		}
+
 		channels, err := channelRepo.ListForOrganizer(ctx, e.OrganizerID)
 		if err != nil || len(channels) == 0 {
 			return

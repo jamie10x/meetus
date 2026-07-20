@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -21,6 +22,15 @@ type Config struct {
 
 	TelegramBotToken    string
 	TelegramBotUsername string
+
+	// OfficialChannelID, if set, is the chat ID of the platform's own
+	// Telegram channel — every published event auto-posts there in
+	// addition to the publishing organizer's own connected channels.
+	// Zero means "not configured" (valid channel IDs are large negatives,
+	// never zero). Obtained the same way an organizer's own channel is:
+	// add the bot as admin, then read the chat_id the worker logs.
+	OfficialChannelID       int64
+	OfficialChannelLanguage string
 
 	UploadDir  string
 	APIBaseURL string
@@ -44,9 +54,19 @@ func Load() (*Config, error) {
 		TelegramBotToken:    os.Getenv("TELEGRAM_BOT_TOKEN"),
 		TelegramBotUsername: os.Getenv("TELEGRAM_BOT_USERNAME"),
 
+		OfficialChannelLanguage: getenv("TELEGRAM_OFFICIAL_CHANNEL_LANGUAGE", "uz"),
+
 		UploadDir:  getenv("UPLOAD_DIR", "./uploads"),
 		APIBaseURL: getenv("API_BASE_URL", "http://localhost:8080"),
 		WebBaseURL: getenv("WEB_BASE_URL", "http://localhost:3000"),
+	}
+
+	if raw := os.Getenv("TELEGRAM_OFFICIAL_CHANNEL_ID"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("TELEGRAM_OFFICIAL_CHANNEL_ID must be a valid integer chat ID: %w", err)
+		}
+		cfg.OfficialChannelID = id
 	}
 
 	if cfg.AppEnv == "production" {

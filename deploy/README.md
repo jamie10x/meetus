@@ -18,6 +18,7 @@ JWT_SECRET=<openssl rand -hex 32>
 TICKET_SECRET=<openssl rand -hex 32>
 TELEGRAM_BOT_TOKEN=<from @BotFather>
 TELEGRAM_BOT_USERNAME=<bot username, no @>
+# TELEGRAM_OFFICIAL_CHANNEL_ID=<see "Meetus.uz's own official channel" below — optional, add once you have it>
 SITE_HOST=meetus.uz
 API_BASE_URL=https://meetus.uz
 WEB_BASE_URL=https://meetus.uz
@@ -55,6 +56,29 @@ Telegram's `my_chat_member` update (see architecture.md). This requires
 `TELEGRAM_BOT_TOKEN` to be set, same as everything else bot-related; a
 deployment without it simply returns a clear "not configured" error on the
 announce endpoint instead of failing to start.
+
+**Meetus.uz's own official channel** (separate from organizers' own
+channels — every published event, from every organizer, posts here) is
+configured via `TELEGRAM_OFFICIAL_CHANNEL_ID`, not a DB row, so there's a
+one-time manual step to find the chat ID:
+
+1. Create (or pick) the channel you want to be the official one.
+2. Add the bot as **admin** there, same as an organizer would for their own
+   channel.
+3. Read the chat ID the worker just logged:
+   `docker compose -f deploy/docker-compose.yml --env-file /etc/meetus/meetus.env logs worker | grep "channel connected"`
+   — it's a large negative number, e.g. `-1001234567890`.
+4. Add `TELEGRAM_OFFICIAL_CHANNEL_ID=<that number>` (and optionally
+   `TELEGRAM_OFFICIAL_CHANNEL_LANGUAGE=uz|ru|en`, defaults to `uz`) to
+   `/etc/meetus/meetus.env`, then `systemctl restart meetus`.
+
+Whoever's account added the bot still needs an organizer profile for the
+connection step above to succeed (same rule as any organizer channel) —
+that's fine even if you never actually use that organizer profile for
+anything else. If you don't want the channel *also* tracked as that
+person's own organizer channel, disconnect it from the organizer dashboard
+afterward — `TELEGRAM_OFFICIAL_CHANNEL_ID` posting doesn't depend on the
+`channel_connections` row still existing.
 
 ## Deploying updates
 
