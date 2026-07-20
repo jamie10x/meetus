@@ -40,10 +40,13 @@ func (a *Announcer) SendAnnouncement(ctx context.Context, chatID int64, langCode
 	text := fmt.Sprintf("📢 <b>%s</b>\n\n🕐 %s\n📍 %s\n\n👤 %s",
 		escape(e.Title), formatEventTime(l, e.StartsAt, a.loc), escape(eventPlaceLabel(l, e)), escape(e.OrganizerName))
 
+	// A plain URL button, not WebApp: Telegram only allows web_app buttons
+	// in private chats — using one in a channel post gets the whole send
+	// rejected with BUTTON_TYPE_INVALID. The link still opens the Mini App
+	// experience fine via Telegram's in-app browser, just without the
+	// native web_app launch.
 	markup := &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
-		{{Text: t(l, kAnnouncementCta), WebApp: &models.WebAppInfo{
-			URL: buildWebURL(a.webBaseURL, l, fmt.Sprintf("/events/%d", e.ID)),
-		}}},
+		{{Text: t(l, kAnnouncementCta), URL: buildWebURL(a.webBaseURL, l, fmt.Sprintf("/events/%d", e.ID))}},
 	}}
 
 	_, err := a.api.SendMessage(ctx, &bot.SendMessageParams{
