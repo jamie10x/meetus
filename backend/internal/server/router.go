@@ -117,6 +117,8 @@ func New(deps Deps) (*gin.Engine, error) {
 		if cfg.OfficialChannelID != 0 {
 			if err := announcer.SendAnnouncement(ctx, cfg.OfficialChannelID, cfg.OfficialChannelLanguage, e); err != nil {
 				slog.Error("official channel auto-announce failed", "event_id", e.ID, "err", err)
+			} else {
+				slog.Info("official channel auto-announce sent", "event_id", e.ID)
 			}
 		}
 
@@ -144,6 +146,8 @@ func New(deps Deps) (*gin.Engine, error) {
 			}
 			if err := announcer.SendAnnouncement(ctx, ch.ChatID, lang, e); err != nil {
 				slog.Error("auto-announce failed", "event_id", e.ID, "channel_id", ch.ID, "err", err)
+			} else {
+				slog.Info("auto-announce sent", "event_id", e.ID, "channel_id", ch.ID)
 			}
 		}
 	})
