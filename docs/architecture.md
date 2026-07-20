@@ -298,7 +298,14 @@ value needs no admin UI, just the same env-var pattern already used for
 send happens *before* the per-organizer channel lookup and is never gated
 on it — an organizer with zero channels of their own still triggers the
 official-channel post; only the per-organizer loop below it depends on
-`channel_connections` having rows.
+`channel_connections` having rows. That loop also skips any channel whose
+`ChatID` equals `cfg.OfficialChannelID` — a real case, not hypothetical:
+the account that connects the official channel needs an organizer profile
+to complete the `my_chat_member` handshake at all (see "Channel
+connections and announcements" above), so the exact same channel commonly
+ends up as *both* the official channel and that account's own organizer
+channel. Without the skip, that organizer's own publishes would post to it
+twice.
 
 ### Website i18n and locale routing
 The website (not just the bot) is fully translated uz/ru/en via

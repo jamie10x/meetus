@@ -75,10 +75,18 @@ one-time manual step to find the chat ID:
 Whoever's account added the bot still needs an organizer profile for the
 connection step above to succeed (same rule as any organizer channel) —
 that's fine even if you never actually use that organizer profile for
-anything else. If you don't want the channel *also* tracked as that
-person's own organizer channel, disconnect it from the organizer dashboard
-afterward — `TELEGRAM_OFFICIAL_CHANNEL_ID` posting doesn't depend on the
-`channel_connections` row still existing.
+anything else, and there's no need to disconnect it afterward: the
+auto-announce hook skips a channel from its own organizer's send list when
+that channel's ID matches `TELEGRAM_OFFICIAL_CHANNEL_ID`, so it can't ever
+get the same event posted twice.
+
+**Getting the chat ID**: use the one the worker logs when the connection
+succeeds (step 3 above), not a number from a third-party "get channel ID"
+bot — those commonly report the short public ID without Telegram's `-100`
+supergroup/channel prefix that the Bot API actually requires (e.g. a
+checker bot reporting `3238861564` when the real `chat_id` the Bot API
+needs is `-1003238861564`). Using the wrong one means every send silently
+fails with a "chat not found" error.
 
 ## Deploying updates
 

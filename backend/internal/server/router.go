@@ -130,6 +130,14 @@ func New(deps Deps) (*gin.Engine, error) {
 			return
 		}
 		for _, ch := range channels {
+			// A channel can be both someone's own organizer channel and
+			// the official channel (e.g. the platform's own account
+			// connected its own channel as an organizer first) — it
+			// already got the official-channel send above, so skip it
+			// here rather than posting the same event twice.
+			if cfg.OfficialChannelID != 0 && ch.ChatID == cfg.OfficialChannelID {
+				continue
+			}
 			lang := orgLang
 			if ch.Language != nil {
 				lang = *ch.Language
