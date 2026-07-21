@@ -12,25 +12,36 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 const MAX_EVENT_PAGES = 40;
 const PAGE_SIZE = 50;
 
+// The API isn't reachable during `next build` itself (CI builds the
+// frontend in isolation, and the production Docker image builds each
+// service separately with no live backend on the network) — only once
+// the built app is actually running. A thrown fetch (ECONNREFUSED, DNS
+// failure, etc.) must not fail the build; it just means the sitemap ships
+// with the static entries only, until ISR revalidates it against a live
+// API (see the fetch `revalidate` below) after deploy.
 async function fetchAllPublishedEvents(): Promise<EventItem[]> {
   const events: EventItem[] = [];
   let cursor: string | undefined;
 
-  for (let page = 0; page < MAX_EVENT_PAGES; page++) {
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
-    if (cursor) params.set("cursor", cursor);
+  try {
+    for (let page = 0; page < MAX_EVENT_PAGES; page++) {
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
+      if (cursor) params.set("cursor", cursor);
 
-    const res = await fetch(`${API_URL}/api/explore/events?${params}`, {
-      next: { revalidate: 3600 },
-    });
-    if (!res.ok) break;
+      const res = await fetch(`${API_URL}/api/explore/events?${params}`, {
+        next: { revalidate: 3600 },
+      });
+      if (!res.ok) break;
 
-    const body = await res.json();
-    const items: EventItem[] = body.data?.items ?? [];
-    events.push(...items);
+      const body = await res.json();
+      const items: EventItem[] = body.data?.items ?? [];
+      events.push(...items);
 
-    cursor = body.data?.nextCursor ?? undefined;
-    if (!cursor) break;
+      cursor = body.data?.nextCursor ?? undefined;
+      if (!cursor) break;
+    }
+  } catch {
+    return [];
   }
   return events;
 }
