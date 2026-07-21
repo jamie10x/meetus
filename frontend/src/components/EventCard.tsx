@@ -2,6 +2,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import type { EventItem } from "@/lib/types";
 import { categoryCoverStyle, categoryLabelClass } from "@/lib/categoryStyle";
+import VerifiedBadge from "@/components/VerifiedBadge";
 
 export function formatEventDate(iso: string, locale: string): string {
   return new Date(iso).toLocaleString(locale, {
@@ -22,6 +23,7 @@ type Props = {
 export default function EventCard({ event, badge }: Props) {
   const t = useTranslations("eventCard");
   const tExplore = useTranslations("explore");
+  const tCommon = useTranslations("common");
   const locale = useLocale();
 
   return (
@@ -57,6 +59,9 @@ export default function EventCard({ event, badge }: Props) {
             : (event.locationName ?? event.citySlug ?? "")}
           <span className="text-dust-dim"> · </span>
           {event.organizerName}
+          {event.organizerVerified ? (
+            <VerifiedBadge label={tCommon("verifiedOrganizer")} className="ml-1" />
+          ) : null}
         </p>
         <div className="mt-auto flex items-center justify-between border-t border-bone/[0.09] pt-2.5">
           <span className="font-mono text-xs text-dust">

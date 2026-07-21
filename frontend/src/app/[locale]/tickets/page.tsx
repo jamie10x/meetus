@@ -7,6 +7,7 @@ import { Link, useRouter } from "@/i18n/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { formatEventDate } from "@/components/EventCard";
+import AddToCalendar from "@/components/AddToCalendar";
 
 type MyTicket = {
   code: string;
@@ -72,6 +73,22 @@ function TicketCard({ ticket }: { ticket: MyTicket }) {
         ) : (
           <p className="mt-2.5 text-xs text-dust-dim">{t("showAtEntrance")}</p>
         )}
+        {ticket.eventStatus === "published" ? (
+          <AddToCalendar
+            className="mt-3"
+            path={`/${locale}/events/${ticket.eventId}`}
+            event={{
+              title: ticket.eventTitle,
+              description: "",
+              startsAt: ticket.startsAt,
+              endsAt: null,
+              isOnline: ticket.isOnline,
+              locationName: ticket.locationName,
+              address: null,
+              citySlug: ticket.citySlug,
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );

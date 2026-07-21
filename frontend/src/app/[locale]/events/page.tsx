@@ -2,10 +2,24 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import dynamic from "next/dynamic";
 import EventCard from "@/components/EventCard";
 import TrendingSection from "@/components/TrendingSection";
 import { api } from "@/lib/api";
 import type { EventItem, MetaItem } from "@/lib/types";
+
+// Leaflet touches `window` at import time, so the map view can only ever
+// render client-side — ssr: false keeps it out of the server bundle
+// entirely rather than erroring during SSR.
+const EventMap = dynamic(() => import("@/components/EventMap"), {
+  ssr: false,
+  loading: () => (
+    <div
+      style={{ height: 520 }}
+      className="flex w-full items-center justify-center rounded-card border border-line bg-ink-raised text-sm text-dust"
+    />
+  ),
+});
 
 type Page = { items: EventItem[]; nextCursor: string | null };
 
@@ -64,6 +78,7 @@ export default function ExplorePage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [view, setView] = useState<"list" | "map">("list");
 
   useEffect(() => {
     api<MetaItem[]>("/meta/cities").then(setCities).catch(() => {});
@@ -212,11 +227,31 @@ export default function ExplorePage() {
           <p className="py-16 text-center text-dust">{t("noResults")}</p>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {items.map((e) => (
-                <EventCard key={e.id} event={e} />
-              ))}
+            <div className="mb-5 flex justify-end gap-2">
+              <button
+                onClick={() => setView("list")}
+                className={chipCls(view === "list")}
+              >
+                {t("listView")}
+              </button>
+              <button
+                onClick={() => setView("map")}
+                className={chipCls(view === "map")}
+              >
+                {t("mapView")}
+              </button>
             </div>
+
+            {view === "map" ? (
+              <EventMap events={items} />
+            ) : (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {items.map((e) => (
+                  <EventCard key={e.id} event={e} />
+                ))}
+              </div>
+            )}
+
             {nextCursor ? (
               <button
                 onClick={loadMore}

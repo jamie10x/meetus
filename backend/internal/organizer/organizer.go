@@ -25,6 +25,7 @@ type Organizer struct {
 	DisplayName string
 	Bio         *string
 	AvatarURL   *string
+	IsVerified  bool
 	CreatedAt   time.Time
 }
 
@@ -33,11 +34,12 @@ type DTO struct {
 	DisplayName string    `json:"displayName"`
 	Bio         *string   `json:"bio"`
 	AvatarURL   *string   `json:"avatarUrl"`
+	IsVerified  bool      `json:"isVerified"`
 	CreatedAt   time.Time `json:"createdAt"`
 }
 
 func (o *Organizer) ToDTO() DTO {
-	return DTO{ID: o.ID, DisplayName: o.DisplayName, Bio: o.Bio, AvatarURL: o.AvatarURL, CreatedAt: o.CreatedAt}
+	return DTO{ID: o.ID, DisplayName: o.DisplayName, Bio: o.Bio, AvatarURL: o.AvatarURL, IsVerified: o.IsVerified, CreatedAt: o.CreatedAt}
 }
 
 type Repository struct {
@@ -53,9 +55,9 @@ func (r *Repository) Create(ctx context.Context, userID int64, displayName strin
 	err := r.pool.QueryRow(ctx, `
 		INSERT INTO organizers (user_id, display_name, bio)
 		VALUES ($1, $2, $3)
-		RETURNING id, user_id, display_name, bio, avatar_url, created_at`,
+		RETURNING id, user_id, display_name, bio, avatar_url, is_verified, created_at`,
 		userID, displayName, bio).
-		Scan(&o.ID, &o.UserID, &o.DisplayName, &o.Bio, &o.AvatarURL, &o.CreatedAt)
+		Scan(&o.ID, &o.UserID, &o.DisplayName, &o.Bio, &o.AvatarURL, &o.IsVerified, &o.CreatedAt)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return nil, apperr.Conflict("you are already an organizer")
@@ -69,9 +71,9 @@ func (r *Repository) Create(ctx context.Context, userID int64, displayName strin
 func (r *Repository) GetByUserID(ctx context.Context, userID int64) (*Organizer, error) {
 	var o Organizer
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, user_id, display_name, bio, avatar_url, created_at
+		SELECT id, user_id, display_name, bio, avatar_url, is_verified, created_at
 		FROM organizers WHERE user_id = $1`, userID).
-		Scan(&o.ID, &o.UserID, &o.DisplayName, &o.Bio, &o.AvatarURL, &o.CreatedAt)
+		Scan(&o.ID, &o.UserID, &o.DisplayName, &o.Bio, &o.AvatarURL, &o.IsVerified, &o.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperr.NotFound("organizer profile not found")
 	}

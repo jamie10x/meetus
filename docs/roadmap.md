@@ -31,10 +31,40 @@ of whichever organizer triggers the send), **auto-announce on publish**
 the background — the manual announce button still exists for re-sends),
 **feedback comments** (a bot conversational follow-up after the star
 rating — reply with a message or tap Skip — shown to organizers on the
-attendees page), and **Mini App native chrome** (Telegram's `BackButton`
+attendees page), **Mini App native chrome** (Telegram's `BackButton`
 wired to in-app navigation, `MainButton` replacing the on-page join button,
-header/background color synced to Telegram's own theme). See
-docs/architecture.md for how all of these work.
+header/background color synced to Telegram's own theme), **an official
+platform-wide channel** (every published event, from every organizer,
+posted automatically — configured via `TELEGRAM_OFFICIAL_CHANNEL_ID`, not
+tied to any one organizer's own channel connections) and **group feed
+support** (a Telegram group opts into that same platform-wide feed the
+same way a channel connects — bot added as admin, verified via
+`my_chat_member`), **QR tickets delivered as an in-bot photo** (join
+returns the ticket QR as an actual image message, not just a link out to
+the website; `/tickets` resends every upcoming one), an **RSVP waitlist**
+(a full event waitlists instead of rejecting the join; canceling a
+confirmed spot auto-promotes the longest-waiting waitlisted attendee and
+messages them their ticket), a **weekly "what's on" digest** (opt-in via
+`/digest`, sent Monday mornings, scoped to the subscriber's city if set),
+**`/mute`** (dials reminder and feedback-prompt frequency to zero without
+leaving events), and **location-based event suggestions** (`/nearby`
+shares live location, bot replies with the closest published events by
+great-circle distance).
+
+Also done, website-side: a **map view on Explore** (Leaflet + CARTO's free
+dark basemap, toggled against the plain list — no paid API key), **add to
+calendar** (.ics download + Google Calendar link on tickets and event
+pages, works inside the Telegram Mini App webview too), **recurring weekly
+events** (an organizer creates a whole series at once; each occurrence is
+independently publishable/editable/cancelable, sharing a `seriesId`),
+**related and "other dates in this series" sections** on the event detail
+page, **SEO** (a generated `sitemap.xml` covering every published event ×
+locale, schema.org `Event` structured data on event pages for search rich
+results), a **PWA** (installable, offline-viewable tickets — the QR
+already renders fully client-side, so a cached ticket list works with no
+signal at the door), and an **organizer verification badge** (admin-set
+trust signal shown next to a verified organizer's name everywhere their
+events appear). See docs/architecture.md for how all of these work.
 
 ## Payments
 

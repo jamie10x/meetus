@@ -1,4 +1,7 @@
 {
+  "common": {
+    "verifiedOrganizer": "Tasdiqlangan tashkilotchi"
+  },
   "nav": {
     "explore": "Tadbirlar",
     "tickets": "Chiptalar",
@@ -64,7 +67,10 @@
     "loading": "Tadbirlar yuklanmoqda…",
     "loadFailed": "Tadbirlarni yuklab bo'lmadi. Internetni tekshirib, qayta urinib ko'ring.",
     "noResults": "Bu filtrlar bo'yicha tadbirlar topilmadi.",
-    "loadMore": "Ko'proq ko'rsatish"
+    "loadMore": "Ko'proq ko'rsatish",
+    "listView": "Ro'yxat",
+    "mapView": "Xarita",
+    "noMappableEvents": "Bu tadbirlarning hech biri uchun joylashuv hali belgilanmagan."
   },
   "trending": {
     "title": "Shu hafta mashhur",
@@ -83,7 +89,9 @@
     "online": "Onlayn",
     "inPerson": "Yuzma-yuz",
     "location": "Manzil",
-    "about": "Tadbir haqida"
+    "about": "Tadbir haqida",
+    "seriesHeading": "Ushbu seriyaning boshqa sanalari",
+    "relatedHeading": "Sizga yoqishi mumkin"
   },
   "rsvp": {
     "eventStarted": "Bu tadbir allaqachon boshlangan.",
@@ -92,9 +100,11 @@
     "goingMessage": "Siz ishtirokchisiz! 🎉",
     "viewTicket": "Chiptangizni ko'ring",
     "cancel": "Bekor qilish",
-    "eventFull": "Joylar tugadi",
     "joining": "Qo'shilmoqda…",
     "joinEvent": "Qatnashish",
+    "joinWaitlist": "Navbatga turish",
+    "waitlistedMessage": "Siz navbatdasiz — joy bo'shasa, sizga xabar beramiz.",
+    "leaveWaitlist": "Navbatni tark etish",
     "joinFailed": "Qo'shilib bo'lmadi. Qayta urinib ko'ring.",
     "cancelFailed": "Bekor qilib bo'lmadi. Qayta urinib ko'ring."
   },
@@ -109,6 +119,10 @@
     "showAtEntrance": "Kirishda ushbu QR-kodni ko'rsating",
     "qrUnavailable": "QR-kod mavjud emas",
     "loading": "Yuklanmoqda…"
+  },
+  "calendar": {
+    "downloadIcs": "Kalendarga qo'shish (.ics)",
+    "googleCalendar": "Google Calendar'ga qo'shish"
   },
   "organizer": {
     "loading": "Yuklanmoqda…",
@@ -151,8 +165,19 @@
     "venuePlaceholder": "masalan, Impact Hub",
     "district": "Tuman",
     "address": "Manzil",
+    "coordinates": "Koordinatalar (ixtiyoriy)",
+    "coordinatesHint": "Botdagi \"yaqin-atrofdagi tadbirlar\" tavsiyalari uchun ishlatiladi — ishonchingiz komil bo'lmasa, bo'sh qoldiring.",
+    "latitude": "Kenglik",
+    "longitude": "Uzunlik",
+    "useMyLocation": "Joylashuvimni aniqlash",
+    "locating": "Aniqlanmoqda…",
+    "locationUnavailable": "Joylashuvni aniqlab bo'lmadi.",
     "startsAt": "Boshlanish vaqti",
     "endsAtOptional": "Tugash vaqti (ixtiyoriy)",
+    "repeatsWeekly": "Har hafta takrorlanadi",
+    "recurWeeksLabel": "Takrorlanishlar soni",
+    "recurWeeksOption": "{count} marta, haftada bir",
+    "recurWeeksHint": "Bir-biridan bir hafta farq qiladigan alohida qoralamalar yaratiladi — har birini alohida nashr qiling va tahrirlang.",
     "capacity": "Sig'im (cheklovsiz bo'lishi uchun bo'sh qoldiring)",
     "coverImage": "Muqova rasmi",
     "uploading": "Yuklanmoqda…",
@@ -237,6 +262,11 @@
     "unban": "Blokdan chiqarish",
     "ban": "Bloklash",
     "noUsers": "Foydalanuvchilar topilmadi.",
+    "organizersHeading": "Tashkilotchilar",
+    "searchOrganizersPlaceholder": "Tashkilotchi nomini qidirish…",
+    "verify": "Tasdiqlash",
+    "unverify": "Tasdiqni bekor qilish",
+    "noOrganizers": "Tashkilotchilar topilmadi.",
     "citiesHeading": "Shaharlar",
     "categoriesHeading": "Kategoriyalar",
     "metaSlug": "Slug",

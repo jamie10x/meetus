@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -16,6 +17,7 @@ import (
 	"meetus.uz/backend/internal/config"
 	"meetus.uz/backend/internal/event"
 	"meetus.uz/backend/internal/feedback"
+	"meetus.uz/backend/internal/groupfeed"
 	"meetus.uz/backend/internal/housekeeping"
 	"meetus.uz/backend/internal/notification"
 	"meetus.uz/backend/internal/platform/db"
@@ -33,6 +35,15 @@ const (
 	housekeepingInterval = time.Hour
 	housekeepingLockKey  = "meetus:worker:housekeeping"
 	housekeepingLockTTL  = 55 * time.Minute
+
+	// digestCheckInterval polls frequently so the actual send happens
+	// close to the top of the target hour; digestLockKeyPrefix is keyed
+	// per ISO week (not a fixed key like the other locks) so a new send
+	// window opens automatically every week without any reset logic.
+	digestCheckInterval = 15 * time.Minute
+	digestLockKeyPrefix = "meetus:worker:weekly-digest:"
+	digestLockTTL       = 8 * 24 * time.Hour
+	digestSendHour      = 9 // 09:00 Asia/Tashkent, Mondays
 )
 
 func main() {
@@ -68,24 +79,28 @@ func run() error {
 	}
 	defer rdb.Close()
 
-	bot, err := tgbot.New(
-		cfg.TelegramBotToken,
-		user.NewRepository(pool),
-		event.NewRepository(pool),
-		rsvp.NewRepository(pool),
-		feedback.NewRepository(pool),
-		channel.NewRepository(pool),
-		rdb,
-		cfg.WebBaseURL,
-	)
+	bot, err := tgbot.New(tgbot.Deps{
+		Token:        cfg.TelegramBotToken,
+		Users:        user.NewRepository(pool),
+		Events:       event.NewRepository(pool),
+		RSVPs:        rsvp.NewRepository(pool),
+		Feedback:     feedback.NewRepository(pool),
+		Channels:     channel.NewRepository(pool),
+		Groups:       groupfeed.NewRepository(pool),
+		TicketSigner: rsvp.NewTicketSigner(cfg.TicketSecret),
+		Redis:        rdb,
+		WebBaseURL:   cfg.WebBaseURL,
+	})
 	if err != nil {
 		return err
 	}
 
 	notifications := notification.NewRepository(pool)
+	users := user.NewRepository(pool)
 
 	go reminderLoop(ctx, notifications, bot, rdb)
 	go housekeepingLoop(ctx, housekeeping.NewRunner(pool), rdb)
+	go digestLoop(ctx, users, bot, rdb)
 
 	// Blocks until ctx is canceled.
 	bot.Start(ctx)
@@ -174,6 +189,65 @@ func sendDue(ctx context.Context, repo *notification.Repository, bot *tgbot.Bot,
 	if len(due) > 0 {
 		slog.Info("reminders processed", "kind", kind, "count", len(due))
 	}
+}
+
+// digestLoop wakes up periodically and, once per ISO week during the
+// Monday-morning send hour, fans the weekly "what's on" digest out to
+// every opted-in subscriber. The Redis lock (keyed per week, not a fixed
+// key) is what makes this safe to run on every worker instance without
+// double-sending.
+func digestLoop(ctx context.Context, users *user.Repository, bot *tgbot.Bot, rdb *redis.Client) {
+	loc, err := time.LoadLocation("Asia/Tashkent")
+	if err != nil {
+		slog.Error("digest loop: load location failed", "err", err)
+		return
+	}
+	ticker := time.NewTicker(digestCheckInterval)
+	defer ticker.Stop()
+
+	check := func() {
+		now := time.Now().In(loc)
+		if now.Weekday() != time.Monday || now.Hour() != digestSendHour {
+			return
+		}
+		year, week := now.ISOWeek()
+		lockKey := fmt.Sprintf("%s%d-%02d", digestLockKeyPrefix, year, week)
+		ok, err := rdb.SetNX(ctx, lockKey, "1", digestLockTTL).Result()
+		if err != nil {
+			slog.Error("digest lock failed", "err", err)
+			return
+		}
+		if !ok {
+			return
+		}
+		sendWeeklyDigest(ctx, users, bot)
+	}
+
+	check()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			check()
+		}
+	}
+}
+
+func sendWeeklyDigest(ctx context.Context, users *user.Repository, bot *tgbot.Bot) {
+	subs, err := users.ListWeeklyDigestSubscribers(ctx)
+	if err != nil {
+		slog.Error("load weekly digest subscribers failed", "err", err)
+		return
+	}
+	failed := 0
+	for _, sub := range subs {
+		if err := bot.SendWeeklyDigest(ctx, sub); err != nil {
+			slog.Warn("weekly digest send failed", "user", sub.UserID, "err", err)
+			failed++
+		}
+	}
+	slog.Info("weekly digest processed", "subscribers", len(subs), "failed", failed)
 }
 
 func sendDueFeedback(ctx context.Context, repo *notification.Repository, bot *tgbot.Bot) {

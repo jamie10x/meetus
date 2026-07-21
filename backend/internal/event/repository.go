@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -25,8 +26,8 @@ const eventSelect = `
 	SELECT e.id, e.organizer_id, e.title, e.description, e.category_id,
 	       e.city_id, e.district, e.location_name, e.address, e.lat, e.lng,
 	       e.is_online, e.starts_at, e.ends_at, e.capacity, e.cover_url,
-	       e.status, e.visibility, e.created_at, e.updated_at,
-	       o.display_name, c.slug, ci.slug,
+	       e.status, e.visibility, e.series_id, e.created_at, e.updated_at,
+	       o.display_name, o.is_verified, c.slug, ci.slug,
 	       (SELECT count(*) FROM rsvps r WHERE r.event_id = e.id AND r.status = 'going')::int
 	FROM events e
 	JOIN organizers o ON o.id = e.organizer_id
@@ -39,8 +40,8 @@ func scanEvent(row pgx.Row) (*Event, error) {
 	err := row.Scan(&e.ID, &e.OrganizerID, &e.Title, &e.Description, &e.CategoryID,
 		&e.CityID, &e.District, &e.LocationName, &e.Address, &e.Lat, &e.Lng,
 		&e.IsOnline, &e.StartsAt, &e.EndsAt, &e.Capacity, &e.CoverURL,
-		&e.Status, &e.Visibility, &e.CreatedAt, &e.UpdatedAt,
-		&e.OrganizerName, &e.CategorySlug, &e.CitySlug, &e.GoingCount)
+		&e.Status, &e.Visibility, &e.SeriesID, &e.CreatedAt, &e.UpdatedAt,
+		&e.OrganizerName, &e.OrganizerVerified, &e.CategorySlug, &e.CitySlug, &e.GoingCount)
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +95,79 @@ func (r *Repository) Create(ctx context.Context, organizerID int64, f WriteField
 		return nil, fmt.Errorf("create event: %w", mapWriteErr(err))
 	}
 	return r.GetByID(ctx, id)
+}
+
+// CreateSeries creates a weekly-recurring series: `occurrences` events,
+// one week apart starting at f.StartsAt, all sharing a series_id equal
+// to the first occurrence's own ID — no separate sequence/table needed
+// for the grouping key. Returns every created event, first occurrence
+// first.
+func (r *Repository) CreateSeries(ctx context.Context, organizerID int64, f WriteFields, occurrences int) ([]*Event, error) {
+	startsAt, err := time.Parse(time.RFC3339, f.StartsAt)
+	if err != nil {
+		return nil, fmt.Errorf("parse startsAt: %w", err)
+	}
+	var endsAt *time.Time
+	if f.EndsAt != nil {
+		t, err := time.Parse(time.RFC3339, *f.EndsAt)
+		if err != nil {
+			return nil, fmt.Errorf("parse endsAt: %w", err)
+		}
+		endsAt = &t
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	ids := make([]int64, 0, occurrences)
+	for i := 0; i < occurrences; i++ {
+		offset := time.Duration(i) * 7 * 24 * time.Hour
+		occStarts := startsAt.Add(offset).Format(time.RFC3339)
+		var occEnds *string
+		if endsAt != nil {
+			s := endsAt.Add(offset).Format(time.RFC3339)
+			occEnds = &s
+		}
+
+		var id int64
+		err := tx.QueryRow(ctx, `
+			INSERT INTO events (organizer_id, title, description, category_id, city_id,
+				district, location_name, address, lat, lng, is_online,
+				starts_at, ends_at, capacity, cover_url, visibility)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::timestamptz,$13::timestamptz,$14,$15,$16)
+			RETURNING id`,
+			organizerID, f.Title, f.Description, f.CategoryID, f.CityID,
+			f.District, f.LocationName, f.Address, f.Lat, f.Lng, f.IsOnline,
+			occStarts, occEnds, f.Capacity, f.CoverURL, f.Visibility).Scan(&id)
+		if err != nil {
+			return nil, fmt.Errorf("create series event: %w", mapWriteErr(err))
+		}
+		ids = append(ids, id)
+	}
+
+	seriesID := ids[0]
+	if _, err := tx.Exec(ctx,
+		`UPDATE events SET series_id = $1 WHERE id = ANY($2)`,
+		seriesID, ids); err != nil {
+		return nil, fmt.Errorf("set series id: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+
+	events := make([]*Event, 0, occurrences)
+	for _, id := range ids {
+		e, err := r.GetByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, e)
+	}
+	return events, nil
 }
 
 func (r *Repository) Update(ctx context.Context, id int64, f WriteFields) (*Event, error) {

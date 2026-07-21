@@ -104,31 +104,91 @@ empty (a plain browser), fall through to the normal Login Widget page.
 
 ### RSVP + ticket (the concurrency-sensitive path)
 `rsvp.Repository.Join` runs one transaction:
-1. `SELECT ... FOR UPDATE` on the event row — serializes concurrent joins.
+1. `SELECT ... FOR UPDATE` on the event row — serializes concurrent joins
+   against each other and against `Cancel`'s waitlist promotion (same lock).
 2. Reject if not published or already started.
-3. If an RSVP exists: `going` → 409; `canceled` → reactivate (same ticket).
-4. If capacity set: count `going` rows, reject when full.
-5. Insert RSVP; insert ticket (random 16-byte hex code) if none exists.
+3. If an RSVP exists: `going` → 409; `waitlisted` → 409; `canceled` → reactivate.
+4. If capacity set: count `going` rows; if full, the new/reactivated RSVP is
+   inserted as `waitlisted` instead of rejected outright.
+5. Insert/update the RSVP. A ticket (random 16-byte hex code) is only
+   issued for `going` rows — a waitlisted RSVP has none yet.
+
+`rsvp.Repository.Cancel` also locks the event row, then:
+1. Looks up the caller's RSVP (`going` or `waitlisted`) and cancels it.
+2. Only if it *was* `going` (a waitlisted attendee leaving doesn't free a
+   spot): `promoteNextWaitlisted` promotes the longest-waiting `waitlisted`
+   row (`ORDER BY created_at LIMIT 1`) to `going` and issues its ticket, in
+   the same transaction.
+3. The service layer (`rsvp.Service.Cancel`) fires the promoted attendee's
+   Telegram notification in a background goroutine with
+   `context.Background()` — same reasoning as auto-announce below: the
+   HTTP request's own context is canceled the instant the response is
+   written. `rsvp.PromotionNotifier` is an interface (satisfied by
+   `*tgbot.Announcer`, wired in `router.go`) so `rsvp` doesn't import
+   `tgbot` — `tgbot` already imports `rsvp`, and Go disallows the cycle.
+   The notification reuses the same QR-photo rendering as a fresh join
+   (`sendTicketPhotoTo`, a package-level helper in `tgbot` shared by `Bot`
+   and `Announcer`, since `Announcer` has no `*Bot` to call a method on).
 
 Ticket QR value = `code + "." + HMAC-SHA256(code, TICKET_SECRET)`.
 Check-in (`POST /api/checkin`) verifies the signature **before** any DB read,
 then: ticket exists → caller owns the event → RSVP active → not already
 checked in → set `checked_in_at` (guarded by `WHERE checked_in_at IS NULL`).
 
+Inside the bot, joining a full event sends the waitlist message
+(`kWaitlisted`) instead of a QR photo; the `/tickets` command and every
+other ticket-photo send path only ever deal with `going` RSVPs, so they
+need no waitlist-awareness of their own.
+
 ### Reminders
 Worker ticks every minute. Steps:
 1. Redis `SETNX meetus:worker:reminder-scan` (50 s TTL) — one scan across instances.
 2. `notification.Repository.Due(kind)` for `reminder_24h` (starts within 24 h,
    but > 2 h away) and `reminder_1h` (starts within 1 h). The query anti-joins
-   `notification_log` so each (event, user, kind) fires once.
+   `notification_log` and excludes `users.notifications_muted` (`/mute` in
+   the bot) so each (event, user, kind) fires once, and never to a muted user.
 3. `tgbot.Bot.SendReminder` → Telegram; `MarkSent` **always** logs the attempt,
    even on send failure (a user who never opened the bot chat 403s forever).
+   A muted user's reminder is simply never selected in step 2, so it's never
+   marked sent either — unmuting before the reminder window closes still
+   gets it.
 4. Same tick, same lock: `notification.Repository.DueFeedback` finds attendees
    of events the hourly `housekeeping.Runner` has already flipped to
-   `finished` and sends a 1-5 star rating prompt (`tgbot.Bot.SendFeedbackRequest`).
+   `finished` (also excluding muted users) and sends a 1-5 star rating
+   prompt (`tgbot.Bot.SendFeedbackRequest`).
    No time window here — dedup via `notification_log` is the only guard,
    since "ask once, whenever the scan next runs after the event ends" is
    sufficient and needs no extra state.
+
+### Weekly digest
+A separate worker loop (`digestLoop` in `cmd/worker/main.go`) polls every
+15 minutes and, only during the Monday 09:00 `Asia/Tashkent` hour, takes a
+Redis `SETNX` lock keyed per **ISO week** (`meetus:worker:weekly-digest:<year>-<week>`,
+~8-day TTL) — not a fixed key like the other worker locks — so the send
+window reopens automatically every week with no reset logic, and only one
+worker instance sends per week. On success it calls
+`user.Repository.ListWeeklyDigestSubscribers` (opted in via `/digest`,
+excluding muted users same as reminders) and `tgbot.Bot.SendWeeklyDigest`
+per subscriber, which lists published events starting within the next 7
+days — scoped to the subscriber's `city_id` if they have one set
+(`event.ListFilters.CityID`, a plain column filter, distinct from the
+slug-based `CitySlug` filter the public explore endpoints use), global
+otherwise. Sends nothing if the window is empty — an empty digest isn't
+worth a notification.
+
+### Nearby events
+`event.Repository.ListNearby` ranks published upcoming in-person events by
+great-circle distance from a point, plain SQL haversine (no PostGIS — fine
+at this scale, and it's a single `ORDER BY`, not an index lookup). The
+distance expression is repeated in both `WHERE` and the `ORDER BY` alias
+deliberately: Postgres doesn't allow a `WHERE` clause to reference a
+`SELECT`-list alias (only `ORDER BY`/`GROUP BY` can), so the filter
+re-states the full expression rather than referencing `distance_km`. In
+the bot, `/nearby` sends a `ReplyKeyboardMarkup` with `RequestLocation:
+true` — the only Telegram-native way to ask for a location, since there's
+no proactive push mechanism — and the resulting location arrives as an
+ordinary message with `.Location` populated instead of `.Text`, routed
+through the same default handler as everything else.
 
 ### Bot i18n and language selection
 Bot messages render in the caller's `users.language` (uz/ru/en; `tgbot/i18n.go`
@@ -206,6 +266,128 @@ filters don't apply, by design, so the rail stays a stable "what's hot"
 signal rather than re-filtering with the grid below it); it renders nothing
 when there's no signal yet, so a fresh install never shows an awkward empty
 section.
+
+### Related events and recurring series
+`event.Repository.ListRelated` ranks other published upcoming events by a
+plain tiered `ORDER BY` — same category **and** city first, then
+category-only, then city-only — rather than a scored/weighted query;
+simple to reason about and plenty at this scale. `ListSeries` is the
+recurring-series counterpart: it returns the other published upcoming
+occurrences of one event's series, excluding the event itself and any
+sibling still sitting in draft.
+
+A recurring series has no separate table or sequence — `events.series_id`
+is just the **first occurrence's own event ID**, shared by every event in
+that series (`event.Repository.CreateSeries` inserts all N occurrences in
+one transaction, then `UPDATE ... SET series_id = <first id> WHERE id =
+ANY(...)`). `POST /events`'s `recurWeeks` field (0-11) is what triggers
+`CreateSeries` instead of the plain single-event `Create` — see
+[api.md](api.md#post-events). Each occurrence is fully independent after
+creation: publishing, editing, or canceling one has no effect on its
+siblings, deliberately — a real recurring meetup often needs its Nth
+instance moved, retitled, or skipped without touching the rest.
+
+### Map view
+`frontend/src/components/EventMap.tsx` renders in-person events with
+`lat`/`lng` set (organizers enter these on the event form, or omit them —
+lat/lng is always optional) as markers on a Leaflet map, toggled against
+the plain list on the Explore page. Tiles come from CARTO's free
+`dark_all` basemap (`{s}.basemaps.cartocdn.com`, built on OpenStreetMap
+data) rather than stock OSM tiles, specifically because stock tiles are
+white/bright and would clash badly with the site's dark-first theme — no
+API key needed for either, but the OSM+CARTO attribution stays on the map
+per their usage terms (`TileLayer`'s `attribution` prop). Markers are a
+custom teal `L.divIcon` (a styled `<span>`, no image asset) instead of
+Leaflet's default pin — sidesteps the well-known bundler issue where
+Leaflet's default marker icons resolve to broken relative image URLs, and
+matches the brand better anyway.
+
+The map is loaded via `next/dynamic(..., { ssr: false })`: Leaflet touches
+`window` at import time and cannot run during SSR. **The map container's
+height must be set as an inline `style`, not a Tailwind class** — a
+Tailwind arbitrary-value height class was tried first and (independent of
+Leaflet) rendered as `2px` in this project's build for reasons not fully
+root-caused; the inline style is the verified-working fix and there's no
+reason to revisit it. Leaflet reads the container's size once at init, so
+if it's ever `0`, no tiles load and no tile requests even fire — that's
+the symptom to look for if the map ever appears blank again.
+
+### Organizer verification
+`organizers.is_verified` is a plain admin-set boolean (`POST
+/admin/organizers/:id/verify` / `/unverify`) — no self-service request
+flow in v1. It's denormalized onto every event read path (`eventSelect`,
+`trendingSelect`, `nearbySelect` all join `o.is_verified`) so the badge
+can render on event cards without an extra request. `VerifiedBadge`
+(`frontend/src/components/VerifiedBadge.tsx`) takes its label as a prop
+rather than calling `useTranslations` internally, specifically so the same
+component works from both Client Components (event cards, admin page) and
+Server Components (the event detail page, which resolves translations via
+`getTranslations` instead).
+
+### SEO: sitemap and structured data
+`frontend/src/app/sitemap.ts` is a top-level Next.js metadata route (not
+under `[locale]`, same as `manifest.ts` — dynamic segments don't apply to
+these special files) that walks `GET /explore/events` by cursor up to a
+safety cap (40 pages × 50 events) and emits one URL per event per locale,
+with `alternates.languages` cross-linking the uz/ru/en versions of each
+page. Each event detail page also embeds a schema.org `Event` JSON-LD
+block (`frontend/src/lib/eventSchema.ts`) for rich-result eligibility in
+search engines. **`stringifyJsonLd` escapes `<` before embedding** — event
+titles/descriptions are organizer-controlled free text, and plain
+`JSON.stringify` doesn't escape `<`, so a description containing
+`</script>` could otherwise break out of the tag and inject markup. Don't
+swap it back for a bare `JSON.stringify` call.
+
+### PWA and offline tickets
+`frontend/public/sw.js` is a small hand-rolled service worker (no
+Workbox — this is the only PWA behavior the app needs). Three fetch
+strategies, dispatched by request shape: `GET /api/me/tickets` is
+network-first with a cache fallback (so a ticket, once loaded while
+online, is still viewable with no signal at the door — the QR itself is
+rendered entirely client-side from the cached response's `qr` string via
+the `qrcode` package, so nothing else needs to be online); full-page
+navigations are also network-first with a cache fallback, deliberately
+**not** cache-first — event listings and RSVP counts change constantly,
+and a cache-first page would go stale while the user is online; and
+same-origin static assets (fingerprinted JS/CSS, the generated PWA icons)
+are cache-first, since Next's build makes those safe to cache aggressively.
+`app/manifest.ts`, `app/icon.tsx`, and `app/apple-icon.tsx` generate the
+manifest and icons via `next/og`'s `ImageResponse` at build time — a
+simple brand-teal "M" mark, not an emoji, since Satori (the renderer
+behind `ImageResponse`) doesn't reliably render emoji glyphs without an
+extra font/CDN dependency. The default `app/favicon.ico` Next.js ships
+with was deleted so the generated icon is the only one — keeping both
+left some browsers showing the old unbranded default.
+
+**Known gotcha**: the service worker's cache-first strategy for static
+assets can serve a stale JS chunk during local frontend development,
+including across `npm run dev` restarts, since it survives in the
+browser's Cache Storage independent of the dev server process. See the
+callout in [development.md](development.md) for how to clear it.
+
+**`proxy.ts`'s matcher must exclude `icon`/`apple-icon`/`pwa-icon`.**
+Next's generated icon routes are served at those exact extensionless
+paths (content-type comes from the response header, not a URL suffix), so
+the existing `.*\..*` file-extension exclusion doesn't catch them — without
+the explicit exclusion, next-intl's middleware 307-redirects them to
+`/uz/icon` etc. like an ordinary page, which breaks every consumer
+(browser tab icon, home-screen install icon, PWA manifest icons all point
+at these routes).
+
+### Add to calendar
+`frontend/src/lib/ics.ts` builds a plain RFC 5545 `.ics` file client-side
+(no backend endpoint) plus a Google Calendar "quick add" template link.
+**Downloads go through a Blob object URL (`downloadIcs`, in
+`AddToCalendar.tsx`), never a bare `<a href="data:...">`.** A `data:` URL
+was the first approach and works in an ordinary desktop browser, but this
+site also runs as a Telegram Mini App, and Telegram's in-app webview (like
+some other embedded webviews) navigates to `data:` URLs instead of
+downloading them even with the `download` attribute set — the object-URL
+approach downloads reliably in both contexts. `AddToCalendar` resolves the
+absolute event URL via `window.location.origin` inside a `useEffect`
+rather than at initial render, so the `.ics`/Google Calendar link content
+is always identical between the server-rendered and first client-rendered
+markup (no hydration mismatch) and only gains the real URL after mount.
 
 ### Channel connections and announcements
 Organizers can push a published event to a Telegram channel they control.
@@ -306,6 +488,23 @@ connections and announcements" above), so the exact same channel commonly
 ends up as *both* the official channel and that account's own organizer
 channel. Without the skip, that organizer's own publishes would post to it
 twice.
+
+**Group feed**: the same hook also fans out to Telegram *groups* that have
+opted into the platform-wide feed — same idea as the official channel, same
+`SendAnnouncement` call, always in `TELEGRAM_OFFICIAL_CHANNEL_LANGUAGE`
+(groups have no per-chat language override, unlike organizer channels). A
+group opts in the same way a channel connects — never a typed-in chat ID,
+only proof the bot is actually in the group: `tgbot.Bot.handleMyChatMember`
+now dispatches on `mcm.Chat.Type` (`ChatTypeChannel` → the existing
+channel-connect flow; `ChatTypeGroup`/`ChatTypeSupergroup` →
+`handleGroupMembership`, which just calls `groupfeed.Repository.Subscribe`/
+`Unsubscribe`). Unlike channels, a group subscription isn't owned by any
+organizer, so it lives in its own `group_subscriptions` table (chat ID +
+title only) rather than `channel_connections` — there's no organizer-scoped
+concept of "this group belongs to you" the way a channel connection has
+one. `router.go` lists subscribed chat IDs via `groupfeed.Repository.ListChatIDs`
+and sends to each, right after the official-channel send and before the
+per-organizer loop.
 
 ### Website i18n and locale routing
 The website (not just the bot) is fully translated uz/ru/en via

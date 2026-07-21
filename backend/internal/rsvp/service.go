@@ -2,18 +2,41 @@ package rsvp
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
+	"meetus.uz/backend/internal/event"
 	"meetus.uz/backend/internal/platform/apperr"
+	"meetus.uz/backend/internal/user"
 )
 
-type Service struct {
-	repo   *Repository
-	signer *TicketSigner
+// PromotionNotifier delivers a waitlist-promotion message (with ticket)
+// to a newly-confirmed attendee. Satisfied by *tgbot.Announcer; declared
+// here rather than importing tgbot directly so rsvp doesn't depend on
+// it — tgbot already depends on rsvp, and Go disallows the cycle. Same
+// pattern as channel.Announcer.
+type PromotionNotifier interface {
+	SendWaitlistPromotion(ctx context.Context, telegramID int64, langCode string, ticketCode string, e *event.Event) error
 }
 
-func NewService(repo *Repository, signer *TicketSigner) *Service {
-	return &Service{repo: repo, signer: signer}
+type Service struct {
+	repo       *Repository
+	signer     *TicketSigner
+	events     *event.Repository
+	users      *user.Repository
+	onPromoted PromotionNotifier
+}
+
+func NewService(repo *Repository, signer *TicketSigner, events *event.Repository, users *user.Repository) *Service {
+	return &Service{repo: repo, signer: signer, events: events, users: users}
+}
+
+// SetPromotionNotifier wires in the Telegram notification sent when a
+// waitlisted attendee is promoted. Left unset (nil-safe), promotions
+// still happen — the user just isn't messaged, which is fine for
+// contexts (tests) that don't need it.
+func (s *Service) SetPromotionNotifier(n PromotionNotifier) {
+	s.onPromoted = n
 }
 
 type TicketDTO struct {
@@ -26,24 +49,68 @@ func (s *Service) ticketDTO(t *Ticket) TicketDTO {
 	return TicketDTO{Code: t.Code, QR: s.signer.QRValue(t.Code), CheckedInAt: t.CheckedInAt}
 }
 
-func (s *Service) Join(ctx context.Context, eventID, userID int64) (TicketDTO, error) {
-	t, err := s.repo.Join(ctx, eventID, userID)
-	if err != nil {
-		return TicketDTO{}, err
-	}
-	return s.ticketDTO(t), nil
+// RSVPDTO is the caller's RSVP outcome or state: "going" (with a ticket)
+// or "waitlisted" (without one yet).
+type RSVPDTO struct {
+	Status string     `json:"status"`
+	Ticket *TicketDTO `json:"ticket"`
 }
 
+func (s *Service) rsvpDTO(status string, t *Ticket) RSVPDTO {
+	dto := RSVPDTO{Status: status}
+	if t != nil {
+		td := s.ticketDTO(t)
+		dto.Ticket = &td
+	}
+	return dto
+}
+
+func (s *Service) Join(ctx context.Context, eventID, userID int64) (RSVPDTO, error) {
+	res, err := s.repo.Join(ctx, eventID, userID)
+	if err != nil {
+		return RSVPDTO{}, err
+	}
+	return s.rsvpDTO(res.Status, res.Ticket), nil
+}
+
+// Cancel cancels the caller's RSVP. If that frees a spot for a
+// waitlisted attendee, the promotion notification is sent in the
+// background — like the auto-announce-on-publish hook, on
+// context.Background() rather than this request's context, since the
+// request context is canceled the instant the HTTP response is written.
 func (s *Service) Cancel(ctx context.Context, eventID, userID int64) error {
-	return s.repo.Cancel(ctx, eventID, userID)
+	promotion, err := s.repo.Cancel(ctx, eventID, userID)
+	if err != nil {
+		return err
+	}
+	if promotion != nil && s.onPromoted != nil {
+		go s.notifyPromoted(context.Background(), promotion)
+	}
+	return nil
 }
 
-func (s *Service) GetMine(ctx context.Context, eventID, userID int64) (TicketDTO, error) {
-	t, err := s.repo.GetMine(ctx, eventID, userID)
+func (s *Service) notifyPromoted(ctx context.Context, p *Promotion) {
+	e, err := s.events.GetByID(ctx, p.EventID)
 	if err != nil {
-		return TicketDTO{}, err
+		slog.Error("waitlist promotion: could not load event", "event_id", p.EventID, "err", err)
+		return
 	}
-	return s.ticketDTO(t), nil
+	u, err := s.users.GetByID(ctx, p.UserID)
+	if err != nil {
+		slog.Error("waitlist promotion: could not load user", "user_id", p.UserID, "err", err)
+		return
+	}
+	if err := s.onPromoted.SendWaitlistPromotion(ctx, u.TelegramID, u.Language, p.Ticket.Code, e); err != nil {
+		slog.Error("waitlist promotion notify failed", "user_id", p.UserID, "event_id", p.EventID, "err", err)
+	}
+}
+
+func (s *Service) GetMine(ctx context.Context, eventID, userID int64) (RSVPDTO, error) {
+	m, err := s.repo.GetMine(ctx, eventID, userID)
+	if err != nil {
+		return RSVPDTO{}, err
+	}
+	return s.rsvpDTO(m.Status, m.Ticket), nil
 }
 
 type MyTicketDTO struct {

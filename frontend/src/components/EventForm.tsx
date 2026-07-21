@@ -44,11 +44,16 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
   const [district, setDistrict] = useState(initial?.district ?? "");
   const [locationName, setLocationName] = useState(initial?.locationName ?? "");
   const [address, setAddress] = useState(initial?.address ?? "");
+  const [lat, setLat] = useState(initial?.lat != null ? String(initial.lat) : "");
+  const [lng, setLng] = useState(initial?.lng != null ? String(initial.lng) : "");
+  const [locating, setLocating] = useState(false);
   const [isOnline, setIsOnline] = useState(initial?.isOnline ?? false);
   const [startsAt, setStartsAt] = useState(
     initial ? toLocalInput(initial.startsAt) : "",
   );
   const [endsAt, setEndsAt] = useState(toLocalInput(initial?.endsAt ?? null));
+  const [repeatsWeekly, setRepeatsWeekly] = useState(false);
+  const [recurWeeks, setRecurWeeks] = useState("3");
   const [capacity, setCapacity] = useState(
     initial?.capacity ? String(initial.capacity) : "",
   );
@@ -76,6 +81,26 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
     }
   };
 
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      setError(t("locationUnavailable"));
+      return;
+    }
+    setLocating(true);
+    setError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLat(String(pos.coords.latitude));
+        setLng(String(pos.coords.longitude));
+        setLocating(false);
+      },
+      () => {
+        setError(t("locationUnavailable"));
+        setLocating(false);
+      },
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -89,11 +114,14 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         district: district || null,
         locationName: locationName || null,
         address: address || null,
+        lat: lat ? Number(lat) : null,
+        lng: lng ? Number(lng) : null,
         isOnline,
         startsAt: toRFC3339(startsAt),
         endsAt: endsAt ? toRFC3339(endsAt) : null,
         capacity: capacity ? Number(capacity) : null,
         coverUrl: coverUrl || null,
+        ...(!initial && repeatsWeekly ? { recurWeeks: Number(recurWeeks) } : {}),
       });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("saveFailed"));
@@ -196,6 +224,42 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
               className={inputCls}
             />
           </label>
+          <div className="col-span-2 flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-dust">{t("coordinates")}</span>
+              <button
+                type="button"
+                onClick={handleUseMyLocation}
+                disabled={locating}
+                className="text-sm font-medium text-registan-dim transition-colors hover:text-registan disabled:opacity-50"
+              >
+                {locating ? t("locating") : t("useMyLocation")}
+              </button>
+            </div>
+            <p className="text-xs text-dust-dim">{t("coordinatesHint")}</p>
+            <div className="grid grid-cols-2 gap-4">
+              <input
+                type="number"
+                step="any"
+                min={-90}
+                max={90}
+                value={lat}
+                onChange={(e) => setLat(e.target.value)}
+                placeholder={t("latitude")}
+                className={inputCls}
+              />
+              <input
+                type="number"
+                step="any"
+                min={-180}
+                max={180}
+                value={lng}
+                onChange={(e) => setLng(e.target.value)}
+                placeholder={t("longitude")}
+                className={inputCls}
+              />
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -220,6 +284,39 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
           />
         </label>
       </div>
+
+      {!initial ? (
+        <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-ink-raised px-3.5 py-3">
+          <label className="flex items-center gap-2 text-sm font-medium text-dust">
+            <input
+              type="checkbox"
+              checked={repeatsWeekly}
+              onChange={(e) => setRepeatsWeekly(e.target.checked)}
+              className="h-4 w-4 rounded border-line bg-ink accent-registan"
+            />
+            {t("repeatsWeekly")}
+          </label>
+          {repeatsWeekly ? (
+            <label className="flex flex-col gap-1.5 pl-6 text-sm font-medium text-dust">
+              {t("recurWeeksLabel")}
+              <select
+                value={recurWeeks}
+                onChange={(e) => setRecurWeeks(e.target.value)}
+                className={inputCls}
+              >
+                {Array.from({ length: 11 }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {t("recurWeeksOption", { count: n + 1 })}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs font-normal text-dust-dim">
+                {t("recurWeeksHint")}
+              </span>
+            </label>
+          ) : null}
+        </div>
+      ) : null}
 
       <label className={labelCls}>
         {t("capacity")}

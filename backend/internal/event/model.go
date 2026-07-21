@@ -37,12 +37,14 @@ type Event struct {
 	CoverURL     *string
 	Status       Status
 	Visibility   Visibility
+	SeriesID     *int64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 
 	// Denormalized fields loaded with joins where useful.
-	OrganizerName string
-	CategorySlug  string
-	CitySlug      *string
-	GoingCount    int32
+	OrganizerName     string
+	OrganizerVerified bool
+	CategorySlug      string
+	CitySlug          *string
+	GoingCount        int32
 }

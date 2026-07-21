@@ -5,6 +5,7 @@
 package tgbot
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -15,10 +16,12 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/redis/go-redis/v9"
+	qrcode "github.com/skip2/go-qrcode"
 
 	"meetus.uz/backend/internal/channel"
 	"meetus.uz/backend/internal/event"
 	"meetus.uz/backend/internal/feedback"
+	"meetus.uz/backend/internal/groupfeed"
 	"meetus.uz/backend/internal/notification"
 	"meetus.uz/backend/internal/rsvp"
 	"meetus.uz/backend/internal/user"
@@ -47,24 +50,44 @@ type Bot struct {
 	rsvps      *rsvp.Repository
 	feedback   *feedback.Repository
 	channels   *channel.Repository
+	groups     *groupfeed.Repository
+	signer     *rsvp.TicketSigner
 	redis      *redis.Client
 	webBaseURL string
 	loc        *time.Location
 }
 
-func New(token string, users *user.Repository, events *event.Repository, rsvps *rsvp.Repository, feedbackRepo *feedback.Repository, channels *channel.Repository, rdb *redis.Client, webBaseURL string) (*Bot, error) {
+// Deps bundles Bot's constructor dependencies — plain positional params
+// got unwieldy once ticket QR generation and group-feed support joined
+// the original set.
+type Deps struct {
+	Token        string
+	Users        *user.Repository
+	Events       *event.Repository
+	RSVPs        *rsvp.Repository
+	Feedback     *feedback.Repository
+	Channels     *channel.Repository
+	Groups       *groupfeed.Repository
+	TicketSigner *rsvp.TicketSigner
+	Redis        *redis.Client
+	WebBaseURL   string
+}
+
+func New(deps Deps) (*Bot, error) {
 	b := &Bot{
-		users:      users,
-		events:     events,
-		rsvps:      rsvps,
-		feedback:   feedbackRepo,
-		channels:   channels,
-		redis:      rdb,
-		webBaseURL: webBaseURL,
+		users:      deps.Users,
+		events:     deps.Events,
+		rsvps:      deps.RSVPs,
+		feedback:   deps.Feedback,
+		channels:   deps.Channels,
+		groups:     deps.Groups,
+		signer:     deps.TicketSigner,
+		redis:      deps.Redis,
+		webBaseURL: deps.WebBaseURL,
 	}
 	b.loc = tashkentLocation()
 
-	api, err := bot.New(token, bot.WithDefaultHandler(b.handleDefault))
+	api, err := bot.New(deps.Token, bot.WithDefaultHandler(b.handleDefault))
 	if err != nil {
 		return nil, fmt.Errorf("create telegram bot: %w", err)
 	}
@@ -72,7 +95,12 @@ func New(token string, users *user.Repository, events *event.Repository, rsvps *
 
 	api.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, b.handleStart)
 	api.RegisterHandler(bot.HandlerTypeMessageText, "/events", bot.MatchTypePrefix, b.handleEvents)
+	api.RegisterHandler(bot.HandlerTypeMessageText, "/tickets", bot.MatchTypePrefix, b.handleTicketsCommand)
 	api.RegisterHandler(bot.HandlerTypeMessageText, "/language", bot.MatchTypePrefix, b.handleLanguageCommand)
+	api.RegisterHandler(bot.HandlerTypeMessageText, "/mute", bot.MatchTypePrefix, b.handleMuteCommand)
+	api.RegisterHandler(bot.HandlerTypeMessageText, "/unmute", bot.MatchTypePrefix, b.handleUnmuteCommand)
+	api.RegisterHandler(bot.HandlerTypeMessageText, "/digest", bot.MatchTypePrefix, b.handleDigestCommand)
+	api.RegisterHandler(bot.HandlerTypeMessageText, "/nearby", bot.MatchTypePrefix, b.handleNearbyCommand)
 	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, "ev:", bot.MatchTypePrefix, b.handleEventDetail)
 	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, "join:", bot.MatchTypePrefix, b.handleJoin)
 	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, "lang:", bot.MatchTypePrefix, b.handleLanguageCallback)
@@ -166,6 +194,11 @@ func (b *Bot) handleDefault(ctx context.Context, _ *bot.Bot, update *models.Upda
 	l := langEn
 	if err == nil {
 		l = normalizeLang(u.Language)
+	}
+
+	if update.Message.Location != nil {
+		b.handleLocationShared(ctx, update.Message, l)
+		return
 	}
 
 	text := update.Message.Text
@@ -315,13 +348,219 @@ func (b *Bot) handleJoin(ctx context.Context, _ *bot.Bot, update *models.Update)
 	}
 	l := normalizeLang(u.Language)
 
-	_, err = b.rsvps.Join(ctx, id, u.ID)
+	res, err := b.rsvps.Join(ctx, id, u.ID)
 	if err != nil {
 		b.answerCallback(ctx, cq.ID, friendlyError(l, err))
 		return
 	}
+
+	if res.Status == "waitlisted" {
+		b.answerCallback(ctx, cq.ID, t(l, kJoinedAlert))
+		b.send(ctx, chatIDOf(cq), t(l, kWaitlisted), nil)
+		return
+	}
+
 	b.answerCallback(ctx, cq.ID, t(l, kJoinedAlert))
-	b.send(ctx, chatIDOf(cq), tf(l, kJoinedSuccess, b.webURL(l, "/tickets")), nil)
+	b.send(ctx, chatIDOf(cq), t(l, kJoinedSuccess), nil)
+
+	e, err := b.events.GetPublished(ctx, id)
+	if err != nil {
+		slog.Error("bot join: could not load event for ticket caption", "event_id", id, "err", err)
+		return
+	}
+	b.sendTicketPhoto(ctx, chatIDOf(cq), l, res.Ticket.Code, e)
+}
+
+// sendTicketPhoto generates the QR code for a ticket and sends it as a
+// photo message — the point of this being a photo rather than a link is
+// that it works without leaving the chat or loading the website at all.
+func (b *Bot) sendTicketPhoto(ctx context.Context, chatID int64, l lang, code string, e *event.Event) {
+	if err := sendTicketPhotoTo(ctx, b.api, b.loc, b.signer, chatID, l, code, e); err != nil {
+		slog.Error("send ticket photo failed", "chat_id", chatID, "err", err)
+	}
+}
+
+// sendTicketPhotoTo renders a ticket's QR code and sends it as a photo
+// message to chatID. A package-level function (not a *Bot method) since
+// Announcer needs the exact same rendering for waitlist-promotion
+// tickets and has no *Bot to call into — see the shared-helper pattern
+// note in AGENTS.md.
+func sendTicketPhotoTo(ctx context.Context, api *bot.Bot, loc *time.Location, signer *rsvp.TicketSigner, chatID int64, l lang, code string, e *event.Event) error {
+	png, err := qrcode.Encode(signer.QRValue(code), qrcode.Medium, 512)
+	if err != nil {
+		return fmt.Errorf("qr encode: %w", err)
+	}
+	caption := tf(l, kTicketCaption, escape(e.Title), formatEventTime(l, e.StartsAt, loc), escape(eventPlaceLabel(l, e)))
+	_, err = api.SendPhoto(ctx, &bot.SendPhotoParams{
+		ChatID:    chatID,
+		Photo:     &models.InputFileUpload{Filename: "ticket.png", Data: bytes.NewReader(png)},
+		Caption:   caption,
+		ParseMode: models.ParseModeHTML,
+	})
+	return err
+}
+
+// handleTicketsCommand resends the QR photo for every upcoming ticket —
+// how someone retrieves their ticket again without digging through chat
+// history or opening the website.
+func (b *Bot) handleTicketsCommand(ctx context.Context, _ *bot.Bot, update *models.Update) {
+	msg := update.Message
+	if msg == nil || msg.From == nil {
+		return
+	}
+	u, err := b.upsertUser(ctx, msg.From)
+	if err != nil {
+		slog.Error("bot tickets upsert failed", "err", err)
+		return
+	}
+	l := normalizeLang(u.Language)
+
+	tickets, err := b.rsvps.ListMyTickets(ctx, u.ID)
+	if err != nil {
+		slog.Error("bot tickets list failed", "err", err)
+		b.send(ctx, msg.Chat.ID, t(l, kErrGeneric), nil)
+		return
+	}
+
+	const maxTicketsShown = 5
+	sent := 0
+	for _, mt := range tickets {
+		if sent >= maxTicketsShown {
+			break
+		}
+		if mt.EventStatus != "published" || !mt.StartsAt.After(time.Now()) {
+			continue
+		}
+		e, err := b.events.GetPublished(ctx, mt.EventID)
+		if err != nil {
+			continue
+		}
+		b.sendTicketPhoto(ctx, msg.Chat.ID, l, mt.Code, e)
+		sent++
+	}
+	if sent == 0 {
+		b.send(ctx, msg.Chat.ID, t(l, kNoUpcomingTickets), nil)
+	}
+}
+
+func (b *Bot) handleMuteCommand(ctx context.Context, _ *bot.Bot, update *models.Update) {
+	msg := update.Message
+	if msg == nil || msg.From == nil {
+		return
+	}
+	u, err := b.upsertUser(ctx, msg.From)
+	if err != nil {
+		slog.Error("bot mute upsert failed", "err", err)
+		return
+	}
+	l := normalizeLang(u.Language)
+	if err := b.users.SetNotificationsMuted(ctx, u.ID, true); err != nil {
+		slog.Error("bot mute failed", "err", err)
+		return
+	}
+	b.send(ctx, msg.Chat.ID, t(l, kMuted), nil)
+}
+
+func (b *Bot) handleUnmuteCommand(ctx context.Context, _ *bot.Bot, update *models.Update) {
+	msg := update.Message
+	if msg == nil || msg.From == nil {
+		return
+	}
+	u, err := b.upsertUser(ctx, msg.From)
+	if err != nil {
+		slog.Error("bot unmute upsert failed", "err", err)
+		return
+	}
+	l := normalizeLang(u.Language)
+	if err := b.users.SetNotificationsMuted(ctx, u.ID, false); err != nil {
+		slog.Error("bot unmute failed", "err", err)
+		return
+	}
+	b.send(ctx, msg.Chat.ID, t(l, kUnmuted), nil)
+}
+
+// handleDigestCommand toggles the opt-in weekly digest — on if currently
+// off, off if currently on, so the same /digest command works both ways.
+func (b *Bot) handleDigestCommand(ctx context.Context, _ *bot.Bot, update *models.Update) {
+	msg := update.Message
+	if msg == nil || msg.From == nil {
+		return
+	}
+	u, err := b.upsertUser(ctx, msg.From)
+	if err != nil {
+		slog.Error("bot digest upsert failed", "err", err)
+		return
+	}
+	l := normalizeLang(u.Language)
+	enable := !u.WeeklyDigestEnabled
+	if err := b.users.SetWeeklyDigest(ctx, u.ID, enable); err != nil {
+		slog.Error("bot digest toggle failed", "err", err)
+		return
+	}
+	if enable {
+		b.send(ctx, msg.Chat.ID, t(l, kDigestOn), nil)
+	} else {
+		b.send(ctx, msg.Chat.ID, t(l, kDigestOff), nil)
+	}
+}
+
+// handleNearbyCommand asks for a location share via Telegram's native
+// request-location keyboard button — a bot cannot request location any
+// other way. The actual search happens in handleLocationShared once the
+// share arrives.
+func (b *Bot) handleNearbyCommand(ctx context.Context, _ *bot.Bot, update *models.Update) {
+	msg := update.Message
+	if msg == nil || msg.From == nil {
+		return
+	}
+	u, err := b.upsertUser(ctx, msg.From)
+	l := langEn
+	if err == nil {
+		l = normalizeLang(u.Language)
+	}
+	markup := &models.ReplyKeyboardMarkup{
+		Keyboard: [][]models.KeyboardButton{
+			{{Text: t(l, kShareLocationButton), RequestLocation: true}},
+		},
+		ResizeKeyboard:  true,
+		OneTimeKeyboard: true,
+	}
+	b.send(ctx, msg.Chat.ID, t(l, kNearbyPrompt), markup)
+}
+
+// searchRadiusKm bounds the nearby-events search — a fixed radius keeps
+// this simple; no UI exists yet to let someone adjust it.
+const searchRadiusKm = 15
+
+// handleLocationShared runs the nearby-events search once someone shares
+// their location (via /nearby's keyboard button, or Telegram's own
+// attach-location flow — both arrive as an ordinary message with
+// Location set, so handleDefault routes either one here).
+func (b *Bot) handleLocationShared(ctx context.Context, msg *models.Message, l lang) {
+	loc := msg.Location
+	nearby, err := b.events.ListNearby(ctx, loc.Latitude, loc.Longitude, searchRadiusKm, browseLimit)
+	if err != nil {
+		slog.Error("bot nearby search failed", "err", err)
+		b.send(ctx, msg.Chat.ID, t(l, kErrGeneric), nil)
+		return
+	}
+	if len(nearby) == 0 {
+		b.send(ctx, msg.Chat.ID, t(l, kNearbyEmpty), nil)
+		return
+	}
+
+	rows := make([][]models.InlineKeyboardButton, 0, len(nearby))
+	var sb strings.Builder
+	sb.WriteString(t(l, kNearbyHeader))
+	for i, ne := range nearby {
+		sb.WriteString(fmt.Sprintf("%d. <b>%s</b> · %.1f km\n    %s · %s\n",
+			i+1, escape(ne.Title), ne.DistanceKm, b.formatTime(l, ne.StartsAt), escape(b.placeLabel(l, &ne.Event))))
+		rows = append(rows, []models.InlineKeyboardButton{{
+			Text:         fmt.Sprintf("%d. %s", i+1, truncate(ne.Title, 28)),
+			CallbackData: "ev:" + strconv.FormatInt(ne.ID, 10),
+		}})
+	}
+	b.send(ctx, msg.Chat.ID, sb.String(), &models.InlineKeyboardMarkup{InlineKeyboard: rows})
 }
 
 // handleLanguageCommand shows the language picker.
@@ -373,10 +612,15 @@ func (b *Bot) handleLanguageCallback(ctx context.Context, _ *bot.Bot, update *mo
 // removed, left) disconnects the channel, since the bot can no longer
 // post there.
 func (b *Bot) handleMyChatMember(ctx context.Context, mcm *models.ChatMemberUpdated) {
-	if mcm.Chat.Type != models.ChatTypeChannel {
-		return
+	switch mcm.Chat.Type {
+	case models.ChatTypeChannel:
+		b.handleChannelMembership(ctx, mcm)
+	case models.ChatTypeGroup, models.ChatTypeSupergroup:
+		b.handleGroupMembership(ctx, mcm)
 	}
+}
 
+func (b *Bot) handleChannelMembership(ctx context.Context, mcm *models.ChatMemberUpdated) {
 	adderID := mcm.From.ID
 	u, err := b.upsertUser(ctx, &mcm.From)
 	l := langEn
@@ -403,6 +647,35 @@ func (b *Bot) handleMyChatMember(ctx context.Context, mcm *models.ChatMemberUpda
 		if err := b.channels.Disconnect(ctx, mcm.Chat.ID); err != nil {
 			slog.Error("channel disconnect failed", "chat_id", mcm.Chat.ID, "err", err)
 		}
+	}
+}
+
+// handleGroupMembership subscribes/unsubscribes a group to the same
+// platform-wide feed the official channel gets (see groupfeed package) —
+// unlike channels, no organizer ownership or admin rights are required;
+// any group the bot is a member of (and hasn't been kicked/left) is
+// subscribed.
+func (b *Bot) handleGroupMembership(ctx context.Context, mcm *models.ChatMemberUpdated) {
+	if b.groups == nil {
+		return
+	}
+	switch mcm.NewChatMember.Type {
+	case models.ChatMemberTypeLeft, models.ChatMemberTypeBanned:
+		if err := b.groups.Unsubscribe(ctx, mcm.Chat.ID); err != nil {
+			slog.Error("group unsubscribe failed", "chat_id", mcm.Chat.ID, "err", err)
+		}
+	default:
+		if err := b.groups.Subscribe(ctx, mcm.Chat.ID, mcm.Chat.Title); err != nil {
+			slog.Error("group subscribe failed", "chat_id", mcm.Chat.ID, "err", err)
+			return
+		}
+		slog.Info("group subscribed", "chat_id", mcm.Chat.ID, "title", mcm.Chat.Title)
+		u, err := b.upsertUser(ctx, &mcm.From)
+		l := langEn
+		if err == nil {
+			l = normalizeLang(u.Language)
+		}
+		b.send(ctx, mcm.Chat.ID, t(l, kGroupSubscribed), nil)
 	}
 }
 
@@ -531,6 +804,46 @@ func (b *Bot) SendFeedbackRequest(ctx context.Context, f *notification.FeedbackD
 		Text:        text,
 		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{buttons}},
+	})
+	return err
+}
+
+// SendWeeklyDigest sends one subscriber their "what's on this week"
+// listing, scoped to their city if they've set one. Silently does
+// nothing when there's nothing upcoming in the window — an empty digest
+// isn't worth a notification.
+func (b *Bot) SendWeeklyDigest(ctx context.Context, sub *user.DigestSubscriber) error {
+	l := normalizeLang(sub.Language)
+	until := time.Now().Add(7 * 24 * time.Hour)
+	page, err := b.events.ListPublic(ctx, event.ListFilters{
+		CityID: sub.CityID,
+		To:     &until,
+		Limit:  browseLimit,
+	})
+	if err != nil {
+		return fmt.Errorf("weekly digest: list events: %w", err)
+	}
+	if len(page.Items) == 0 {
+		return nil
+	}
+
+	rows := make([][]models.InlineKeyboardButton, 0, len(page.Items))
+	var sb strings.Builder
+	sb.WriteString(t(l, kDigestHeader))
+	for i, e := range page.Items {
+		sb.WriteString(fmt.Sprintf("%d. <b>%s</b>\n    %s · %s\n",
+			i+1, escape(e.Title), formatEventTime(l, e.StartsAt, b.loc), escape(eventPlaceLabel(l, e))))
+		rows = append(rows, []models.InlineKeyboardButton{{
+			Text:         fmt.Sprintf("%d. %s", i+1, truncate(e.Title, 28)),
+			CallbackData: "ev:" + strconv.FormatInt(e.ID, 10),
+		}})
+	}
+
+	_, err = b.api.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      sub.TelegramID,
+		Text:        sb.String(),
+		ParseMode:   models.ParseModeHTML,
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: rows},
 	})
 	return err
 }

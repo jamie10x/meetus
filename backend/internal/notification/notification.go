@@ -67,6 +67,7 @@ func (r *Repository) Due(ctx context.Context, kind Kind) ([]*Reminder, error) {
 		WHERE e.status = 'published'
 		  AND e.starts_at > now() + make_interval(secs => $2)
 		  AND e.starts_at <= now() + make_interval(secs => $1)
+		  AND u.notifications_muted = FALSE
 		  AND NOT EXISTS (
 		      SELECT 1 FROM notification_log nl
 		      WHERE nl.event_id = e.id AND nl.user_id = u.id AND nl.kind = $3
@@ -112,6 +113,7 @@ func (r *Repository) DueFeedback(ctx context.Context) ([]*FeedbackDue, error) {
 		JOIN rsvps rv ON rv.event_id = e.id AND rv.status = 'going'
 		JOIN users u ON u.id = rv.user_id
 		WHERE e.status = 'finished'
+		  AND u.notifications_muted = FALSE
 		  AND NOT EXISTS (
 		      SELECT 1 FROM notification_log nl
 		      WHERE nl.event_id = e.id AND nl.user_id = u.id AND nl.kind = $1

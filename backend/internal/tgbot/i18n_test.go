@@ -14,6 +14,10 @@ var allKeys = []msgKey{
 	kReminder24h, kReminder1h, kPlaceOnline, kPlaceSeeEventPage, kPlaceInPerson,
 	kErrAlreadyJoined, kErrEventFull, kErrNotOpen, kErrAlreadyStarted, kErrGeneric,
 	kChannelConnected, kChannelConnectNeedsOrganizer, kAnnouncementCta,
+	kTicketCaption, kNoUpcomingTickets, kWaitlisted, kWaitlistPromoted,
+	kMuted, kUnmuted, kDigestOn, kDigestOff, kDigestHeader,
+	kNearbyPrompt, kShareLocationButton, kNearbyHeader, kNearbyEmpty,
+	kGroupSubscribed,
 }
 
 func TestCatalog_CompleteForEveryLanguage(t *testing.T) {

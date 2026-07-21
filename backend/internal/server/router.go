@@ -18,6 +18,7 @@ import (
 	"meetus.uz/backend/internal/config"
 	"meetus.uz/backend/internal/event"
 	"meetus.uz/backend/internal/feedback"
+	"meetus.uz/backend/internal/groupfeed"
 	"meetus.uz/backend/internal/meta"
 	"meetus.uz/backend/internal/organizer"
 	"meetus.uz/backend/internal/platform/authn"
@@ -83,7 +84,8 @@ func New(deps Deps) (*gin.Engine, error) {
 	eventHandler.Register(api, requireAuth, requireOrganizer)
 	event.NewPublicHandler(eventRepo).Register(api)
 
-	rsvpService := rsvp.NewService(rsvp.NewRepository(deps.Pool), rsvp.NewTicketSigner(cfg.TicketSecret))
+	ticketSigner := rsvp.NewTicketSigner(cfg.TicketSecret)
+	rsvpService := rsvp.NewService(rsvp.NewRepository(deps.Pool), ticketSigner, eventRepo, userRepo)
 	rsvpGroup := api.Group("", ratelimit.PerIP(deps.Redis, "rsvp", 60, time.Minute))
 	rsvp.NewHandler(rsvpService, eventRepo).Register(rsvpGroup, requireAuth, requireOrganizer)
 
@@ -92,18 +94,22 @@ func New(deps Deps) (*gin.Engine, error) {
 	feedback.NewHandler(feedback.NewRepository(deps.Pool), eventRepo).Register(api, requireAuth, requireOrganizer)
 
 	// The announcer needs a real bot token; dev environments without one
-	// configured simply don't get channel announcements (the endpoint
-	// returns a clear error) rather than failing the whole server to boot.
+	// configured simply don't get channel announcements or waitlist
+	// promotion pings (the endpoints return a clear error / silently skip
+	// notifying) rather than failing the whole server to boot.
 	var announcer channel.Announcer
 	if cfg.TelegramBotToken != "" {
-		a, err := tgbot.NewAnnouncer(cfg.TelegramBotToken, cfg.WebBaseURL)
+		a, err := tgbot.NewAnnouncer(cfg.TelegramBotToken, cfg.WebBaseURL, ticketSigner)
 		if err != nil {
 			return nil, err
 		}
 		announcer = a
+		rsvpService.SetPromotionNotifier(a)
 	}
 	channelRepo := channel.NewRepository(deps.Pool)
 	channel.NewHandler(channelRepo, eventRepo, userRepo, announcer).Register(api, requireAuth, requireOrganizer)
+
+	groupRepo := groupfeed.NewRepository(deps.Pool)
 
 	eventHandler.SetOnPublished(func(ctx context.Context, e *event.Event) {
 		if announcer == nil {
@@ -119,6 +125,24 @@ func New(deps Deps) (*gin.Engine, error) {
 				slog.Error("official channel auto-announce failed", "event_id", e.ID, "err", err)
 			} else {
 				slog.Info("official channel auto-announce sent", "event_id", e.ID)
+			}
+		}
+
+		// Groups that opted into the same platform-wide feed (see
+		// groupfeed package) get every published event too, same as the
+		// official channel — always in the configured official-channel
+		// language, since a group subscription has no per-chat language
+		// override of its own (unlike organizer channels).
+		if groupChatIDs, err := groupRepo.ListChatIDs(ctx); err != nil {
+			slog.Error("group feed auto-announce: could not list subscribed groups", "event_id", e.ID, "err", err)
+		} else {
+			lang := cfg.OfficialChannelLanguage
+			for _, chatID := range groupChatIDs {
+				if err := announcer.SendAnnouncement(ctx, chatID, lang, e); err != nil {
+					slog.Error("group feed auto-announce failed", "event_id", e.ID, "chat_id", chatID, "err", err)
+				} else {
+					slog.Info("group feed auto-announce sent", "event_id", e.ID, "chat_id", chatID)
+				}
 			}
 		}
 

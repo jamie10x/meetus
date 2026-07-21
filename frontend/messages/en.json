@@ -1,4 +1,7 @@
 {
+  "common": {
+    "verifiedOrganizer": "Verified organizer"
+  },
   "nav": {
     "explore": "Explore",
     "tickets": "Tickets",
@@ -64,7 +67,10 @@
     "loading": "Loading events…",
     "loadFailed": "Could not load events. Check your connection and try again.",
     "noResults": "No events match these filters yet.",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "listView": "List",
+    "mapView": "Map",
+    "noMappableEvents": "None of these events have a location set yet."
   },
   "trending": {
     "title": "Trending this week",
@@ -83,7 +89,9 @@
     "online": "Online",
     "inPerson": "In person",
     "location": "Location",
-    "about": "About this event"
+    "about": "About this event",
+    "seriesHeading": "Other dates in this series",
+    "relatedHeading": "You might also like"
   },
   "rsvp": {
     "eventStarted": "This event has already started.",
@@ -92,9 +100,11 @@
     "goingMessage": "You're going! 🎉",
     "viewTicket": "View your ticket",
     "cancel": "Cancel",
-    "eventFull": "Event is full",
     "joining": "Joining…",
     "joinEvent": "Join event",
+    "joinWaitlist": "Join waitlist",
+    "waitlistedMessage": "You're on the waitlist — we'll message you if a spot opens up.",
+    "leaveWaitlist": "Leave waitlist",
     "joinFailed": "Could not join. Retry.",
     "cancelFailed": "Could not cancel. Retry."
   },
@@ -109,6 +119,10 @@
     "showAtEntrance": "Show this QR at the entrance",
     "qrUnavailable": "QR unavailable",
     "loading": "Loading…"
+  },
+  "calendar": {
+    "downloadIcs": "Add to calendar (.ics)",
+    "googleCalendar": "Add to Google Calendar"
   },
   "organizer": {
     "loading": "Loading…",
@@ -151,8 +165,19 @@
     "venuePlaceholder": "e.g. Impact Hub",
     "district": "District",
     "address": "Address",
+    "coordinates": "Coordinates (optional)",
+    "coordinatesHint": "Powers \"nearby events\" suggestions in the bot — leave blank if you're not sure.",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "useMyLocation": "Use my location",
+    "locating": "Locating…",
+    "locationUnavailable": "Couldn't get your location.",
     "startsAt": "Starts at",
     "endsAtOptional": "Ends at (optional)",
+    "repeatsWeekly": "Repeats weekly",
+    "recurWeeksLabel": "Number of occurrences",
+    "recurWeeksOption": "{count} occurrences, one week apart",
+    "recurWeeksHint": "Creates separate draft events, one week apart — publish and edit each one individually.",
     "capacity": "Capacity (leave empty for unlimited)",
     "coverImage": "Cover image",
     "uploading": "Uploading…",
@@ -237,6 +262,11 @@
     "unban": "Unban",
     "ban": "Ban",
     "noUsers": "No users found.",
+    "organizersHeading": "Organizers",
+    "searchOrganizersPlaceholder": "Search organizer name…",
+    "verify": "Verify",
+    "unverify": "Unverify",
+    "noOrganizers": "No organizers found.",
     "citiesHeading": "Cities",
     "categoriesHeading": "Categories",
     "metaSlug": "Slug",

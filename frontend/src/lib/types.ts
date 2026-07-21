@@ -45,6 +45,7 @@ export type Organizer = {
   displayName: string;
   bio: string | null;
   avatarUrl: string | null;
+  isVerified: boolean;
   createdAt: string;
 };
 
@@ -54,6 +55,7 @@ export type EventItem = {
   id: number;
   organizerId: number;
   organizerName: string;
+  organizerVerified: boolean;
   title: string;
   description: string;
   categoryId: number;
@@ -72,6 +74,7 @@ export type EventItem = {
   coverUrl: string | null;
   status: EventStatus;
   visibility: "public" | "unlisted";
+  seriesId: number | null;
   goingCount: number;
   createdAt: string;
 };
@@ -88,9 +91,13 @@ export type EventInput = {
   district: string | null;
   locationName: string | null;
   address: string | null;
+  lat: number | null;
+  lng: number | null;
   isOnline: boolean;
   startsAt: string;
   endsAt: string | null;
   capacity: number | null;
   coverUrl: string | null;
+  /** Additional weekly occurrences to create alongside this one (create only). */
+  recurWeeks?: number | null;
 };

@@ -24,6 +24,8 @@ func (h *PublicHandler) Register(r gin.IRouter) {
 	g := r.Group("/explore")
 	g.GET("/events", h.list)
 	g.GET("/events/:id", h.get)
+	g.GET("/events/:id/related", h.related)
+	g.GET("/events/:id/series", h.series)
 	g.GET("/trending", h.trending)
 }
 
@@ -118,4 +120,66 @@ func (h *PublicHandler) get(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, http.StatusOK, e.ToDTO())
+}
+
+func (h *PublicHandler) related(c *gin.Context) {
+	id, err := eventID(c)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	e, err := h.repo.GetPublished(c.Request.Context(), id)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+
+	limit := 0
+	if v := c.Query("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			httpx.Error(c, apperr.Validation("invalid limit"))
+			return
+		}
+		limit = n
+	}
+
+	related, err := h.repo.ListRelated(c.Request.Context(), e.ID, e.CategoryID, e.CityID, limit)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	dtos := make([]DTO, len(related))
+	for i, re := range related {
+		dtos[i] = re.ToDTO()
+	}
+	httpx.OK(c, http.StatusOK, dtos)
+}
+
+func (h *PublicHandler) series(c *gin.Context) {
+	id, err := eventID(c)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	e, err := h.repo.GetPublished(c.Request.Context(), id)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	if e.SeriesID == nil {
+		httpx.OK(c, http.StatusOK, []DTO{})
+		return
+	}
+
+	siblings, err := h.repo.ListSeries(c.Request.Context(), *e.SeriesID, e.ID)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	dtos := make([]DTO, len(siblings))
+	for i, se := range siblings {
+		dtos[i] = se.ToDTO()
+	}
+	httpx.OK(c, http.StatusOK, dtos)
 }

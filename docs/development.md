@@ -18,6 +18,7 @@ cd frontend && npm install
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8080
 NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=   # empty = login page shows a config notice
+NEXT_PUBLIC_SITE_URL=http://localhost:3000   # sitemap.xml + calendar links; = WEB_BASE_URL in prod
 ```
 
 ## Running
@@ -29,6 +30,8 @@ cd backend && go run ./cmd/worker   # only when working on bot/reminders; needs 
 ```
 
 Health check: `curl localhost:8080/healthz`.
+
+**The PWA service worker (`frontend/public/sw.js`) can serve stale JS during frontend dev.** Its app-shell caching is cache-first, and once your browser has registered it against `localhost:3000` it stays active across reloads and even dev-server restarts — so an edit that isn't showing up (especially in a dynamically-imported client component) may be the service worker serving an old cached chunk, not a build problem. Check via devtools → Application → Service Workers, or run in the console: `navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())); caches.keys().then(ks => ks.forEach(k => caches.delete(k)))`, then hard-reload.
 
 ## Environment variables (backend)
 
@@ -81,9 +84,25 @@ EVID=$(curl -s -X POST localhost:8080/api/events -H "Authorization: Bearer $ORG"
   | python3 -c 'import sys,json; print(json.load(sys.stdin)["data"]["id"])')
 curl -s -X POST localhost:8080/api/events/$EVID/publish -H "Authorization: Bearer $ORG" > /dev/null
 QR=$(curl -s -X POST localhost:8080/api/events/$EVID/rsvp -H "Authorization: Bearer $USR" \
-  | python3 -c 'import sys,json; print(json.load(sys.stdin)["data"]["qr"])')
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["data"]["ticket"]["qr"])')
 curl -s -X POST localhost:8080/api/checkin -H "Authorization: Bearer $ORG" \
   -H 'Content-Type: application/json' -d "{\"qr\":\"$QR\"}"
+```
+
+RSVP responses are `{"status": "going"|"waitlisted", "ticket": {...}|null}` — a
+full event waitlists instead of rejecting. To exercise that path:
+
+```bash
+EVID2=$(curl -s -X POST localhost:8080/api/events -H "Authorization: Bearer $ORG" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Waitlist Test","categoryId":1,"cityId":1,"capacity":1,"startsAt":"'"$(date -v+2d +%Y-%m-%dT%H:%M:%S%z | sed 's/\(..\)$/:\1/')"'"}' \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["data"]["id"])')
+curl -s -X POST localhost:8080/api/events/$EVID2/publish -H "Authorization: Bearer $ORG" > /dev/null
+USR2=$(tg_login 1002 Guest2)
+curl -s -X POST localhost:8080/api/events/$EVID2/rsvp -H "Authorization: Bearer $USR"   # status: going
+curl -s -X POST localhost:8080/api/events/$EVID2/rsvp -H "Authorization: Bearer $USR2"  # status: waitlisted
+curl -s -X DELETE localhost:8080/api/events/$EVID2/rsvp -H "Authorization: Bearer $USR" > /dev/null
+curl -s localhost:8080/api/events/$EVID2/rsvp -H "Authorization: Bearer $USR2"          # now: going, with a ticket
 ```
 
 For a real end-to-end bot test: create a throwaway bot via @BotFather, set

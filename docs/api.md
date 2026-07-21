@@ -78,7 +78,9 @@ Body: `{ "displayName" (≤100), "bio"? (≤1000) }` → 201 `data`: organizer.
 409 if the user is already an organizer.
 
 ### GET /organizers/me (auth)
-→ `data`: `{ "id", "displayName", "bio", "avatarUrl", "createdAt" }`. 404 if none.
+→ `data`: `{ "id", "displayName", "bio", "avatarUrl", "isVerified", "createdAt" }`.
+404 if none. `isVerified` is admin-set only (see [Admin](#admin)) — no
+self-service way to request it in v1.
 
 ### GET /organizers/me/stats (auth)
 → `data`: `{ "totalEvents", "upcomingPublished", "totalRsvps", "totalCheckins" }`
@@ -89,19 +91,31 @@ All routes require auth **and** an organizer profile (403 otherwise).
 
 Event object:
 ```json
-{ "id", "organizerId", "organizerName", "title", "description",
+{ "id", "organizerId", "organizerName", "organizerVerified", "title", "description",
   "categoryId", "categorySlug", "cityId", "citySlug", "district",
   "locationName", "address", "lat", "lng", "isOnline",
   "startsAt", "endsAt", "capacity", "coverUrl",
-  "status", "visibility", "goingCount", "createdAt" }
+  "status", "visibility", "seriesId", "goingCount", "createdAt" }
 ```
-`status` ∈ `draft | published | canceled | finished`.
+`status` ∈ `draft | published | canceled | finished`. `seriesId` is `null`
+unless the event was created as part of a recurring series (see below), in
+which case it's the first occurrence's own event ID — shared by every
+event in that series.
 
 ### POST /events
 Body: `{ "title"*, "description", "categoryId"*, "cityId", "district",
 "locationName", "address", "lat", "lng", "isOnline", "startsAt"* (RFC3339),
-"endsAt", "capacity", "coverUrl", "visibility" }`.
+"endsAt", "capacity", "coverUrl", "visibility", "recurWeeks" }`.
 Offline events require `cityId`. → 201, status `draft`.
+
+`recurWeeks` (optional int, 0-11) creates a **weekly recurring series**
+instead of a single event: `recurWeeks: 3` creates 4 separate draft
+events one week apart (this one plus 3 more), all sharing a `seriesId`.
+The response is still just the first occurrence — see the rest via
+`GET /events/mine` or `GET /explore/events/:id/series`. Each occurrence
+is an independent draft: publish, edit, or cancel them individually: there's
+no cascading action across a series. Omit or set to `0`/`null` for a
+plain single event.
 
 ### GET /events/mine
 → `data`: array of the organizer's events, newest start first.
@@ -118,11 +132,14 @@ connected channels each get the event posted automatically, in the
 background, right after the response is sent — no extra request needed. If
 `TELEGRAM_OFFICIAL_CHANNEL_ID` is configured, Meetus.uz's own channel gets
 *every* published event this same way too, regardless of which organizer
-published it or whether they have any channels of their own. See
+published it or whether they have any channels of their own. Any Telegram
+group that has added the bot as admin (opting into the platform-wide feed,
+same mechanism as channels — see `groupfeed` package) also gets every
+published event, in `TELEGRAM_OFFICIAL_CHANNEL_LANGUAGE`. See
 [Channels & announcements](#channels--announcements) below for the language
-each channel gets it in. Auto-announce failures (e.g. the bot lost admin
-rights in a channel) are logged server-side, not surfaced in the publish
-response.
+each organizer channel gets it in. Auto-announce failures (e.g. the bot lost
+admin rights in a channel) are logged server-side, not surfaced in the
+publish response.
 
 ### DELETE /events/:id
 Drafts only (409 otherwise) → `data`: `{ "deleted": true }`.
@@ -145,6 +162,22 @@ days**, not lifetime total or date — ties broken by soonest start.
 → `data`: array of event objects, each with one extra field:
 `"recentGoing"` (int — the count that drove the ranking).
 
+### GET /explore/events/:id/related
+Query params: `limit` (≤20, default 4). Other published upcoming public
+events that might interest someone looking at `:id` — ranked same-category
+**and** same-city matches first, then same-category-only, then
+same-city-only; soonest start breaks ties within a tier. 404 if `:id`
+itself isn't a published event.
+
+→ `data`: array of event objects.
+
+### GET /explore/events/:id/series
+The other published upcoming occurrences of `:id`'s recurring series
+(soonest first), or an empty array if `:id` has no `seriesId`. Excludes
+`:id` itself and any sibling occurrence that's still a draft.
+
+→ `data`: array of event objects.
+
 ### GET /explore/events/:id
 → `data`: event. Resolves published, finished, and canceled events
 (unlisted events resolve by direct link); drafts → 404.
@@ -154,16 +187,31 @@ days**, not lifetime total or date — ties broken by soonest start.
 Ticket object: `{ "code", "qr", "checkedInAt" }`. The `qr` value
 (`code.signature`, HMAC-SHA256) is what gets rendered as the QR code.
 
+RSVP object: `{ "status", "ticket" }`. `status` ∈ `going | waitlisted`.
+`ticket` is the ticket object when `status` is `going`, `null` when
+`waitlisted` — a waitlisted RSVP has no ticket until it's promoted.
+
 ### POST /events/:id/rsvp (auth)
-Joins the event; capacity-checked in a transaction. Re-joining after a
-cancel re-activates the same ticket. → 201 ticket.
-409: already joined / event full / not published / already started.
+Joins the event; capacity-checked in a transaction. A full event doesn't
+reject the join — it waitlists it instead (`status: "waitlisted"`, no
+ticket). Re-joining after a cancel re-activates the same ticket if the
+event still has room. → 201 RSVP.
+409: already joined / already waitlisted / not published / already started.
+
+When a `going` RSVP is later canceled (by anyone, not just this caller)
+and the event has a waitlist, the longest-waiting waitlisted attendee is
+automatically promoted to `going` in the same transaction, their ticket
+is issued, and they're notified via the bot with the QR photo attached —
+see `rsvp.PromotionNotifier` / `tgbot.Announcer.SendWaitlistPromotion`.
 
 ### DELETE /events/:id/rsvp (auth)
-Cancels the caller's RSVP → `{ "canceled": true }`. 404 if not joined.
+Cancels the caller's RSVP, whether `going` or `waitlisted` → `{ "canceled": true }`.
+404 if the caller has no active RSVP. Canceling a `going` RSVP may trigger
+the waitlist promotion described above; canceling a `waitlisted` one just
+removes them from the queue.
 
 ### GET /events/:id/rsvp (auth)
-→ the caller's active ticket for the event, 404 if none.
+→ the caller's current RSVP for the event, 404 if none (canceled or never joined).
 
 ### GET /me/tickets (auth)
 → `data`: array of tickets with event info
@@ -229,6 +277,15 @@ Search by name/username (ILIKE, limit 50)
 ### POST /admin/users/:id/ban · /unban
 Ban blocks login **and** token refresh. Admins cannot ban admins or
 themselves. → `data`: `{ "id", "isBanned" }`
+
+### GET /admin/organizers?q=
+Search by display name (ILIKE, limit 50)
+→ `data`: `[{ "id", "displayName", "userName", "isVerified", "createdAt" }]`
+
+### POST /admin/organizers/:id/verify · /unverify
+Toggles the organizer's verification badge (shown next to their name on
+event cards and detail pages, and on their own dashboard). Purely a trust
+signal — doesn't unlock any additional capability. → `data`: `{ "id", "isVerified" }`
 
 ## Channels & announcements
 

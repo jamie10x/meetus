@@ -83,6 +83,20 @@ const (
 	kChannelConnected
 	kChannelConnectNeedsOrganizer
 	kAnnouncementCta
+	kTicketCaption
+	kNoUpcomingTickets
+	kWaitlisted
+	kWaitlistPromoted
+	kMuted
+	kUnmuted
+	kDigestOn
+	kDigestOff
+	kDigestHeader
+	kNearbyPrompt
+	kShareLocationButton
+	kNearbyHeader
+	kNearbyEmpty
+	kGroupSubscribed
 )
 
 // catalog holds full-message templates per language. Whole sentences are
@@ -103,7 +117,7 @@ var catalog = map[lang]map[msgKey]string{
 		kJoinButton:       "✅ Join event",
 		kOpenWebButton:    "🌐 Open on Meetus.uz",
 		kEventUnavailable: "This event is no longer available.",
-		kJoinedSuccess: "✅ You joined! Your QR ticket is ready:\n%s\n\n" +
+		kJoinedSuccess: "✅ You're in! Your QR ticket is below.\n\n" +
 			"I'll remind you before the event starts.",
 		kJoinedAlert:           "You're in! 🎉",
 		kLanguagePrompt:        "🌐 Choose your language:",
@@ -127,7 +141,22 @@ var catalog = map[lang]map[msgKey]string{
 			"announcements to it from your Meetus.uz organizer dashboard.",
 		kChannelConnectNeedsOrganizer: "This channel needs an owner with a Meetus.uz organizer " +
 			"profile. Sign in and create one first, then add me as admin here again.",
-		kAnnouncementCta: "🎟️ View & join",
+		kAnnouncementCta:   "🎟️ View & join",
+		kTicketCaption:     "🎟️ <b>%s</b>\n\n🕐 %s\n📍 %s\n\nShow this QR at the entrance.",
+		kNoUpcomingTickets: "You don't have any upcoming tickets yet. Try /events to find something.",
+		kWaitlisted: "You're on the waitlist 📋 This event is full right now — " +
+			"I'll message you the moment a spot opens up.",
+		kWaitlistPromoted:    "🎉 A spot opened up for <b>%s</b> and you're in! Your QR ticket is below.",
+		kMuted:               "🔕 Reminders and feedback prompts are now off. Send /mute again anytime to turn them back on.",
+		kUnmuted:             "🔔 Reminders and feedback prompts are back on.",
+		kDigestOn:            "🔔 Weekly digest is on — I'll send what's coming up each Monday morning.",
+		kDigestOff:           "🔕 Weekly digest is off. Send /digest anytime to turn it back on.",
+		kDigestHeader:        "📅 <b>This week on Meetus.uz</b>\n\n",
+		kNearbyPrompt:        "Share your location and I'll find events happening near you.",
+		kShareLocationButton: "📍 Share my location",
+		kNearbyHeader:        "📍 <b>Events near you</b>\n\n",
+		kNearbyEmpty:         "No upcoming events nearby yet. Try /events to browse everything.",
+		kGroupSubscribed:     "✅ This group is now subscribed to Meetus.uz event announcements.",
 	},
 	langRu: {
 		kWelcome: "👋 Добро пожаловать в <b>Meetus.uz</b>, %s!\n\n" +
@@ -143,7 +172,7 @@ var catalog = map[lang]map[msgKey]string{
 		kJoinButton:       "✅ Участвовать",
 		kOpenWebButton:    "🌐 Открыть на Meetus.uz",
 		kEventUnavailable: "Это мероприятие больше недоступно.",
-		kJoinedSuccess: "✅ Вы записаны! Ваш QR-билет готов:\n%s\n\n" +
+		kJoinedSuccess: "✅ Вы участвуете! Ваш QR-билет ниже.\n\n" +
 			"Я напомню вам перед началом мероприятия.",
 		kJoinedAlert:           "Вы участвуете! 🎉",
 		kLanguagePrompt:        "🌐 Выберите язык:",
@@ -168,7 +197,22 @@ var catalog = map[lang]map[msgKey]string{
 		kChannelConnectNeedsOrganizer: "У этого канала должен быть владелец с профилем " +
 			"организатора на Meetus.uz. Войдите и сначала создайте профиль, затем добавьте " +
 			"меня сюда администратором ещё раз.",
-		kAnnouncementCta: "🎟️ Смотреть и участвовать",
+		kAnnouncementCta:   "🎟️ Смотреть и участвовать",
+		kTicketCaption:     "🎟️ <b>%s</b>\n\n🕐 %s\n📍 %s\n\nПокажите этот QR-код на входе.",
+		kNoUpcomingTickets: "У вас пока нет предстоящих билетов. Попробуйте /events, чтобы найти что-нибудь.",
+		kWaitlisted: "Вы в списке ожидания 📋 Сейчас на мероприятии нет мест — " +
+			"я напишу вам, как только освободится место.",
+		kWaitlistPromoted:    "🎉 Освободилось место на <b>%s</b>, и вы участвуете! Ваш QR-билет ниже.",
+		kMuted:               "🔕 Напоминания и запросы отзывов отключены. Отправьте /mute снова, чтобы включить их.",
+		kUnmuted:             "🔔 Напоминания и запросы отзывов снова включены.",
+		kDigestOn:            "🔔 Еженедельная подборка включена — буду присылать её каждый понедельник утром.",
+		kDigestOff:           "🔕 Еженедельная подборка отключена. Отправьте /digest, чтобы включить снова.",
+		kDigestHeader:        "📅 <b>На этой неделе на Meetus.uz</b>\n\n",
+		kNearbyPrompt:        "Поделитесь геолокацией, и я найду мероприятия рядом с вами.",
+		kShareLocationButton: "📍 Поделиться геолокацией",
+		kNearbyHeader:        "📍 <b>Мероприятия рядом с вами</b>\n\n",
+		kNearbyEmpty:         "Пока нет предстоящих мероприятий поблизости. Попробуйте /events, чтобы посмотреть все.",
+		kGroupSubscribed:     "✅ Эта группа теперь подписана на анонсы мероприятий Meetus.uz.",
 	},
 	langUz: {
 		kWelcome: "👋 <b>Meetus.uz</b>ga xush kelibsiz, %s!\n\n" +
@@ -184,7 +228,7 @@ var catalog = map[lang]map[msgKey]string{
 		kJoinButton:       "✅ Qatnashish",
 		kOpenWebButton:    "🌐 Meetus.uz'da ochish",
 		kEventUnavailable: "Bu tadbir endi mavjud emas.",
-		kJoinedSuccess: "✅ Siz qatnashuvchi sifatida qo'shildingiz! QR-chiptangiz tayyor:\n%s\n\n" +
+		kJoinedSuccess: "✅ Siz qatnashuvchisiz! QR-chiptangiz quyida.\n\n" +
 			"Tadbir boshlanishidan oldin sizga eslataman.",
 		kJoinedAlert:           "Siz ro'yxatdasiz! 🎉",
 		kLanguagePrompt:        "🌐 Tilni tanlang:",
@@ -209,7 +253,22 @@ var catalog = map[lang]map[msgKey]string{
 		kChannelConnectNeedsOrganizer: "Bu kanalning Meetus.uz'da tashkilotchi profiliga ega " +
 			"egasi bo'lishi kerak. Avval kiring va profil yarating, so'ng meni yana admin " +
 			"qilib qo'shing.",
-		kAnnouncementCta: "🎟️ Ko'rish va qatnashish",
+		kAnnouncementCta:   "🎟️ Ko'rish va qatnashish",
+		kTicketCaption:     "🎟️ <b>%s</b>\n\n🕐 %s\n📍 %s\n\nKirishda ushbu QR-kodni ko'rsating.",
+		kNoUpcomingTickets: "Sizda hozircha yaqinlashib kelayotgan chiptalar yo'q. /events buyrug'ini sinab ko'ring.",
+		kWaitlisted: "Siz kutish ro'yxatidasiz 📋 Hozircha bu tadbirda joy yo'q — " +
+			"joy bo'shashi bilanoq sizga xabar beraman.",
+		kWaitlistPromoted:    "🎉 <b>%s</b> uchun joy bo'shadi va siz qatnashuvchisiz! QR-chiptangiz quyida.",
+		kMuted:               "🔕 Eslatmalar va fikr-mulohaza so'rovlari endi o'chirilgan. Yoqish uchun istalgan vaqtda /mute yuboring.",
+		kUnmuted:             "🔔 Eslatmalar va fikr-mulohaza so'rovlari qayta yoqildi.",
+		kDigestOn:            "🔔 Haftalik xulosa yoqildi — har dushanba ertalab yuboraman.",
+		kDigestOff:           "🔕 Haftalik xulosa o'chirildi. Qayta yoqish uchun /digest yuboring.",
+		kDigestHeader:        "📅 <b>Bu hafta Meetus.uz'da</b>\n\n",
+		kNearbyPrompt:        "Manzilingizni ulashing, men yaqin atrofdagi tadbirlarni topaman.",
+		kShareLocationButton: "📍 Manzilimni ulashish",
+		kNearbyHeader:        "📍 <b>Yaqin atrofdagi tadbirlar</b>\n\n",
+		kNearbyEmpty:         "Yaqin atrofda hozircha tadbirlar yo'q. Barchasini ko'rish uchun /events'ni sinab ko'ring.",
+		kGroupSubscribed:     "✅ Bu guruh endi Meetus.uz tadbir e'lonlariga obuna bo'ldi.",
 	},
 }
 

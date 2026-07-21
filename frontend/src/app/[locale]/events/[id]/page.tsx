@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { fetchEvent } from "@/lib/server-api";
-import { formatEventDate } from "@/components/EventCard";
+import { fetchEvent, fetchRelatedEvents, fetchSeriesEvents } from "@/lib/server-api";
+import EventCard, { formatEventDate } from "@/components/EventCard";
 import { categoryCoverStyle } from "@/lib/categoryStyle";
 import RsvpSection from "@/components/RsvpSection";
+import VerifiedBadge from "@/components/VerifiedBadge";
+import AddToCalendar from "@/components/AddToCalendar";
+import { buildEventJsonLd, stringifyJsonLd } from "@/lib/eventSchema";
 
 type Props = { params: Promise<{ id: string; locale: string }> };
 
@@ -33,14 +36,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function EventDetailPage({ params }: Props) {
   const { id, locale } = await params;
   const t = await getTranslations({ locale, namespace: "eventDetail" });
+  const tCommon = await getTranslations({ locale, namespace: "common" });
   const event = await fetchEvent(id);
   if (!event) notFound();
+  const related = await fetchRelatedEvents(id);
+  const seriesEvents = event.seriesId ? await fetchSeriesEvents(id) : [];
 
   const spotsLeft =
     event.capacity !== null ? event.capacity - event.goingCount : null;
 
+  const jsonLd = buildEventJsonLd(event, locale);
+
   return (
     <main className="mx-auto max-w-3xl px-5 py-10">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: stringifyJsonLd(jsonLd) }}
+      />
       <div
         className="mb-7 h-56 w-full overflow-hidden rounded-card border border-line sm:h-72"
         style={
@@ -72,7 +84,12 @@ export default async function EventDetailPage({ params }: Props) {
       <h1 className="mt-2 font-display text-3xl font-black text-bone sm:text-4xl">
         {event.title}
       </h1>
-      <p className="mt-2.5 text-dust">{t("hostedBy", { name: event.organizerName })}</p>
+      <p className="mt-2.5 text-dust">
+        {t("hostedBy", { name: event.organizerName })}
+        {event.organizerVerified ? (
+          <VerifiedBadge label={tCommon("verifiedOrganizer")} className="ml-1.5" />
+        ) : null}
+      </p>
 
       <div className="mt-5 flex flex-wrap gap-2 text-sm">
         <span className="rounded-full border border-line bg-ink-raised px-3.5 py-1.5 font-mono text-xs uppercase tracking-wide text-registan-strong">
@@ -88,11 +105,27 @@ export default async function EventDetailPage({ params }: Props) {
       </div>
 
       {event.status === "published" ? (
-        <RsvpSection
-          eventId={event.id}
-          spotsLeft={spotsLeft}
-          isPast={new Date(event.startsAt) <= new Date()}
-        />
+        <>
+          <RsvpSection
+            eventId={event.id}
+            spotsLeft={spotsLeft}
+            isPast={new Date(event.startsAt) <= new Date()}
+          />
+          <AddToCalendar
+            className="mt-4"
+            path={`/${locale}/events/${event.id}`}
+            event={{
+              title: event.title,
+              description: event.description,
+              startsAt: event.startsAt,
+              endsAt: event.endsAt,
+              isOnline: event.isOnline,
+              locationName: event.locationName,
+              address: event.address,
+              citySlug: event.citySlug,
+            }}
+          />
+        </>
       ) : null}
 
       {!event.isOnline && (event.locationName || event.address) ? (
@@ -112,6 +145,28 @@ export default async function EventDetailPage({ params }: Props) {
           <p className="mt-2 whitespace-pre-wrap leading-relaxed text-dust">
             {event.description}
           </p>
+        </div>
+      ) : null}
+
+      {seriesEvents.length > 0 ? (
+        <div className="mt-10">
+          <h2 className="font-display font-bold text-bone">{t("seriesHeading")}</h2>
+          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {seriesEvents.map((se) => (
+              <EventCard key={se.id} event={se} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {related.length > 0 ? (
+        <div className="mt-10">
+          <h2 className="font-display font-bold text-bone">{t("relatedHeading")}</h2>
+          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {related.map((re) => (
+              <EventCard key={re.id} event={re} />
+            ))}
+          </div>
         </div>
       ) : null}
     </main>

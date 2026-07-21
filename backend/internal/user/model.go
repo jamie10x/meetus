@@ -3,18 +3,20 @@ package user
 import "time"
 
 type User struct {
-	ID         int64
-	TelegramID int64
-	Name       string
-	Username   *string
-	AvatarURL  *string
-	CityID     *int32
-	District   *string
-	Language   string
-	IsBanned   bool
-	IsAdmin    bool
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID                  int64
+	TelegramID          int64
+	Name                string
+	Username            *string
+	AvatarURL           *string
+	CityID              *int32
+	District            *string
+	Language            string
+	IsBanned            bool
+	IsAdmin             bool
+	NotificationsMuted  bool
+	WeeklyDigestEnabled bool
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // TelegramProfile is the identity data received from Telegram login,

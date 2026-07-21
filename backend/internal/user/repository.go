@@ -19,12 +19,13 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-const userColumns = `id, telegram_id, name, username, avatar_url, city_id, district, language, is_banned, is_admin, created_at, updated_at`
+const userColumns = `id, telegram_id, name, username, avatar_url, city_id, district, language, is_banned, is_admin, notifications_muted, weekly_digest_enabled, created_at, updated_at`
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
 	err := row.Scan(&u.ID, &u.TelegramID, &u.Name, &u.Username, &u.AvatarURL,
-		&u.CityID, &u.District, &u.Language, &u.IsBanned, &u.IsAdmin, &u.CreatedAt, &u.UpdatedAt)
+		&u.CityID, &u.District, &u.Language, &u.IsBanned, &u.IsAdmin,
+		&u.NotificationsMuted, &u.WeeklyDigestEnabled, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -94,4 +95,59 @@ func (r *Repository) UpdateProfile(ctx context.Context, id int64, p ProfileUpdat
 		return nil, fmt.Errorf("update profile: %w", err)
 	}
 	return u, nil
+}
+
+// SetNotificationsMuted toggles whether reminders and feedback prompts are
+// sent to this user (bot-only setting, via /mute and /unmute).
+func (r *Repository) SetNotificationsMuted(ctx context.Context, id int64, muted bool) error {
+	_, err := r.pool.Exec(ctx, `UPDATE users SET notifications_muted = $2 WHERE id = $1`, id, muted)
+	if err != nil {
+		return fmt.Errorf("set notifications muted: %w", err)
+	}
+	return nil
+}
+
+// SetWeeklyDigest toggles the opt-in weekly "what's on" summary (bot-only
+// setting, via /digest).
+func (r *Repository) SetWeeklyDigest(ctx context.Context, id int64, enabled bool) error {
+	_, err := r.pool.Exec(ctx, `UPDATE users SET weekly_digest_enabled = $2 WHERE id = $1`, id, enabled)
+	if err != nil {
+		return fmt.Errorf("set weekly digest: %w", err)
+	}
+	return nil
+}
+
+// DigestSubscriber is the slice of a user's profile the weekly digest
+// send needs: who to message, in what language, and which city (if any)
+// to scope the "what's on this week" listing to.
+type DigestSubscriber struct {
+	UserID     int64
+	TelegramID int64
+	Language   string
+	CityID     *int32
+}
+
+// ListWeeklyDigestSubscribers returns every user opted into the weekly
+// digest. A muted user is excluded even if they opted in — /mute is the
+// user's explicit "stop messaging me" signal and should win over a
+// standing preference set earlier.
+func (r *Repository) ListWeeklyDigestSubscribers(ctx context.Context) ([]*DigestSubscriber, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, telegram_id, language, city_id
+		FROM users
+		WHERE weekly_digest_enabled = TRUE AND notifications_muted = FALSE`)
+	if err != nil {
+		return nil, fmt.Errorf("list weekly digest subscribers: %w", err)
+	}
+	defer rows.Close()
+
+	subs := make([]*DigestSubscriber, 0, 32)
+	for rows.Next() {
+		s := &DigestSubscriber{}
+		if err := rows.Scan(&s.UserID, &s.TelegramID, &s.Language, &s.CityID); err != nil {
+			return nil, err
+		}
+		subs = append(subs, s)
+	}
+	return subs, rows.Err()
 }

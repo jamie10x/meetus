@@ -10,6 +10,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import TelegramChrome from "@/components/TelegramChrome";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 const fraunces = Fraunces({
   variable: "--font-fraunces",
@@ -88,6 +89,7 @@ export default async function LocaleLayout({
         />
         <NextIntlClientProvider messages={messages}>
           <AuthProvider>
+            <ServiceWorkerRegister />
             <TelegramChrome />
             <Header />
             <div className="relative z-[1] flex-1">{children}</div>

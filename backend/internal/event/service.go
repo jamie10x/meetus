@@ -2,10 +2,16 @@ package event
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"meetus.uz/backend/internal/platform/apperr"
 )
+
+// maxRecurWeeks caps a series at 12 total occurrences (~3 months
+// weekly) — enough for a real recurring meetup, small enough that a
+// mistaken input can't silently spawn a huge run of draft events.
+const maxRecurWeeks = 11
 
 type Service struct {
 	repo *Repository
@@ -32,6 +38,11 @@ type Input struct {
 	Capacity     *int32   `json:"capacity"`
 	CoverURL     *string  `json:"coverUrl"`
 	Visibility   *string  `json:"visibility"`
+	// RecurWeeks, if set and > 0, creates this many *additional* weekly
+	// occurrences alongside the one described by the rest of Input (so
+	// RecurWeeks: 3 makes 4 events total, one week apart). Only
+	// meaningful on create — Update has no use for it and ignores it.
+	RecurWeeks *int `json:"recurWeeks"`
 }
 
 func (s *Service) validate(in Input) (WriteFields, error) {
@@ -52,6 +63,9 @@ func (s *Service) validate(in Input) (WriteFields, error) {
 	}
 	if in.Capacity != nil && *in.Capacity <= 0 {
 		return WriteFields{}, apperr.Validation("capacity must be positive")
+	}
+	if in.RecurWeeks != nil && (*in.RecurWeeks < 0 || *in.RecurWeeks > maxRecurWeeks) {
+		return WriteFields{}, apperr.Validation(fmt.Sprintf("recurWeeks must be between 0 and %d", maxRecurWeeks))
 	}
 	if !in.IsOnline && in.CityID == nil {
 		return WriteFields{}, apperr.Validation("offline events require a cityId")
@@ -86,10 +100,22 @@ func (s *Service) validate(in Input) (WriteFields, error) {
 	}, nil
 }
 
+// Create makes one event, or — when in.RecurWeeks is set and positive —
+// a whole weekly series at once. Either way it returns the first (or
+// only) event; the API's create response has always been "the event
+// just created," and for a series that's the first occurrence, with the
+// rest visible via ListMine / the series' own SeriesID.
 func (s *Service) Create(ctx context.Context, organizerID int64, in Input) (*Event, error) {
 	fields, err := s.validate(in)
 	if err != nil {
 		return nil, err
+	}
+	if in.RecurWeeks != nil && *in.RecurWeeks > 0 {
+		events, err := s.repo.CreateSeries(ctx, organizerID, fields, *in.RecurWeeks+1)
+		if err != nil {
+			return nil, err
+		}
+		return events[0], nil
 	}
 	return s.repo.Create(ctx, organizerID, fields)
 }

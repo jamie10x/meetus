@@ -21,6 +21,7 @@ const (
 
 type ListFilters struct {
 	CitySlug     string
+	CityID       *int32
 	CategorySlug string
 	From         *time.Time
 	To           *time.Time
@@ -92,6 +93,9 @@ func (r *Repository) ListPublic(ctx context.Context, f ListFilters) (*Page, erro
 	if f.CitySlug != "" {
 		conds = append(conds, "ci.slug = "+arg(f.CitySlug))
 	}
+	if f.CityID != nil {
+		conds = append(conds, "e.city_id = "+arg(*f.CityID))
+	}
 	if f.CategorySlug != "" {
 		conds = append(conds, "c.slug = "+arg(f.CategorySlug))
 	}
@@ -156,8 +160,8 @@ const trendingSelect = `
 	SELECT e.id, e.organizer_id, e.title, e.description, e.category_id,
 	       e.city_id, e.district, e.location_name, e.address, e.lat, e.lng,
 	       e.is_online, e.starts_at, e.ends_at, e.capacity, e.cover_url,
-	       e.status, e.visibility, e.created_at, e.updated_at,
-	       o.display_name, c.slug, ci.slug,
+	       e.status, e.visibility, e.series_id, e.created_at, e.updated_at,
+	       o.display_name, o.is_verified, c.slug, ci.slug,
 	       (SELECT count(*) FROM rsvps r WHERE r.event_id = e.id AND r.status = 'going')::int,
 	       COALESCE(rc.recent_count, 0)::int
 	FROM events e
@@ -187,8 +191,8 @@ func scanTrendingEvent(row pgx.Row) (*TrendingEvent, error) {
 	err := row.Scan(&e.ID, &e.OrganizerID, &e.Title, &e.Description, &e.CategoryID,
 		&e.CityID, &e.District, &e.LocationName, &e.Address, &e.Lat, &e.Lng,
 		&e.IsOnline, &e.StartsAt, &e.EndsAt, &e.Capacity, &e.CoverURL,
-		&e.Status, &e.Visibility, &e.CreatedAt, &e.UpdatedAt,
-		&e.OrganizerName, &e.CategorySlug, &e.CitySlug, &e.GoingCount, &te.RecentGoing)
+		&e.Status, &e.Visibility, &e.SeriesID, &e.CreatedAt, &e.UpdatedAt,
+		&e.OrganizerName, &e.OrganizerVerified, &e.CategorySlug, &e.CitySlug, &e.GoingCount, &te.RecentGoing)
 	if err != nil {
 		return nil, err
 	}
@@ -226,6 +230,133 @@ func (r *Repository) ListTrending(ctx context.Context, citySlug string, limit in
 			return nil, err
 		}
 		events = append(events, te)
+	}
+	return events, rows.Err()
+}
+
+const relatedMaxLimit = 20
+const relatedDefaultLimit = 4
+
+// ListRelated returns other published upcoming public events that might
+// interest someone looking at eventID — same category or same city,
+// ranked category-and-city matches first, then category-only, then
+// city-only, soonest start breaking ties. A plain relevance ORDER BY
+// rather than a scored/weighted query: at this scale a simple tiered
+// ranking is plenty, and it's easy to reason about.
+func (r *Repository) ListRelated(ctx context.Context, eventID int64, categoryID int32, cityID *int32, limit int) ([]*Event, error) {
+	if limit <= 0 || limit > relatedMaxLimit {
+		limit = relatedDefaultLimit
+	}
+
+	query := eventSelect + `
+		WHERE e.status = 'published' AND e.visibility = 'public' AND e.starts_at > now()
+		      AND e.id != $1 AND (e.category_id = $2 OR e.city_id = $3)
+		ORDER BY (CASE
+		              WHEN e.category_id = $2 AND e.city_id = $3 THEN 0
+		              WHEN e.category_id = $2 THEN 1
+		              ELSE 2
+		          END), e.starts_at ASC
+		LIMIT $4`
+
+	rows, err := r.pool.Query(ctx, query, eventID, categoryID, cityID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list related events: %w", err)
+	}
+	defer rows.Close()
+	return collectEvents(rows)
+}
+
+// ListSeries returns the other published upcoming occurrences of the
+// same weekly series, soonest first — for showing "other dates" on one
+// instance's event page. Excludes eventID itself and non-published
+// siblings (a series can have some instances published and others still
+// draft, since each occurrence is edited/published independently).
+func (r *Repository) ListSeries(ctx context.Context, seriesID, eventID int64) ([]*Event, error) {
+	rows, err := r.pool.Query(ctx, eventSelect+`
+		WHERE e.series_id = $1 AND e.id != $2
+		      AND e.status = 'published' AND e.starts_at > now()
+		ORDER BY e.starts_at ASC`, seriesID, eventID)
+	if err != nil {
+		return nil, fmt.Errorf("list series events: %w", err)
+	}
+	defer rows.Close()
+	return collectEvents(rows)
+}
+
+const nearbyMaxLimit = 20
+
+// nearbySelect mirrors eventSelect but adds a haversine distance-from-point
+// column — a plain-SQL great-circle distance (no PostGIS) since this is a
+// single ORDER BY, not a spatial index lookup; fine at this scale.
+const nearbySelect = `
+	SELECT e.id, e.organizer_id, e.title, e.description, e.category_id,
+	       e.city_id, e.district, e.location_name, e.address, e.lat, e.lng,
+	       e.is_online, e.starts_at, e.ends_at, e.capacity, e.cover_url,
+	       e.status, e.visibility, e.series_id, e.created_at, e.updated_at,
+	       o.display_name, o.is_verified, c.slug, ci.slug,
+	       (SELECT count(*) FROM rsvps r WHERE r.event_id = e.id AND r.status = 'going')::int,
+	       6371 * acos(least(1.0, greatest(-1.0,
+	           cos(radians($1)) * cos(radians(e.lat)) * cos(radians(e.lng) - radians($2))
+	           + sin(radians($1)) * sin(radians(e.lat))
+	       ))) AS distance_km
+	FROM events e
+	JOIN organizers o ON o.id = e.organizer_id
+	JOIN categories c ON c.id = e.category_id
+	LEFT JOIN cities ci ON ci.id = e.city_id
+`
+
+// NearbyEvent is a published upcoming in-person event with its
+// great-circle distance (km) from the point the caller searched from.
+type NearbyEvent struct {
+	Event
+	DistanceKm float64
+}
+
+func scanNearbyEvent(row pgx.Row) (*NearbyEvent, error) {
+	var ne NearbyEvent
+	e := &ne.Event
+	err := row.Scan(&e.ID, &e.OrganizerID, &e.Title, &e.Description, &e.CategoryID,
+		&e.CityID, &e.District, &e.LocationName, &e.Address, &e.Lat, &e.Lng,
+		&e.IsOnline, &e.StartsAt, &e.EndsAt, &e.Capacity, &e.CoverURL,
+		&e.Status, &e.Visibility, &e.SeriesID, &e.CreatedAt, &e.UpdatedAt,
+		&e.OrganizerName, &e.OrganizerVerified, &e.CategorySlug, &e.CitySlug, &e.GoingCount, &ne.DistanceKm)
+	if err != nil {
+		return nil, err
+	}
+	return &ne, nil
+}
+
+// ListNearby returns published upcoming in-person events within radiusKm
+// of (lat, lng), closest first. Online events and events without
+// coordinates are excluded — there's nothing to measure distance to.
+func (r *Repository) ListNearby(ctx context.Context, lat, lng, radiusKm float64, limit int) ([]*NearbyEvent, error) {
+	if limit <= 0 || limit > nearbyMaxLimit {
+		limit = 6
+	}
+
+	query := nearbySelect + `
+		WHERE e.status = 'published' AND e.visibility = 'public' AND e.starts_at > now()
+		      AND e.is_online = FALSE AND e.lat IS NOT NULL AND e.lng IS NOT NULL
+		      AND 6371 * acos(least(1.0, greatest(-1.0,
+		              cos(radians($1)) * cos(radians(e.lat)) * cos(radians(e.lng) - radians($2))
+		              + sin(radians($1)) * sin(radians(e.lat))
+		          ))) <= $3
+		ORDER BY distance_km ASC
+		LIMIT $4`
+
+	rows, err := r.pool.Query(ctx, query, lat, lng, radiusKm, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list nearby events: %w", err)
+	}
+	defer rows.Close()
+
+	events := make([]*NearbyEvent, 0, limit)
+	for rows.Next() {
+		ne, err := scanNearbyEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, ne)
 	}
 	return events, rows.Err()
 }

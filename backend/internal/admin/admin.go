@@ -52,6 +52,9 @@ func (h *Handler) Register(r gin.IRouter, requireAuth, requireAdmin gin.HandlerF
 	g.GET("/users", h.listUsers)
 	g.POST("/users/:id/ban", h.setBan(true))
 	g.POST("/users/:id/unban", h.setBan(false))
+	g.GET("/organizers", h.listOrganizers)
+	g.POST("/organizers/:id/verify", h.setVerified(true))
+	g.POST("/organizers/:id/unverify", h.setVerified(false))
 }
 
 type stats struct {
@@ -213,5 +216,61 @@ func (h *Handler) setBan(banned bool) gin.HandlerFunc {
 			return
 		}
 		httpx.OK(c, http.StatusOK, gin.H{"id": id, "isBanned": banned})
+	}
+}
+
+type adminOrganizer struct {
+	ID          int64     `json:"id"`
+	DisplayName string    `json:"displayName"`
+	UserName    string    `json:"userName"`
+	IsVerified  bool      `json:"isVerified"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+func (h *Handler) listOrganizers(c *gin.Context) {
+	q := c.Query("q")
+	rows, err := h.pool.Query(c.Request.Context(), `
+		SELECT o.id, o.display_name, u.name, o.is_verified, o.created_at
+		FROM organizers o
+		JOIN users u ON u.id = o.user_id
+		WHERE $1 = '' OR o.display_name ILIKE '%' || $1 || '%'
+		ORDER BY o.created_at DESC
+		LIMIT $2`, q, listLimit)
+	if err != nil {
+		httpx.Error(c, fmt.Errorf("admin list organizers: %w", err))
+		return
+	}
+	defer rows.Close()
+
+	organizers := make([]adminOrganizer, 0, listLimit)
+	for rows.Next() {
+		var o adminOrganizer
+		if err := rows.Scan(&o.ID, &o.DisplayName, &o.UserName, &o.IsVerified, &o.CreatedAt); err != nil {
+			httpx.Error(c, err)
+			return
+		}
+		organizers = append(organizers, o)
+	}
+	httpx.OK(c, http.StatusOK, organizers)
+}
+
+func (h *Handler) setVerified(verified bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+		if err != nil || id <= 0 {
+			httpx.Error(c, apperr.Validation("invalid organizer id"))
+			return
+		}
+		tag, err := h.pool.Exec(c.Request.Context(),
+			`UPDATE organizers SET is_verified = $2 WHERE id = $1`, id, verified)
+		if err != nil {
+			httpx.Error(c, fmt.Errorf("set verified: %w", err))
+			return
+		}
+		if tag.RowsAffected() == 0 {
+			httpx.Error(c, apperr.NotFound("organizer not found"))
+			return
+		}
+		httpx.OK(c, http.StatusOK, gin.H{"id": id, "isVerified": verified})
 	}
 }

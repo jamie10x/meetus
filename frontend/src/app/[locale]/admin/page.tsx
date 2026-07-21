@@ -6,6 +6,7 @@ import { Link, useRouter } from "@/i18n/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import MetaManager from "@/components/MetaManager";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import type { EventItem } from "@/lib/types";
 
 type AdminStats = {
@@ -24,6 +25,14 @@ type AdminUser = {
   username: string | null;
   isBanned: boolean;
   isAdmin: boolean;
+  createdAt: string;
+};
+
+type AdminOrganizer = {
+  id: number;
+  displayName: string;
+  userName: string;
+  isVerified: boolean;
   createdAt: string;
 };
 
@@ -56,6 +65,7 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
 
 export default function AdminPage() {
   const t = useTranslations("admin");
+  const tCommon = useTranslations("common");
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -64,6 +74,8 @@ export default function AdminPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [userQuery, setUserQuery] = useState("");
+  const [organizers, setOrganizers] = useState<AdminOrganizer[]>([]);
+  const [organizerQuery, setOrganizerQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -98,6 +110,20 @@ export default function AdminPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [user, userQuery]);
+
+  // Debounced organizer search.
+  useEffect(() => {
+    if (!user?.isAdmin) return;
+    const timer = setTimeout(() => {
+      api<AdminOrganizer[]>(
+        `/admin/organizers?q=${encodeURIComponent(organizerQuery)}`,
+        { auth: true },
+      )
+        .then(setOrganizers)
+        .catch(() => setOrganizers([]));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [user, organizerQuery]);
 
   if (loading || !user?.isAdmin) {
     return <main className="p-8 text-center text-dust">{t("loading")}</main>;
@@ -211,6 +237,74 @@ export default function AdminPage() {
 
       <MetaManager resource="cities" heading={t("citiesHeading")} />
       <MetaManager resource="categories" heading={t("categoriesHeading")} />
+
+      <section className="mb-10">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-bone">{t("organizersHeading")}</h2>
+          <input
+            value={organizerQuery}
+            onChange={(e) => setOrganizerQuery(e.target.value)}
+            placeholder={t("searchOrganizersPlaceholder")}
+            className="rounded-lg border border-line bg-ink-raised px-3 py-1 text-sm text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim"
+          />
+        </div>
+        <ul className="divide-y divide-line rounded-card border border-line bg-ink-raised">
+          {organizers.map((o) => (
+            <li key={o.id} className="flex items-center gap-3 p-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium text-bone">
+                  {o.displayName}
+                  {o.isVerified ? (
+                    <VerifiedBadge label={tCommon("verifiedOrganizer")} className="ml-2" />
+                  ) : null}
+                </p>
+                <p className="text-xs text-dust">
+                  {o.userName} ·{" "}
+                  {t("joined", {
+                    date: new Date(o.createdAt).toLocaleDateString(),
+                  })}
+                </p>
+              </div>
+              {o.isVerified ? (
+                <button
+                  onClick={() =>
+                    act(`/admin/organizers/${o.id}/unverify`, () =>
+                      setOrganizers((prev) =>
+                        prev.map((x) =>
+                          x.id === o.id ? { ...x, isVerified: false } : x,
+                        ),
+                      ),
+                    )
+                  }
+                  className={`${btn} border-line text-dust hover:border-pomegranate/35 hover:text-pomegranate`}
+                >
+                  {t("unverify")}
+                </button>
+              ) : (
+                <button
+                  onClick={() =>
+                    act(`/admin/organizers/${o.id}/verify`, () =>
+                      setOrganizers((prev) =>
+                        prev.map((x) =>
+                          x.id === o.id ? { ...x, isVerified: true } : x,
+                        ),
+                      ),
+                    )
+                  }
+                  className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12]`}
+                >
+                  {t("verify")}
+                </button>
+              )}
+            </li>
+          ))}
+          {organizers.length === 0 ? (
+            <li className="p-6 text-center text-sm text-dust-dim">
+              {t("noOrganizers")}
+            </li>
+          ) : null}
+        </ul>
+      </section>
 
       <section>
         <div className="mb-3 flex items-center justify-between">

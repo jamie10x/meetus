@@ -9,26 +9,48 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"meetus.uz/backend/internal/event"
+	"meetus.uz/backend/internal/rsvp"
 )
 
-// Announcer sends one-off channel announcement messages. Unlike Bot, it
-// never polls for updates (no Start() call) — it's constructed once in
-// the API process alongside the other shared dependencies in
-// server/router.go, purely to call SendMessage when an organizer clicks
-// "Announce" on a published event. bot.WithSkipGetMe skips the network
-// round trip Bot.New would otherwise pay on every API server boot.
+// Announcer sends one-off channel announcement and RSVP-notification
+// messages. Unlike Bot, it never polls for updates (no Start() call) —
+// it's constructed once in the API process alongside the other shared
+// dependencies in server/router.go, purely to call SendMessage when an
+// organizer clicks "Announce" on a published event, or when a waitlisted
+// attendee gets promoted after someone else cancels. bot.WithSkipGetMe
+// skips the network round trip Bot.New would otherwise pay on every API
+// server boot.
 type Announcer struct {
 	api        *bot.Bot
 	webBaseURL string
 	loc        *time.Location
+	signer     *rsvp.TicketSigner
 }
 
-func NewAnnouncer(token, webBaseURL string) (*Announcer, error) {
+func NewAnnouncer(token, webBaseURL string, signer *rsvp.TicketSigner) (*Announcer, error) {
 	api, err := bot.New(token, bot.WithSkipGetMe())
 	if err != nil {
 		return nil, fmt.Errorf("create telegram announcer: %w", err)
 	}
-	return &Announcer{api: api, webBaseURL: webBaseURL, loc: tashkentLocation()}, nil
+	return &Announcer{api: api, webBaseURL: webBaseURL, loc: tashkentLocation(), signer: signer}, nil
+}
+
+// SendWaitlistPromotion notifies a waitlisted attendee that a spot has
+// opened up and their RSVP is now confirmed, with their ticket QR
+// attached — the same rendering Bot uses for a fresh join, since from
+// the attendee's point of view this *is* their ticket arriving.
+// Satisfies rsvp.PromotionNotifier.
+func (a *Announcer) SendWaitlistPromotion(ctx context.Context, telegramID int64, langCode string, ticketCode string, e *event.Event) error {
+	l := normalizeLang(langCode)
+	text := tf(l, kWaitlistPromoted, escape(e.Title))
+	if _, err := a.api.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:    telegramID,
+		Text:      text,
+		ParseMode: models.ParseModeHTML,
+	}); err != nil {
+		return fmt.Errorf("send promotion message: %w", err)
+	}
+	return sendTicketPhotoTo(ctx, a.api, a.loc, a.signer, telegramID, l, ticketCode, e)
 }
 
 // SendAnnouncement posts one event to one connected channel, rendered in

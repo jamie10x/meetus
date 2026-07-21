@@ -6,6 +6,7 @@ import { Link, useRouter } from "@/i18n/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import type { Channel, EventItem, Organizer } from "@/lib/types";
+import VerifiedBadge from "@/components/VerifiedBadge";
 
 type OrganizerStats = {
   totalEvents: number;
@@ -19,6 +20,7 @@ const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "";
 export default function OrganizerPage() {
   const t = useTranslations("organizer");
   const tEventCard = useTranslations("eventCard");
+  const tCommon = useTranslations("common");
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -157,7 +159,12 @@ export default function OrganizerPage() {
     <main className="mx-auto max-w-3xl px-4 py-10">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-bone">{organizer.displayName}</h1>
+          <h1 className="text-2xl font-bold text-bone">
+            {organizer.displayName}
+            {organizer.isVerified ? (
+              <VerifiedBadge label={tCommon("verifiedOrganizer")} className="ml-2" />
+            ) : null}
+          </h1>
           <p className="text-sm text-dust">{t("yourEvents")}</p>
         </div>
         <Link
