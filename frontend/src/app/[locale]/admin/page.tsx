@@ -37,8 +37,7 @@ type AdminOrganizer = {
 };
 
 const card = "rounded-card border border-line bg-ink-raised p-4 text-center";
-const btn =
-  "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors";
+const btn = "btn btn-outline btn-sm";
 
 const eventStatusKey = {
   draft: "statusDraft",
@@ -172,7 +171,7 @@ export default function AdminPage() {
               setStatusFilter(e.target.value);
               loadEvents(e.target.value);
             }}
-            className="rounded-lg border border-line bg-ink-raised px-2 py-1 text-sm text-bone transition-colors focus:border-registan-dim"
+            className="rounded-lg border border-line bg-ink-raised px-2 py-1 text-sm text-bone transition-all focus:border-registan-dim focus:outline-none focus:ring-2 focus:ring-registan/20"
           >
             <option value="">{t("allStatuses")}</option>
             <option value="published">{t("statusPublished")}</option>
@@ -209,7 +208,7 @@ export default function AdminPage() {
                         loadEvents(statusFilter),
                       )
                     }
-                    className={`${btn} border-line text-dust hover:border-registan-strong hover:text-registan-strong`}
+                    className={`${btn} btn-outline-neutral`}
                   >
                     {t("unpublish")}
                   </button>
@@ -219,7 +218,7 @@ export default function AdminPage() {
                         loadEvents(statusFilter),
                       )
                     }
-                    className={`${btn} border-pomegranate/35 text-pomegranate hover:bg-pomegranate/[0.12]`}
+                    className={`${btn} btn-outline-danger`}
                   >
                     {t("cancel")}
                   </button>
@@ -245,7 +244,7 @@ export default function AdminPage() {
             value={organizerQuery}
             onChange={(e) => setOrganizerQuery(e.target.value)}
             placeholder={t("searchOrganizersPlaceholder")}
-            className="rounded-lg border border-line bg-ink-raised px-3 py-1 text-sm text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim"
+            className="rounded-lg border border-line bg-ink-raised px-3 py-1 text-sm text-bone placeholder:text-dust-dim transition-all focus:border-registan-dim focus:outline-none focus:ring-2 focus:ring-registan/20"
           />
         </div>
         <ul className="divide-y divide-line rounded-card border border-line bg-ink-raised">
@@ -276,7 +275,7 @@ export default function AdminPage() {
                       ),
                     )
                   }
-                  className={`${btn} border-line text-dust hover:border-pomegranate/35 hover:text-pomegranate`}
+                  className={`${btn} btn-outline-neutral-danger`}
                 >
                   {t("unverify")}
                 </button>
@@ -291,7 +290,7 @@ export default function AdminPage() {
                       ),
                     )
                   }
-                  className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12]`}
+                  className={`${btn} btn-outline-accent`}
                 >
                   {t("verify")}
                 </button>
@@ -313,7 +312,7 @@ export default function AdminPage() {
             value={userQuery}
             onChange={(e) => setUserQuery(e.target.value)}
             placeholder={t("searchUsersPlaceholder")}
-            className="rounded-lg border border-line bg-ink-raised px-3 py-1 text-sm text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim"
+            className="rounded-lg border border-line bg-ink-raised px-3 py-1 text-sm text-bone placeholder:text-dust-dim transition-all focus:border-registan-dim focus:outline-none focus:ring-2 focus:ring-registan/20"
           />
         </div>
         <ul className="divide-y divide-line rounded-card border border-line bg-ink-raised">
@@ -346,7 +345,7 @@ export default function AdminPage() {
                       ),
                     )
                   }
-                  className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12]`}
+                  className={`${btn} btn-outline-accent`}
                 >
                   {t("unban")}
                 </button>
@@ -361,7 +360,7 @@ export default function AdminPage() {
                       ),
                     )
                   }
-                  className={`${btn} border-pomegranate/35 text-pomegranate hover:bg-pomegranate/[0.12]`}
+                  className={`${btn} btn-outline-danger`}
                 >
                   {t("ban")}
                 </button>

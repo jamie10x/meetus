@@ -297,7 +297,7 @@ data) rather than stock OSM tiles, specifically because stock tiles are
 white/bright and would clash badly with the site's dark-first theme — no
 API key needed for either, but the OSM+CARTO attribution stays on the map
 per their usage terms (`TileLayer`'s `attribution` prop). Markers are a
-custom teal `L.divIcon` (a styled `<span>`, no image asset) instead of
+custom blue `L.divIcon` (a styled `<span>`, no image asset) instead of
 Leaflet's default pin — sidesteps the well-known bundler issue where
 Leaflet's default marker icons resolve to broken relative image URLs, and
 matches the brand better anyway.
@@ -353,7 +353,7 @@ same-origin static assets (fingerprinted JS/CSS, the generated PWA icons)
 are cache-first, since Next's build makes those safe to cache aggressively.
 `app/manifest.ts`, `app/icon.tsx`, and `app/apple-icon.tsx` generate the
 manifest and icons via `next/og`'s `ImageResponse` at build time — a
-simple brand-teal "M" mark, not an emoji, since Satori (the renderer
+simple brand-blue "M" mark, not an emoji, since Satori (the renderer
 behind `ImageResponse`) doesn't reliably render emoji glyphs without an
 extra font/CDN dependency. The default `app/favicon.ico` Next.js ships
 with was deleted so the generated icon is the only one — keeping both
@@ -585,7 +585,7 @@ it convincingly:
   two never show at once.
 - `TelegramChrome` also calls `setHeaderColor`/`setBackgroundColor` once on
   mount, unconditionally set to the app's single committed background color
-  (`--color-ink`, `#160f16`) — the frontend is a dark-first brand identity
+  (`--color-ink`, `#070b16`) — the frontend is a dark-first brand identity
   (see "Frontend visual identity" below), not an OS/`prefers-color-scheme`
   toggle, so there's no light variant to pick between and `tg.colorScheme`
   is intentionally ignored here.
@@ -600,28 +600,37 @@ this affects plain-browser visitors.
 ### Frontend visual identity ("Bold Dark")
 
 The frontend commits to one dark visual identity — near-black surfaces with
-a warm plum-dusk undertone, not an OS-`prefers-color-scheme` toggle. There
+a deep cobalt-blue undertone, not an OS-`prefers-color-scheme` toggle. There
 is no light theme; `dark:` Tailwind variants and the old `zinc-*`/`sky-*`
 palette are gone from the codebase. Tokens are registered as real Tailwind
 v4 utilities via `@theme` in `frontend/src/app/[locale]/globals.css`:
 
-- Surfaces: `bg-ink` (`#160F16`, base), `bg-ink-raised` (`#211722`, cards),
-  `bg-ink-overlay` (`#2C1F2C`), `border-line` (`#3B2B3A`, all borders).
-- Text: `text-bone` (`#F6EFE4`, primary), `text-dust` (`#BBA8B6`,
-  secondary), `text-dust-dim` (`#8C7A88`, tertiary/fine print).
-- Accents: `registan` (`#18ADA0`, primary teal — the saturated cobalt of
-  Shah-i-Zinda/Registan majolica tilework; `registan-strong` `#3FD8C9` for
-  links/highlights on dark backgrounds) and `atlas` (`#F2A73B`, secondary
+- Surfaces: `bg-ink` (`#070b16`, base), `bg-ink-raised` (`#101a30`, cards),
+  `bg-ink-overlay` (`#172440`), `border-line` (`#253253`, all borders).
+- Text: `text-bone` (`#eef2fb`, primary), `text-dust` (`#99a4c4`,
+  secondary), `text-dust-dim` (`#5f6c92`, tertiary/fine print).
+- Accents: `registan` (`#2f6feb`, primary blue — the Timurid cobalt of
+  Samarkand's Registan domes and portals; `registan-strong` `#5b9dff` for
+  links/highlights on dark backgrounds, `registan-dim` `#12234c` for
+  gradient depth and subtle borders) and `atlas` (`#f2b23b`, secondary
   gold — the warm marigold of hand-dyed atlas silk). `pomegranate`
-  (`#E1523A`) is reserved strictly for semantic error/danger states, never
+  (`#ef4a52`) is reserved strictly for semantic error/danger states, never
   decoration.
+- Buttons: a three-tier system in `@layer components` (same file) —
+  `.btn-primary` (blue gradient pill with a glow shadow, main CTAs),
+  `.btn-secondary` (outlined pill, secondary actions), and `.btn-outline`
+  + `-accent`/`-neutral`/`-danger` variants (compact rectangular toolbar
+  actions — admin/organizer action rows). All built from the same
+  `registan`/`pomegranate` tokens, so a future palette change still only
+  touches `globals.css`.
 - Type: `font-display` (Fraunces, a serif with real personality — applied
   automatically to every `h1`/`h2`/`h3` via a global CSS rule), `font-sans`
   (Hanken Grotesk, body default), `font-mono` (IBM Plex Mono — dates,
   ticket codes, counts, eyebrow labels), all loaded via `next/font/google`
   in `[locale]/layout.tsx`.
 - Shape/elevation: `rounded-card` (16px, the standard card radius) and the
-  `shadow-card`/`shadow-pop` utilities, all registered the same way.
+  `shadow-card`/`shadow-pop`/`shadow-glow` utilities, all registered the
+  same way.
 
 Category covers (event card thumbnails, the event-detail hero, the home
 hero's ticket preview) are CSS-only patterns per category slug —

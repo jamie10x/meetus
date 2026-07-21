@@ -29,7 +29,7 @@ export default function EventCard({ event, badge }: Props) {
   return (
     <Link
       href={`/events/${event.id}`}
-      className="group flex h-full flex-col overflow-hidden rounded-card border border-line bg-ink-raised shadow-card transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-1 hover:border-registan-dim hover:shadow-[0_26px_50px_-22px_rgba(24,173,160,0.35)]"
+      className="group flex h-full flex-col overflow-hidden rounded-card border border-line bg-ink-raised shadow-card transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-1 hover:border-registan-dim hover:shadow-[0_26px_50px_-22px_rgba(47,111,235,0.4)]"
     >
       <div
         className="relative overflow-hidden transition-transform duration-500 group-hover:scale-[1.04]"

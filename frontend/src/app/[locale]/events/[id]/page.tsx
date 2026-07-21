@@ -73,7 +73,12 @@ export default async function EventDetailPage({ params }: Props) {
 
       {event.status !== "published" ? (
         <p className="mb-5 rounded-card border border-pomegranate/35 bg-pomegranate/[0.12] p-3.5 text-sm font-medium text-pomegranate">
-          {t("statusNotice", { status: event.status })}
+          {t("statusNotice", {
+            status:
+              event.status === "canceled"
+                ? t("statusCanceled")
+                : t("statusFinished"),
+          })}
         </p>
       ) : null}
 

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { api, uploadImage, ApiError } from "@/lib/api";
-import type { EventInput, EventItem, MetaItem } from "@/lib/types";
+import { metaName, type EventInput, type EventItem, type MetaItem } from "@/lib/types";
 
 type Props = {
   initial?: EventItem;
@@ -25,11 +25,12 @@ function toRFC3339(local: string): string {
 }
 
 const inputCls =
-  "rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim";
+  "rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-all focus:border-registan-dim focus:outline-none focus:ring-2 focus:ring-registan/20";
 const labelCls = "flex flex-col gap-1.5 text-sm font-medium text-dust";
 
 export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
   const t = useTranslations("eventForm");
+  const locale = useLocale();
   const [categories, setCategories] = useState<MetaItem[]>([]);
   const [cities, setCities] = useState<MetaItem[]>([]);
 
@@ -164,7 +165,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
             <option value="">{t("chooseOption")}</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.nameEn}
+                {metaName(c, locale)}
               </option>
             ))}
           </select>
@@ -180,7 +181,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
             <option value="">{isOnline ? t("notNeeded") : t("chooseOption")}</option>
             {cities.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.nameEn}
+                {metaName(c, locale)}
               </option>
             ))}
           </select>
@@ -352,7 +353,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
       <button
         type="submit"
         disabled={saving || uploading}
-        className="mt-2 rounded-full bg-registan px-4 py-2.5 font-bold text-[#0A2320] transition-colors hover:bg-registan-strong disabled:opacity-50"
+        className="btn btn-primary mt-2"
       >
         {saving ? t("saving") : submitLabel}
       </button>

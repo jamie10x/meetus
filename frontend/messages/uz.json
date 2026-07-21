@@ -83,6 +83,8 @@
   "eventDetail": {
     "notFoundTitle": "Tadbir topilmadi",
     "statusNotice": "Bu tadbir {status}.",
+    "statusCanceled": "bekor qilingan",
+    "statusFinished": "yakunlangan",
     "hostedBy": "Tashkilotchi: {name}",
     "goingCount": "{count} kishi ishtirok etmoqda",
     "spotsLeft": "· {count} joy qoldi",

@@ -92,8 +92,7 @@ export default function EditEventPage({
     }
   };
 
-  const btn =
-    "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors";
+  const btn = "btn btn-outline";
   const statusStyle: Record<string, string> = {
     draft: "border border-atlas/35 bg-atlas/[0.12] text-atlas",
     published: "border border-registan-dim bg-registan/[0.12] text-registan-strong",
@@ -121,13 +120,13 @@ export default function EditEventPage({
           <>
             <button
               onClick={() => doAction("publish")}
-              className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12]`}
+              className={`${btn} btn-outline-accent`}
             >
               {t("publish")}
             </button>
             <button
               onClick={remove}
-              className={`${btn} border-pomegranate/35 text-pomegranate hover:bg-pomegranate/[0.12]`}
+              className={`${btn} btn-outline-danger`}
             >
               {t("deleteDraft")}
             </button>
@@ -137,25 +136,25 @@ export default function EditEventPage({
           <>
             <Link
               href={`/organizer/events/${event.id}/scan`}
-              className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12]`}
+              className={`${btn} btn-outline-accent`}
             >
               {t("scanTickets")}
             </Link>
             <Link
               href={`/organizer/events/${event.id}/attendees`}
-              className={`${btn} border-line text-dust hover:border-registan-strong hover:text-registan-strong`}
+              className={`${btn} btn-outline-neutral`}
             >
               {t("attendees", { count: event.goingCount })}
             </Link>
             <button
               onClick={() => doAction("unpublish")}
-              className={`${btn} border-line text-dust hover:border-registan-strong hover:text-registan-strong`}
+              className={`${btn} btn-outline-neutral`}
             >
               {t("unpublish")}
             </button>
             <button
               onClick={() => doAction("cancel")}
-              className={`${btn} border-pomegranate/35 text-pomegranate hover:bg-pomegranate/[0.12]`}
+              className={`${btn} btn-outline-danger`}
             >
               {t("cancelEvent")}
             </button>
@@ -193,7 +192,7 @@ export default function EditEventPage({
                     <button
                       onClick={() => announce(ch.id)}
                       disabled={state === "sending"}
-                      className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12] disabled:opacity-50`}
+                      className={`${btn} btn-outline-accent`}
                     >
                       {state === "sending" ? t("announcing") : t("announce")}
                     </button>

@@ -13,10 +13,7 @@ export default function HeroSignInCta() {
   if (loading || user) return null;
 
   return (
-    <Link
-      href="/login"
-      className="rounded-full border border-line px-6 py-3 text-base font-bold text-bone transition-colors hover:border-registan-strong hover:text-registan-strong"
-    >
+    <Link href="/login" className="btn btn-secondary text-base">
       {t("signIn")}
     </Link>
   );

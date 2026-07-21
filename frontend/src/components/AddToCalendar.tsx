@@ -28,7 +28,7 @@ export default function AddToCalendar({ event, path, className = "" }: Props) {
       <button
         type="button"
         onClick={() => downloadIcs(full, icsFilename(event.title))}
-        className="rounded-full border border-line px-3 py-1.5 text-dust transition-colors hover:border-registan-dim hover:text-registan-strong"
+        className="btn btn-secondary btn-sm"
       >
         {t("downloadIcs")}
       </button>
@@ -36,7 +36,7 @@ export default function AddToCalendar({ event, path, className = "" }: Props) {
         href={googleCalendarUrl(full)}
         target="_blank"
         rel="noopener noreferrer"
-        className="rounded-full border border-line px-3 py-1.5 text-dust transition-colors hover:border-registan-dim hover:text-registan-strong"
+        className="btn btn-secondary btn-sm"
       >
         {t("googleCalendar")}
       </a>

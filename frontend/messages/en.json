@@ -83,6 +83,8 @@
   "eventDetail": {
     "notFoundTitle": "Event not found",
     "statusNotice": "This event has been {status}.",
+    "statusCanceled": "canceled",
+    "statusFinished": "finished",
     "hostedBy": "Hosted by {name}",
     "goingCount": "{count} going",
     "spotsLeft": "· {count} spots left",

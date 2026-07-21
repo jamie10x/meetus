@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import type { MetaItem, User } from "@/lib/types";
+import { metaName, type MetaItem, type User } from "@/lib/types";
 
 const LANGUAGES = [
   { value: "uz", label: "O'zbekcha" },
@@ -15,6 +15,7 @@ const LANGUAGES = [
 
 export default function ProfilePage() {
   const t = useTranslations("profile");
+  const locale = useLocale();
   const { user, loading, setUser } = useAuth();
   const router = useRouter();
 
@@ -73,7 +74,7 @@ export default function ProfilePage() {
   };
 
   const inputCls =
-    "rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim";
+    "rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-all focus:border-registan-dim focus:outline-none focus:ring-2 focus:ring-registan/20";
 
   return (
     <main className="mx-auto max-w-lg px-5 py-12">
@@ -100,7 +101,7 @@ export default function ProfilePage() {
             <option value="">{t("cityNotSet")}</option>
             {cities.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.nameEn}
+                {metaName(c, locale)}
               </option>
             ))}
           </select>
@@ -131,11 +132,7 @@ export default function ProfilePage() {
           </select>
         </label>
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="mt-2 rounded-full bg-registan px-4 py-2.5 font-bold text-[#0A2320] transition-colors hover:bg-registan-strong disabled:opacity-50"
-        >
+        <button type="submit" disabled={saving} className="btn btn-primary mt-2">
           {saving ? t("saving") : t("save")}
         </button>
 

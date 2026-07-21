@@ -2,27 +2,30 @@
 
 /*
  * Meetus brand tokens — committed dark-first identity (not an OS-preference
- * toggle). Palette grounded in Uzbek visual heritage rather than a generic
- * dark+neon look: near-black surfaces carry a warm plum-dusk undertone (a
- * Samarkand night sky, not device black); "registan" is the saturated
- * cobalt-teal of glazed majolica tilework (Shah-i-Zinda / Registan);
- * "atlas" is the warm marigold-gold of hand-dyed atlas silk; pomegranate is
+ * toggle), v2: deep-space cobalt. Surfaces are a near-black midnight blue
+ * rather than device black or the old plum-dusk; "registan" now names the
+ * saturated Timurid cobalt of Samarkand's Registan domes and portals —
+ * historically the more iconic color of that architecture than the teal
+ * majolica the v1 palette leaned on — rendered here as a bright-to-deep
+ * blue gradient rather than a flat swatch, for the "premium" glow on CTAs
+ * and hero surfaces. "atlas" gold stays as the luxury contrast accent
+ * (navy + gold is a deliberate, classic premium pairing); pomegranate is
  * reserved strictly for semantic/error use, never decoration.
  */
 @theme {
-  --color-ink: #160f16;
-  --color-ink-raised: #211722;
-  --color-ink-overlay: #2c1f2c;
-  --color-line: #3b2b3a;
-  --color-bone: #f6efe4;
-  --color-dust: #bba8b6;
-  --color-dust-dim: #8c7a88;
-  --color-registan: #18ada0;
-  --color-registan-strong: #3fd8c9;
-  --color-registan-dim: #0d6f67;
-  --color-atlas: #f2a73b;
-  --color-atlas-dim: #b87b22;
-  --color-pomegranate: #e1523a;
+  --color-ink: #070b16;
+  --color-ink-raised: #101a30;
+  --color-ink-overlay: #172440;
+  --color-line: #253253;
+  --color-bone: #eef2fb;
+  --color-dust: #99a4c4;
+  --color-dust-dim: #5f6c92;
+  --color-registan: #2f6feb;
+  --color-registan-strong: #5b9dff;
+  --color-registan-dim: #12234c;
+  --color-atlas: #f2b23b;
+  --color-atlas-dim: #b8811f;
+  --color-pomegranate: #ef4a52;
 
   --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
   --font-sans: var(--font-hanken), system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -30,8 +33,10 @@
 
   --radius-card: 16px;
   --radius-chip: 100px;
-  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.4), 0 18px 40px -20px rgba(0, 0, 0, 0.65);
-  --shadow-pop: 0 24px 60px -18px rgba(0, 0, 0, 0.75);
+  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.5), 0 18px 40px -20px rgba(3, 6, 16, 0.8);
+  --shadow-pop: 0 24px 60px -18px rgba(2, 4, 12, 0.85);
+  --shadow-glow: 0 10px 30px -8px rgba(47, 111, 235, 0.55);
+  --shadow-glow-strong: 0 14px 40px -6px rgba(91, 157, 255, 0.6);
 }
 
 html {
@@ -45,7 +50,8 @@ body {
   position: relative;
 }
 
-/* Faint woven-silk texture across the whole surface — kept extremely quiet. */
+/* Two quiet radial glows anchored top-left/bottom-right — a deep-space
+   backdrop rather than a flat fill, visible mainly behind sparse sections. */
 body::before {
   content: "";
   position: fixed;
@@ -53,8 +59,9 @@ body::before {
   pointer-events: none;
   z-index: 0;
   background-image:
-    repeating-linear-gradient(115deg, rgba(246, 239, 228, 0.025) 0px, rgba(246, 239, 228, 0.025) 1px, transparent 1px, transparent 5px),
-    repeating-linear-gradient(25deg, rgba(24, 173, 160, 0.02) 0px, rgba(24, 173, 160, 0.02) 1px, transparent 1px, transparent 6px);
+    radial-gradient(60% 46% at 12% -6%, rgba(47, 111, 235, 0.16), transparent 60%),
+    radial-gradient(50% 40% at 100% 108%, rgba(91, 157, 255, 0.1), transparent 65%),
+    repeating-linear-gradient(115deg, rgba(238, 242, 251, 0.02) 0px, rgba(238, 242, 251, 0.02) 1px, transparent 1px, transparent 5px);
 }
 
 h1, h2, h3 {
@@ -64,11 +71,142 @@ h1, h2, h3 {
 
 ::selection {
   background: var(--color-registan);
-  color: #0a2320;
+  color: #eef2fb;
 }
 
 :focus-visible {
   outline: 2px solid var(--color-registan-strong);
   outline-offset: 3px;
   border-radius: 4px;
+}
+
+/*
+ * Premium button system. One place to define "what a button feels like"
+ * so every CTA in the app — join, sign in, save, publish, admin actions —
+ * reads as the same considered object instead of ad-hoc Tailwind strings
+ * drifting apart over time. Sizing/layout (w-full, mt-*, etc.) still comes
+ * from each call site's className; only look-and-feel lives here.
+ */
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: var(--radius-chip);
+    font-weight: 700;
+    white-space: nowrap;
+    padding: 0.7rem 1.5rem;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.2s ease,
+      filter 0.2s ease,
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease;
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: none;
+    transform: none;
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--color-registan-dim) 0%, var(--color-registan) 55%, var(--color-registan-strong) 100%);
+    color: #f8fbff;
+    box-shadow: var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: var(--shadow-glow-strong), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .btn-secondary {
+    background: var(--color-ink-raised);
+    border: 1px solid var(--color-line);
+    color: var(--color-bone);
+    padding: calc(0.7rem - 1px) calc(1.5rem - 1px);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    border-color: var(--color-registan-dim);
+    color: var(--color-registan-strong);
+    background: var(--color-ink-overlay);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-dust);
+    padding: 0.6rem 1rem;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    color: var(--color-bone);
+  }
+
+  .btn-danger-ghost {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--color-dust);
+    padding: calc(0.6rem - 1px) calc(1rem - 1px);
+  }
+  .btn-danger-ghost:hover:not(:disabled) {
+    color: var(--color-pomegranate);
+    border-color: color-mix(in srgb, var(--color-pomegranate) 35%, transparent);
+    background: color-mix(in srgb, var(--color-pomegranate) 10%, transparent);
+  }
+
+  .btn-sm {
+    padding: 0.4rem 1rem;
+    font-size: 0.8rem;
+  }
+
+  /*
+   * Small rectangular outline actions for toolbars (publish/cancel/ban/
+   * verify rows in admin and organizer management screens) — a lighter
+   * register than .btn-primary's pill+gradient, so a row of five actions
+   * doesn't turn into five competing CTAs.
+   */
+  .btn-outline {
+    border-radius: 0.5rem;
+    border-width: 1px;
+    padding: calc(0.375rem - 1px) calc(0.75rem - 1px);
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  .btn-outline-accent {
+    border-color: var(--color-registan-dim);
+    color: var(--color-registan-strong);
+  }
+  .btn-outline-accent:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-registan) 14%, transparent);
+  }
+  .btn-outline-neutral {
+    border-color: var(--color-line);
+    color: var(--color-dust);
+  }
+  .btn-outline-neutral:hover:not(:disabled) {
+    border-color: var(--color-registan-strong);
+    color: var(--color-registan-strong);
+  }
+  .btn-outline-danger {
+    border-color: color-mix(in srgb, var(--color-pomegranate) 35%, transparent);
+    color: var(--color-pomegranate);
+  }
+  .btn-outline-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-pomegranate) 12%, transparent);
+  }
+  /* Neutral at rest, only reveals danger intent on hover — for a
+     destructive action sitting next to non-destructive ones in the same
+     row (ban, unverify), so the row doesn't read as alarming by default. */
+  .btn-outline-neutral-danger {
+    border-color: var(--color-line);
+    color: var(--color-dust);
+  }
+  .btn-outline-neutral-danger:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--color-pomegranate) 35%, transparent);
+    color: var(--color-pomegranate);
+  }
 }

@@ -129,7 +129,7 @@ export default function OrganizerPage() {
               required
               maxLength={100}
               placeholder={t("organizerNamePlaceholder")}
-              className="rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim"
+              className="rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-all focus:border-registan-dim focus:outline-none focus:ring-2 focus:ring-registan/20"
             />
           </label>
           <label className="flex flex-col gap-1.5 text-sm font-medium text-dust">
@@ -139,14 +139,10 @@ export default function OrganizerPage() {
               onChange={(e) => setBio(e.target.value)}
               rows={3}
               maxLength={1000}
-              className="rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim"
+              className="rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-all focus:border-registan-dim focus:outline-none focus:ring-2 focus:ring-registan/20"
             />
           </label>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-full bg-registan px-4 py-2.5 font-bold text-[#0A2320] transition-colors hover:bg-registan-strong disabled:opacity-50"
-          >
+          <button type="submit" disabled={submitting} className="btn btn-primary">
             {submitting ? t("creating") : t("create")}
           </button>
           {error ? <p className="text-sm text-pomegranate">{error}</p> : null}
@@ -167,10 +163,7 @@ export default function OrganizerPage() {
           </h1>
           <p className="text-sm text-dust">{t("yourEvents")}</p>
         </div>
-        <Link
-          href="/organizer/events/new"
-          className="rounded-full bg-registan px-4 py-2.5 text-sm font-bold text-[#0A2320] transition-colors hover:bg-registan-strong"
-        >
+        <Link href="/organizer/events/new" className="btn btn-primary btn-sm">
           {t("newEvent")}
         </Link>
       </div>
@@ -264,7 +257,7 @@ export default function OrganizerPage() {
                   <select
                     value={c.language ?? ""}
                     onChange={(e) => setChannelLanguage(c.id, e.target.value)}
-                    className="rounded-lg border border-line bg-ink-raised px-2 py-1 text-xs text-bone transition-colors focus:border-registan-dim"
+                    className="rounded-lg border border-line bg-ink-raised px-2 py-1 text-xs text-bone transition-all focus:border-registan-dim focus:outline-none focus:ring-2 focus:ring-registan/20"
                     aria-label={t("channelLanguageLabel")}
                   >
                     <option value="">{t("channelLanguageDefault")}</option>

@@ -30,6 +30,13 @@ export type MetaItem = {
   nameEn: string;
 };
 
+/** Picks the city/category display name matching the active locale. */
+export function metaName(item: MetaItem, locale: string): string {
+  if (locale === "ru") return item.nameRu;
+  if (locale === "uz") return item.nameUz;
+  return item.nameEn;
+}
+
 /** Raw payload delivered by the Telegram Login Widget callback. */
 export type TelegramAuthFields = Record<string, string>;
 

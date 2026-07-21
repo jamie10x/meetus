@@ -79,10 +79,7 @@ export default function Header() {
               </button>
             </>
           ) : (
-            <Link
-              href="/login"
-              className="rounded-full bg-registan px-4 py-2 text-sm font-bold text-[#0A2320] shadow-[0_8px_22px_-8px_rgba(24,173,160,0.55)] transition-colors hover:bg-registan-strong"
-            >
+            <Link href="/login" className="btn btn-primary btn-sm">
               {t("signIn")}
             </Link>
           )}

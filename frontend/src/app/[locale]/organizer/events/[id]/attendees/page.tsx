@@ -100,7 +100,7 @@ export default function AttendeesPage({
               a.click();
               URL.revokeObjectURL(url);
             }}
-            className="rounded-lg border border-line px-3 py-1 text-xs font-medium text-dust transition-colors hover:border-registan-strong hover:text-registan-strong"
+            className="btn btn-outline btn-outline-neutral btn-sm"
           >
             {t("exportCsv")}
           </button>

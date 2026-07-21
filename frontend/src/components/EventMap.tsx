@@ -9,13 +9,13 @@ import type { EventItem } from "@/lib/types";
 import { formatEventDate } from "@/components/EventCard";
 import { useLocale, useTranslations } from "next-intl";
 
-// A small brand-teal dot instead of Leaflet's default blue/gold pin —
+// A small brand-blue dot instead of Leaflet's default blue/gold pin —
 // matches the dark theme, and sidesteps the well-known bundler issue
 // where Leaflet's default marker icons resolve to broken relative image
 // URLs (no image assets needed here at all).
 const markerIcon = L.divIcon({
   className: "",
-  html: '<span style="display:block;width:14px;height:14px;border-radius:9999px;background:#3fd8c9;border:2px solid #160f16;box-shadow:0 0 0 3px rgba(63,216,201,0.28)"></span>',
+  html: '<span style="display:block;width:14px;height:14px;border-radius:9999px;background:#5b9dff;border:2px solid #070b16;box-shadow:0 0 0 3px rgba(91,157,255,0.28)"></span>',
   iconSize: [14, 14],
   iconAnchor: [7, 7],
 });
@@ -51,7 +51,7 @@ export default function EventMap({ events }: Props) {
       <MapContainer
         center={[located[0].lat, located[0].lng]}
         zoom={12}
-        style={{ height: "100%", width: "100%", background: "#160f16" }}
+        style={{ height: "100%", width: "100%", background: "#070b16" }}
       >
         {/* CARTO's free dark basemap — matches the site's dark theme far
             better than stock OpenStreetMap tiles; still built on OSM data,

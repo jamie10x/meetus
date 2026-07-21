@@ -24,7 +24,7 @@ export async function GET(
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#160f16",
+          background: "#070b16",
           borderRadius: dimension * 0.18,
         }}
       >
@@ -35,7 +35,7 @@ export async function GET(
             fontWeight: 900,
             fontFamily: "sans-serif",
             fontStyle: "italic",
-            color: "#3fd8c9",
+            color: "#5b9dff",
           }}
         >
           M

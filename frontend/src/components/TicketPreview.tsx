@@ -59,7 +59,7 @@ export default async function TicketPreview({
         <span className="font-mono text-xs text-dust">
           {tEventCard("going", { count: event.goingCount })}
         </span>
-        <span className="rounded-full bg-registan px-4 py-2 text-xs font-bold text-[#0A2320]">
+        <span className="btn btn-primary btn-sm">
           {t("ticketPreviewCta")}
         </span>
       </div>

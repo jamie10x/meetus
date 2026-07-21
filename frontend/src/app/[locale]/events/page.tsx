@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import EventCard from "@/components/EventCard";
 import TrendingSection from "@/components/TrendingSection";
 import { api } from "@/lib/api";
-import type { EventItem, MetaItem } from "@/lib/types";
+import { metaName, type EventItem, type MetaItem } from "@/lib/types";
 
 // Leaflet touches `window` at import time, so the map view can only ever
 // render client-side — ssr: false keeps it out of the server bundle
@@ -54,16 +54,17 @@ function presetRange(preset: DatePreset): { from?: string; to?: string } {
 }
 
 const selectCls =
-  "rounded-full border border-line bg-ink-raised px-4 py-2 text-sm font-medium text-dust transition-colors hover:text-bone";
+  "rounded-full border border-line bg-ink-raised px-4 py-2 text-sm font-medium text-dust transition-all hover:text-bone focus:border-registan-dim focus:text-bone focus:outline-none focus:ring-2 focus:ring-registan/20";
 const chipCls = (active: boolean) =>
-  `shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+  `shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition-all ${
     active
-      ? "border-registan bg-registan text-[#0A2320]"
+      ? "border-registan bg-gradient-to-br from-registan to-registan-dim text-[#f8fbff] shadow-[0_6px_18px_-8px_rgba(47,111,235,0.7)]"
       : "border-line bg-ink-raised text-dust hover:border-registan-dim hover:text-bone"
   }`;
 
 export default function ExplorePage() {
   const t = useTranslations("explore");
+  const locale = useLocale();
   const [cities, setCities] = useState<MetaItem[]>([]);
   const [categories, setCategories] = useState<MetaItem[]>([]);
 
@@ -160,7 +161,7 @@ export default function ExplorePage() {
               <option value="">{t("allCities")}</option>
               {cities.map((c) => (
                 <option key={c.id} value={c.slug}>
-                  {c.nameEn}
+                  {metaName(c, locale)}
                 </option>
               ))}
             </select>
@@ -176,7 +177,7 @@ export default function ExplorePage() {
                 onClick={() => setCategory(c.slug)}
                 className={chipCls(category === c.slug)}
               >
-                {c.nameEn}
+                {metaName(c, locale)}
               </button>
             ))}
           </div>
@@ -253,10 +254,7 @@ export default function ExplorePage() {
             )}
 
             {nextCursor ? (
-              <button
-                onClick={loadMore}
-                className="mx-auto mt-8 block rounded-full border border-line px-6 py-2.5 text-sm font-bold text-bone transition-colors hover:border-registan-strong hover:text-registan-strong"
-              >
+              <button onClick={loadMore} className="btn btn-secondary mx-auto mt-8 block">
                 {t("loadMore")}
               </button>
             ) : null}

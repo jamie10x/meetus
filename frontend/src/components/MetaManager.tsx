@@ -86,9 +86,8 @@ export default function MetaManager({ resource, heading }: Props) {
   };
 
   const inputCls =
-    "rounded-lg border border-line bg-ink-raised px-2 py-1 text-sm text-bone placeholder:text-dust-dim transition-colors focus:border-registan-dim";
-  const btn =
-    "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors";
+    "rounded-lg border border-line bg-ink-raised px-2 py-1 text-sm text-bone placeholder:text-dust-dim transition-all focus:border-registan-dim focus:outline-none focus:ring-2 focus:ring-registan/20";
+  const btn = "btn btn-outline btn-sm";
 
   const formRow = (
     <li className="flex flex-wrap items-center gap-2 p-3">
@@ -118,13 +117,13 @@ export default function MetaManager({ resource, heading }: Props) {
       />
       <button
         onClick={save}
-        className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12]`}
+        className={`${btn} btn-outline-accent`}
       >
         {t("metaSave")}
       </button>
       <button
         onClick={cancel}
-        className={`${btn} border-line text-dust hover:border-registan-strong hover:text-registan-strong`}
+        className={`${btn} btn-outline-neutral`}
       >
         {t("metaCancel")}
       </button>
@@ -137,7 +136,7 @@ export default function MetaManager({ resource, heading }: Props) {
         <h2 className="text-lg font-semibold text-bone">{heading}</h2>
         <button
           onClick={startAdd}
-          className={`${btn} border-registan-dim text-registan-strong hover:bg-registan/[0.12]`}
+          className={`${btn} btn-outline-accent`}
         >
           {t("metaAdd")}
         </button>
@@ -157,13 +156,13 @@ export default function MetaManager({ resource, heading }: Props) {
               </span>
               <button
                 onClick={() => startEdit(item)}
-                className={`${btn} border-line text-dust hover:border-registan-strong hover:text-registan-strong`}
+                className={`${btn} btn-outline-neutral`}
               >
                 {t("metaEdit")}
               </button>
               <button
                 onClick={() => remove(item.id)}
-                className={`${btn} border-pomegranate/35 text-pomegranate hover:bg-pomegranate/[0.12]`}
+                className={`${btn} btn-outline-danger`}
               >
                 {t("metaDelete")}
               </button>

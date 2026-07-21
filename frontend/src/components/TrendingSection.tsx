@@ -43,7 +43,7 @@ export default function TrendingSection({ city, limit = 6 }: Props) {
   return (
     <section className="mb-12">
       <div className="mb-2 flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-[0.14em] text-registan-strong">
-        <span className="h-1.5 w-1.5 rounded-full bg-registan-strong shadow-[0_0_0_3px_rgba(24,173,160,0.16)]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-registan-strong shadow-[0_0_0_3px_rgba(47,111,235,0.22)]" />
         {t("title")}
       </div>
       <div className="-mx-1 flex snap-x snap-proximity gap-4 overflow-x-auto px-1 pb-3 [scrollbar-width:thin]">

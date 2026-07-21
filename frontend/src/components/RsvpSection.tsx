@@ -153,7 +153,7 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
           <button
             onClick={leave}
             disabled={busy}
-            className="text-sm text-dust transition-colors hover:text-pomegranate disabled:opacity-50"
+            className="btn btn-danger-ghost btn-sm"
           >
             {t("cancel")}
           </button>
@@ -164,7 +164,7 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
           <button
             onClick={leave}
             disabled={busy}
-            className="text-sm text-dust transition-colors hover:text-pomegranate disabled:opacity-50"
+            className="btn btn-danger-ghost btn-sm"
           >
             {t("leaveWaitlist")}
           </button>
@@ -177,7 +177,7 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
         <button
           onClick={join}
           disabled={busy}
-          className="w-full rounded-full bg-registan px-6 py-3.5 text-lg font-bold text-[#0A2320] shadow-[0_8px_22px_-8px_rgba(24,173,160,0.55)] transition-colors hover:bg-registan-strong disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+          className="btn btn-primary w-full text-lg"
         >
           {busy ? t("joining") : isFull ? t("joinWaitlist") : t("joinEvent")}
         </button>

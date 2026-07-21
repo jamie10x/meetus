@@ -32,14 +32,14 @@ export default async function HomePage() {
           className="pointer-events-none absolute -inset-x-[10%] -top-[20%] -z-10 h-[640px] blur-sm"
           style={{
             background:
-              "radial-gradient(480px 380px at 12% 20%, rgba(24,173,160,0.24), transparent 65%)," +
-              "radial-gradient(420px 340px at 88% 10%, rgba(242,167,59,0.16), transparent 65%)",
+              "radial-gradient(520px 420px at 12% 20%, rgba(47,111,235,0.30), transparent 65%)," +
+              "radial-gradient(420px 340px at 88% 10%, rgba(242,178,59,0.14), transparent 65%)",
           }}
         />
         <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-5 lg:grid-cols-[1.15fr_0.85fr]">
           <div>
             <p className="flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-[0.14em] text-registan-strong">
-              <span className="h-1.5 w-1.5 rounded-full bg-registan-strong shadow-[0_0_0_3px_rgba(24,173,160,0.16)]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-registan-strong shadow-[0_0_0_3px_rgba(47,111,235,0.22)]" />
               {t("eyebrow")}
             </p>
             <h1 className="mt-4 text-[clamp(2.5rem,4.6vw+1rem,4.35rem)] font-black leading-[0.98] tracking-tight text-bone">
@@ -52,10 +52,7 @@ export default async function HomePage() {
               {t("subtitle")}
             </p>
             <div className="mt-8 flex flex-wrap gap-3.5">
-              <Link
-                href="/events"
-                className="rounded-full bg-registan px-6 py-3 text-base font-bold text-[#0A2320] shadow-[0_8px_22px_-8px_rgba(24,173,160,0.55)] transition-colors hover:bg-registan-strong"
-              >
+              <Link href="/events" className="btn btn-primary text-base">
                 {t("exploreEvents")}
               </Link>
               <HeroSignInCta />
