@@ -40,6 +40,9 @@
   },
   "profile": {
     "title": "Your profile",
+    "changePhoto": "Change photo",
+    "uploading": "Uploading…",
+    "avatarUploadFailed": "Upload failed.",
     "name": "Name",
     "city": "City",
     "cityNotSet": "Not set",

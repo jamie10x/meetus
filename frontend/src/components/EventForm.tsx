@@ -2,8 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import dynamic from "next/dynamic";
 import { api, uploadImage, ApiError } from "@/lib/api";
 import { metaName, type EventInput, type EventItem, type MetaItem } from "@/lib/types";
+import DateTimeField from "@/components/DateTimeField";
+
+// Leaflet touches `window` at import time — ssr: false keeps it out of
+// the server bundle, same pattern as the Explore page's EventMap.
+const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
+  ssr: false,
+  loading: () => (
+    <div
+      style={{ height: 260 }}
+      className="w-full rounded-xl border border-line bg-ink-overlay"
+    />
+  ),
+});
 
 type Props = {
   initial?: EventItem;
@@ -238,6 +252,14 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
               </button>
             </div>
             <p className="text-xs text-dust-dim">{t("coordinatesHint")}</p>
+            <LocationPicker
+              lat={lat ? Number(lat) : null}
+              lng={lng ? Number(lng) : null}
+              onChange={(newLat, newLng) => {
+                setLat(String(newLat));
+                setLng(String(newLng));
+              }}
+            />
             <div className="grid grid-cols-2 gap-4">
               <input
                 type="number"
@@ -264,25 +286,14 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-4">
-        <label className={labelCls}>
+      <div className="flex flex-col gap-4 sm:flex-row">
+        <label className={`${labelCls} flex-1`}>
           {t("startsAt")}
-          <input
-            type="datetime-local"
-            value={startsAt}
-            onChange={(e) => setStartsAt(e.target.value)}
-            required
-            className={inputCls}
-          />
+          <DateTimeField value={startsAt} onChange={setStartsAt} required />
         </label>
-        <label className={labelCls}>
+        <label className={`${labelCls} flex-1`}>
           {t("endsAtOptional")}
-          <input
-            type="datetime-local"
-            value={endsAt}
-            onChange={(e) => setEndsAt(e.target.value)}
-            className={inputCls}
-          />
+          <DateTimeField value={endsAt} onChange={setEndsAt} min={startsAt} />
         </label>
       </div>
 

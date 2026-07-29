@@ -38,10 +38,11 @@ func (h *Handler) getMe(c *gin.Context) {
 }
 
 type updateMeRequest struct {
-	Name     *string `json:"name"`
-	CityID   *int32  `json:"cityId"`
-	District *string `json:"district"`
-	Language *string `json:"language"`
+	Name      *string `json:"name"`
+	CityID    *int32  `json:"cityId"`
+	District  *string `json:"district"`
+	Language  *string `json:"language"`
+	AvatarURL *string `json:"avatarUrl"`
 }
 
 func (h *Handler) updateMe(c *gin.Context) {
@@ -58,12 +59,17 @@ func (h *Handler) updateMe(c *gin.Context) {
 		httpx.Error(c, apperr.Validation("language must be one of: uz, ru, en"))
 		return
 	}
+	if req.AvatarURL != nil && *req.AvatarURL == "" {
+		httpx.Error(c, apperr.Validation("avatarUrl cannot be empty"))
+		return
+	}
 
 	u, err := h.repo.UpdateProfile(c.Request.Context(), authn.UserID(c), ProfileUpdate{
-		Name:     req.Name,
-		CityID:   req.CityID,
-		District: req.District,
-		Language: req.Language,
+		Name:      req.Name,
+		CityID:    req.CityID,
+		District:  req.District,
+		Language:  req.Language,
+		AvatarURL: req.AvatarURL,
 	})
 	if err != nil {
 		httpx.Error(c, err)

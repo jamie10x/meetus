@@ -52,8 +52,11 @@ Body: `{ "refreshToken": "..." }` → `data`: `{ "loggedOut": true }`. Idempoten
 → `data`: user object (shape above).
 
 ### PATCH /me (auth)
-Body (all optional): `{ "name", "cityId", "district", "language" }`.
-`language` ∈ `uz | ru | en`. → `data`: updated user.
+Body (all optional): `{ "name", "cityId", "district", "language", "avatarUrl" }`.
+`language` ∈ `uz | ru | en`. `avatarUrl` (upload it first via
+[POST /uploads](#post-uploads)) marks the avatar as user-set — a later
+Telegram login will no longer overwrite it with the Telegram profile photo.
+→ `data`: updated user.
 
 ## Meta
 

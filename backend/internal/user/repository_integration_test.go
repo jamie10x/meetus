@@ -52,3 +52,58 @@ func TestUpsertTelegramUser_LanguageSetOnInsertOnly(t *testing.T) {
 		t.Errorf("language after second upsert = %q, want unchanged %q", u2.Language, "ru")
 	}
 }
+
+// TestUpsertTelegramUser_CustomAvatarNotOverwritten guards the same class
+// of bug for avatars: once a user uploads their own picture via PATCH /me
+// (UpdateProfile with AvatarURL set), a later Telegram login must not
+// silently replace it with the Telegram profile photo.
+func TestUpsertTelegramUser_CustomAvatarNotOverwritten(t *testing.T) {
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
+	if err != nil {
+		t.Skipf("postgres unavailable: %v", err)
+	}
+	t.Cleanup(pool.Close)
+
+	const telegramID = 900000102
+	t.Cleanup(func() {
+		pool.Exec(ctx, `DELETE FROM users WHERE telegram_id = $1`, telegramID)
+	})
+
+	repo := NewRepository(pool)
+
+	u1, err := repo.UpsertTelegramUser(ctx, TelegramProfile{
+		TelegramID: telegramID, Name: "Avatar Test", Language: "en",
+		AvatarURL: "https://t.me/telegram-photo.jpg",
+	})
+	if err != nil {
+		t.Fatalf("first upsert: %v", err)
+	}
+	if u1.AvatarURL == nil || *u1.AvatarURL != "https://t.me/telegram-photo.jpg" {
+		t.Fatalf("avatar after insert = %v, want telegram photo", u1.AvatarURL)
+	}
+
+	customURL := "https://meetus.uz/uploads/custom.jpg"
+	u2, err := repo.UpdateProfile(ctx, u1.ID, ProfileUpdate{AvatarURL: &customURL})
+	if err != nil {
+		t.Fatalf("update profile: %v", err)
+	}
+	if u2.AvatarURL == nil || *u2.AvatarURL != customURL {
+		t.Fatalf("avatar after custom upload = %v, want %q", u2.AvatarURL, customURL)
+	}
+
+	u3, err := repo.UpsertTelegramUser(ctx, TelegramProfile{
+		TelegramID: telegramID, Name: "Avatar Test", Language: "en",
+		AvatarURL: "https://t.me/a-newer-telegram-photo.jpg",
+	})
+	if err != nil {
+		t.Fatalf("second upsert: %v", err)
+	}
+	if u3.AvatarURL == nil || *u3.AvatarURL != customURL {
+		t.Errorf("avatar after later login = %v, want unchanged custom %q", u3.AvatarURL, customURL)
+	}
+}

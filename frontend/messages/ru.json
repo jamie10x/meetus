@@ -40,6 +40,9 @@
   },
   "profile": {
     "title": "Ваш профиль",
+    "changePhoto": "Изменить фото",
+    "uploading": "Загрузка…",
+    "avatarUploadFailed": "Не удалось загрузить файл.",
     "name": "Имя",
     "city": "Город",
     "cityNotSet": "Не указан",

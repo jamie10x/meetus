@@ -38,13 +38,21 @@ func (r *Repository) UpsertTelegramUser(ctx context.Context, p TelegramProfile) 
 	// language is set from $5 on INSERT only — deliberately absent from
 	// the DO UPDATE SET list, so an existing user's language choice is
 	// never overwritten by a later login.
+	//
+	// avatar_url only re-syncs from Telegram while avatar_is_custom is
+	// false — once a user uploads their own picture via PATCH /me
+	// (which flips avatar_is_custom to true), later logins must not
+	// clobber it with their Telegram photo.
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO users (telegram_id, name, username, avatar_url, language)
 		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), $5)
 		ON CONFLICT (telegram_id) DO UPDATE SET
 			name       = EXCLUDED.name,
 			username   = COALESCE(EXCLUDED.username, users.username),
-			avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
+			avatar_url = CASE
+				WHEN users.avatar_is_custom THEN users.avatar_url
+				ELSE COALESCE(EXCLUDED.avatar_url, users.avatar_url)
+			END,
 			updated_at = now()
 		RETURNING `+userColumns,
 		p.TelegramID, p.Name, p.Username, p.AvatarURL, p.Language)
@@ -69,23 +77,26 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*User, error) {
 }
 
 type ProfileUpdate struct {
-	Name     *string
-	CityID   *int32
-	District *string
-	Language *string
+	Name      *string
+	CityID    *int32
+	District  *string
+	Language  *string
+	AvatarURL *string
 }
 
 func (r *Repository) UpdateProfile(ctx context.Context, id int64, p ProfileUpdate) (*User, error) {
 	row := r.pool.QueryRow(ctx, `
 		UPDATE users SET
-			name       = COALESCE($2, name),
-			city_id    = COALESCE($3, city_id),
-			district   = COALESCE($4, district),
-			language   = COALESCE($5, language),
-			updated_at = now()
+			name             = COALESCE($2, name),
+			city_id          = COALESCE($3, city_id),
+			district         = COALESCE($4, district),
+			language         = COALESCE($5, language),
+			avatar_url       = COALESCE($6, avatar_url),
+			avatar_is_custom = CASE WHEN $6 IS NOT NULL THEN true ELSE avatar_is_custom END,
+			updated_at       = now()
 		WHERE id = $1
 		RETURNING `+userColumns,
-		id, p.Name, p.CityID, p.District, p.Language)
+		id, p.Name, p.CityID, p.District, p.Language, p.AvatarURL)
 
 	u, err := scanUser(row)
 	if errors.Is(err, pgx.ErrNoRows) {

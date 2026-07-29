@@ -40,6 +40,9 @@
   },
   "profile": {
     "title": "Profilingiz",
+    "changePhoto": "Rasmni o'zgartirish",
+    "uploading": "Yuklanmoqda…",
+    "avatarUploadFailed": "Yuklab bo'lmadi.",
     "name": "Ism",
     "city": "Shahar",
     "cityNotSet": "Belgilanmagan",
