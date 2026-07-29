@@ -19,9 +19,6 @@ export default function Header() {
         >
           <span className="mr-1.5 text-registan-strong">✳</span>
           <span className="italic">Meetus</span>
-          <span className="ml-1 hidden font-mono text-xs font-medium text-atlas sm:inline">
-            .uz
-          </span>
         </Link>
 
         <nav className="flex items-center gap-5 text-sm">
