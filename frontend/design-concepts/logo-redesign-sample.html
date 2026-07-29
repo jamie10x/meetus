@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meetus.uz — logo-driven redesign concept</title>
+<script>
+  // Set the theme before first paint so there's no light/dark flash.
+  (function () {
+    try {
+      var saved = localStorage.getItem("meetus-concept-theme");
+      var theme = saved || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+      document.documentElement.setAttribute("data-theme", theme);
+    } catch (e) {
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  })();
+</script>
+<style>
+  /* ============================================================
+     Tokens — same names in both themes, values swap. Extracted
+     from the new heart/"M" logo: pink-red → orange-red gradient,
+     white mark, warm neutrals either side of it.
+     ============================================================ */
+  :root {
+    --ink: #12080a;
+    --ink-raised: #1d1013;
+    --ink-overlay: #2a181c;
+    --line: #3a2226;
+    --bone: #fbeeee;
+    --dust: #c4a0a4;
+    --dust-dim: #8a6266;
+    --ember: #f5342f;
+    --ember-strong: #ff5c74;
+    --ember-dim: #5c1418;
+    --ember-link: #ff8a97;
+    --atlas: #f2b23b;
+    --atlas-dim: #b8811f;
+    --rust: #e0692f;
+    --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.5), 0 18px 40px -20px rgba(10, 3, 4, 0.8);
+    --shadow-glow: 0 10px 32px -8px rgba(245, 52, 47, 0.55);
+    --shadow-glow-strong: 0 14px 42px -6px rgba(255, 92, 116, 0.55);
+    color-scheme: dark;
+  }
+  :root[data-theme="light"] {
+    --ink: #fff9f7;
+    --ink-raised: #ffffff;
+    --ink-overlay: #fbeeee;
+    --line: #ecdada;
+    --bone: #2a1216;
+    --dust: #7c6266;
+    --dust-dim: #a98d90;
+    --ember: #f5342f;
+    --ember-strong: #ff4d6a;
+    --ember-dim: #8a1620;
+    --ember-link: #d81f3a;
+    --atlas: #c98a1f;
+    --atlas-dim: #8f6315;
+    --rust: #c8501f;
+    --shadow-card: 0 1px 0 rgba(42, 18, 22, 0.04), 0 18px 40px -22px rgba(42, 18, 22, 0.22);
+    --shadow-glow: 0 10px 28px -8px rgba(245, 52, 47, 0.35);
+    --shadow-glow-strong: 0 14px 36px -6px rgba(255, 77, 106, 0.4);
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--ink);
+    color: var(--bone);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    transition: background-color 0.25s ease, color 0.25s ease;
+    overflow-x: hidden;
+  }
+  h1, h2, h3 {
+    font-family: Georgia, "Iowan Old Style", ui-serif, serif;
+    font-weight: 700;
+    text-wrap: balance;
+    margin: 0;
+  }
+  a { color: inherit; text-decoration: none; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  ::selection { background: var(--ember); color: #fff5f5; }
+
+  /* ---------- theme toggle ---------- */
+  .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--ink-raised);
+    border: 1px solid var(--line);
+    color: var(--dust);
+    padding: 8px 14px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--shadow-card);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .theme-toggle:hover { color: var(--bone); border-color: var(--ember-dim); }
+  .theme-toggle .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--ember-strong), var(--ember));
+  }
+
+  /* ---------- header ---------- */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: color-mix(in srgb, var(--ink) 92%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  header .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    height: 68px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+  .brand svg { width: 30px; height: 30px; flex-shrink: 0; display: block; }
+  .brand .word { font-family: Georgia, ui-serif, serif; font-style: italic; font-weight: 700; font-size: 20px; color: var(--bone); }
+  nav { display: flex; align-items: center; gap: 18px; font-size: 14px; flex-wrap: wrap; justify-content: flex-end; row-gap: 10px; }
+  nav a.navlink { color: var(--dust); transition: color 0.15s ease; }
+  nav a.navlink:hover { color: var(--bone); }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 100px;
+    font-weight: 700;
+    white-space: nowrap;
+    padding: 0.7rem 1.5rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 14px;
+    transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease,
+      background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-sm { padding: 0.5rem 1.1rem; font-size: 13px; }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--ember-dim) 0%, var(--ember) 55%, var(--ember-strong) 100%);
+    color: #fff5f5;
+    box-shadow: var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+  .btn-primary:hover { filter: brightness(1.08); box-shadow: var(--shadow-glow-strong), inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+
+  .btn-secondary {
+    background: var(--ink-raised);
+    border-color: var(--line);
+    color: var(--bone);
+  }
+  .btn-secondary:hover { border-color: var(--ember-dim); color: var(--ember-link); background: var(--ink-overlay); }
+
+  .btn-outline {
+    border-radius: 8px;
+    padding: 0.45rem 0.9rem;
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+  }
+  .btn-outline-accent { border-color: var(--ember-dim); color: var(--ember-link); }
+  .btn-outline-accent:hover { background: color-mix(in srgb, var(--ember) 14%, transparent); }
+  .btn-outline-neutral { border-color: var(--line); color: var(--dust); }
+  .btn-outline-neutral:hover { border-color: var(--ember-link); color: var(--ember-link); }
+  .btn-outline-danger { border-color: color-mix(in srgb, var(--rust) 40%, transparent); color: var(--rust); }
+  .btn-outline-danger:hover { background: color-mix(in srgb, var(--rust) 14%, transparent); }
+
+  /* ---------- hero ---------- */
+  .hero { position: relative; padding: 88px 0 64px; }
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: -20px 0 auto 0;
+    height: 480px;
+    z-index: -1;
+    background:
+      radial-gradient(55% 60% at 15% 0%, color-mix(in srgb, var(--ember) 22%, transparent), transparent 65%),
+      radial-gradient(45% 50% at 100% 30%, color-mix(in srgb, var(--atlas) 14%, transparent), transparent 65%);
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: ui-monospace, monospace; font-size: 12px; letter-spacing: 0.04em;
+    color: var(--dust); text-transform: uppercase; margin-bottom: 18px;
+  }
+  .eyebrow .pip {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ember-strong);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--ember) 22%, transparent);
+  }
+  .hero h1 { font-size: clamp(2.4rem, 3.4vw + 1rem, 3.6rem); color: var(--bone); line-height: 1.05; }
+  .hero h1 em { font-style: italic; background: linear-gradient(135deg, var(--ember-strong), var(--ember)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p.sub { max-width: 560px; margin: 20px 0 30px; color: var(--dust); font-size: 1.05rem; line-height: 1.6; }
+  .hero .ctas { display: flex; gap: 14px; flex-wrap: wrap; }
+
+  /* ---------- section heading ---------- */
+  .section-title { font-size: 1.5rem; color: var(--bone); margin: 64px 0 22px; }
+
+  /* ---------- event cards ---------- */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--ink-raised);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+    transition: transform 0.25s ease, border-color 0.25s ease;
+  }
+  .card:hover { transform: translateY(-4px); border-color: var(--ember-dim); }
+  .cover { height: 128px; position: relative; }
+  .cover .tag {
+    position: absolute; left: 10px; top: 10px;
+    font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+    background: color-mix(in srgb, var(--ink) 55%, transparent);
+    border: 1px solid color-mix(in srgb, var(--bone) 20%, transparent);
+    backdrop-filter: blur(4px);
+    padding: 4px 9px; border-radius: 100px;
+    color: var(--bone);
+  }
+  .cover.tech { background: repeating-linear-gradient(120deg, var(--ember-dim) 0 16px, var(--ember) 16px 32px); }
+  .cover.music { background: repeating-radial-gradient(circle at 50% 120%, var(--ember) 0 3px, var(--ember-dim) 3px 14px, color-mix(in srgb, var(--ember) 55%, var(--ember-dim)) 14px 26px); }
+  .cover.outdoor { background: linear-gradient(200deg, var(--atlas) 0%, var(--atlas-dim) 40%, var(--ember-dim) 100%); }
+  .card-body { padding: 16px; display: flex; flex-direction: column; gap: 9px; }
+  .card-date { font-size: 12px; font-weight: 600; color: var(--ember-link); font-family: ui-monospace, monospace; }
+  .card-title { font-size: 16px; font-weight: 700; color: var(--bone); font-family: system-ui, sans-serif; line-height: 1.35; }
+  .card-meta { font-size: 13px; color: var(--dust); }
+  .card-foot { display: flex; justify-content: space-between; align-items: center; padding-top: 9px; border-top: 1px solid var(--line); font-size: 12px; color: var(--dust); font-family: ui-monospace, monospace; }
+
+  /* ---------- button showcase ---------- */
+  .showcase-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 20px; background: var(--ink-overlay); border: 1px solid var(--line); border-radius: 16px; }
+
+  /* ---------- form ---------- */
+  .form-card { background: var(--ink-raised); border: 1px solid var(--line); border-radius: 16px; padding: 24px; max-width: 480px; }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; font-size: 13px; font-weight: 600; color: var(--dust); }
+  .field input, .field select {
+    font-family: inherit; font-size: 14px; color: var(--bone);
+    background: var(--ink-overlay); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .field input::placeholder { color: var(--dust-dim); }
+  .field input:focus, .field select:focus {
+    border-color: var(--ember-dim);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ember) 20%, transparent);
+  }
+
+  /* ---------- footer ---------- */
+  footer { margin-top: 90px; border-top: 1px solid var(--line); padding: 36px 0 60px; }
+  footer .brand { margin-bottom: 8px; }
+  footer p { color: var(--dust-dim); font-size: 13px; margin: 0; }
+
+  .note {
+    font-size: 12.5px; color: var(--dust-dim); border: 1px dashed var(--line);
+    border-radius: 10px; padding: 10px 14px; margin: 10px 0 0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <a href="#" class="brand">
+      <svg viewBox="0 0 240 240" aria-hidden="true" shape-rendering="geometricPrecision">
+        <defs>
+          <linearGradient id="heartGrad" x1="10" y1="10" x2="230" y2="230" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#ff5c74" />
+            <stop offset="100%" stop-color="#f5342f" />
+          </linearGradient>
+        </defs>
+        <circle cx="78" cy="48" r="33" fill="url(#heartGrad)" />
+        <circle cx="162" cy="48" r="33" fill="url(#heartGrad)" />
+        <path d="M120,232 C60,185 20,145 20,98 C20,58 50,28 82,28 C104,28 120,38 120,46 C120,38 136,28 158,28 C190,28 220,58 220,98 C220,145 180,185 120,232 Z" fill="url(#heartGrad)" />
+        <path d="M 95,190 L 95,100 L 120,150 L 145,100 L 145,190" fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <span class="word">Meetus</span>
+    </a>
+    <nav>
+      <a href="#" class="navlink">Explore</a>
+      <a href="#" class="navlink">Tickets</a>
+      <a href="#" class="navlink">Organize</a>
+      <a href="#" class="btn btn-primary btn-sm">Sign in</a>
+      <button class="theme-toggle" id="themeToggle" type="button">
+        <span class="dot"></span>
+        <span id="themeToggleLabel">Light mode</span>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <span class="eyebrow"><span class="pip"></span>Telegram-native · Always free</span>
+    <h1>Find your people in<br /><em>Uzbekistan</em></h1>
+    <p class="sub">Discover meetups, workshops, and communities near you. RSVP in one click, get your QR ticket, and show up.</p>
+    <div class="ctas">
+      <a href="#" class="btn btn-primary">Explore events</a>
+      <a href="#" class="btn btn-secondary">Sign in</a>
+    </div>
+  </section>
+
+  <h2 class="section-title">Trending this week</h2>
+  <div class="grid">
+    <article class="card">
+      <div class="cover tech"><span class="tag">Tech</span></div>
+      <div class="card-body">
+        <span class="card-date">Sat, Aug 1 · 6:00 PM</span>
+        <h3 class="card-title">Go Meetup #1</h3>
+        <p class="card-meta">Impact Hub · Tashkent Go Community</p>
+        <div class="card-foot"><span>42 going</span><span>8 spots left</span></div>
+      </div>
+    </article>
+    <article class="card">
+      <div class="cover music"><span class="tag">Music</span></div>
+      <div class="card-body">
+        <span class="card-date">Sun, Aug 2 · 8:00 PM</span>
+        <h3 class="card-title">Rooftop Jazz Night</h3>
+        <p class="card-meta">Bukhara Terrace · Silk Sessions</p>
+        <div class="card-foot"><span>67 going</span><span>Online</span></div>
+      </div>
+    </article>
+    <article class="card">
+      <div class="cover outdoor"><span class="tag">Travel &amp; Outdoor</span></div>
+      <div class="card-body">
+        <span class="card-date">Sat, Aug 8 · 6:00 AM</span>
+        <h3 class="card-title">Chimgan Sunrise Hike</h3>
+        <p class="card-meta">Chimgan · Tashkent Trailrunners</p>
+        <div class="card-foot"><span>19 going</span><span>3 spots left</span></div>
+      </div>
+    </article>
+  </div>
+
+  <h2 class="section-title">Buttons</h2>
+  <div class="showcase-row">
+    <a href="#" class="btn btn-primary">Join event</a>
+    <a href="#" class="btn btn-secondary">Add to calendar</a>
+    <a href="#" class="btn btn-outline btn-outline-accent">Verify</a>
+    <a href="#" class="btn btn-outline btn-outline-neutral">Unpublish</a>
+    <a href="#" class="btn btn-outline btn-outline-danger">Cancel event</a>
+  </div>
+
+  <h2 class="section-title">Form</h2>
+  <div class="form-card">
+    <label class="field">
+      Title
+      <input type="text" placeholder="e.g. Go Meetup #2" />
+    </label>
+    <label class="field">
+      Category
+      <select>
+        <option>Tech</option>
+        <option>Music</option>
+        <option>Travel &amp; Outdoor</option>
+      </select>
+    </label>
+    <a href="#" class="btn btn-primary" style="width: 100%;">Create draft</a>
+  </div>
+  <p class="note">Logo mark above is recreated from your reference image (no source file was available in this session) — swap in your actual SVG/PNG once you share it, everything else here already reads its colors from CSS tokens.</p>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="brand">
+      <svg viewBox="0 0 240 240" width="20" height="20" aria-hidden="true" shape-rendering="geometricPrecision">
+        <circle cx="78" cy="48" r="33" fill="url(#heartGrad)" />
+        <circle cx="162" cy="48" r="33" fill="url(#heartGrad)" />
+        <path d="M120,232 C60,185 20,145 20,98 C20,58 50,28 82,28 C104,28 120,38 120,46 C120,38 136,28 158,28 C190,28 220,58 220,98 C220,145 180,185 120,232 Z" fill="url(#heartGrad)" />
+        <path d="M 95,190 L 95,100 L 120,150 L 145,100 L 145,190" fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <span class="word">Meetus</span>
+    </div>
+    <p>Discover meetups, workshops, and communities across Uzbekistan — RSVP with Telegram, no passwords.</p>
+  </div>
+</footer>
+
+<script>
+  var root = document.documentElement;
+  var btn = document.getElementById("themeToggle");
+  var label = document.getElementById("themeToggleLabel");
+
+  function sync() {
+    var current = root.getAttribute("data-theme");
+    label.textContent = current === "dark" ? "Light mode" : "Dark mode";
+  }
+  sync();
+
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("meetus-concept-theme", next); } catch (e) {}
+    sync();
+  });
+</script>
+
+</body>
+</html>
