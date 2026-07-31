@@ -81,3 +81,17 @@ export function categoryLabelClass(slug: string): string {
       ? "text-atlas"
       : "text-bone";
 }
+
+const TONE_HEX: Record<"registan" | "atlas" | "bone", string> = {
+  registan: "#5b9dff",
+  atlas: "#f2b23b",
+  bone: "#eef2fb",
+};
+
+/** Same tone as categoryLabelClass, as a raw hex for inline-styled dots
+ * (e.g. category picker chips) where a Tailwind class can't set a
+ * `background` on a decorative child span. */
+export function categoryDotColor(slug: string): string {
+  const tone = CATEGORY_LABEL_TONE[slug] ?? "bone";
+  return TONE_HEX[tone];
+}

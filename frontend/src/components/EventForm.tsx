@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import { api, uploadImage, ApiError } from "@/lib/api";
+import { categoryDotColor } from "@/lib/categoryStyle";
 import { metaName, type EventInput, type EventItem, type MetaItem } from "@/lib/types";
 import DateTimeField from "@/components/DateTimeField";
 
@@ -41,6 +42,25 @@ function toRFC3339(local: string): string {
 const inputCls =
   "rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-all focus:border-registan-dim focus:outline-none focus:ring-2 focus:ring-registan/20";
 const labelCls = "flex flex-col gap-1.5 text-sm font-medium text-dust";
+const sectionTitleCls =
+  "mt-2 border-t border-line pt-5 text-xs font-semibold uppercase tracking-wider text-dust-dim first:mt-0 first:border-t-0 first:pt-0";
+const segBtnCls = (active: boolean) =>
+  `rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
+    active
+      ? "bg-gradient-to-br from-registan to-registan-dim text-[#f8fbff]"
+      : "text-dust hover:text-bone"
+  }`;
+
+/** Small red asterisk after a label for fields that are actually required
+ * — a visual hint only, the real enforcement is each input's `required`. */
+function Req() {
+  return (
+    <span className="text-pomegranate" aria-hidden="true">
+      {" "}
+      *
+    </span>
+  );
+}
 
 export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
   const t = useTranslations("eventForm");
@@ -61,7 +81,6 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
   const [address, setAddress] = useState(initial?.address ?? "");
   const [lat, setLat] = useState(initial?.lat != null ? String(initial.lat) : "");
   const [lng, setLng] = useState(initial?.lng != null ? String(initial.lng) : "");
-  const [locating, setLocating] = useState(false);
   const [isOnline, setIsOnline] = useState(initial?.isOnline ?? false);
   const [startsAt, setStartsAt] = useState(
     initial ? toLocalInput(initial.startsAt) : "",
@@ -69,10 +88,15 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
   const [endsAt, setEndsAt] = useState(toLocalInput(initial?.endsAt ?? null));
   const [repeatsWeekly, setRepeatsWeekly] = useState(false);
   const [recurWeeks, setRecurWeeks] = useState("3");
+  const [capacityMode, setCapacityMode] = useState<"unlimited" | "limited">(
+    initial?.capacity ? "limited" : "unlimited",
+  );
   const [capacity, setCapacity] = useState(
     initial?.capacity ? String(initial.capacity) : "",
   );
   const [coverUrl, setCoverUrl] = useState(initial?.coverUrl ?? "");
+  const [coverPreview, setCoverPreview] = useState<string | null>(initial?.coverUrl ?? null);
+  const [dragActive, setDragActive] = useState(false);
 
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -83,41 +107,37 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
     api<MetaItem[]>("/meta/cities").then(setCities).catch(() => {});
   }, []);
 
-  const handleCover = async (file: File | undefined) => {
+  const handleCoverFile = async (file: File | undefined) => {
     if (!file) return;
+    setCoverPreview(URL.createObjectURL(file));
     setUploading(true);
     setError(null);
     try {
-      setCoverUrl(await uploadImage(file));
+      const url = await uploadImage(file);
+      setCoverUrl(url);
+      setCoverPreview(url);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t("uploadFailed"));
+      setCoverPreview(coverUrl || null);
     } finally {
       setUploading(false);
     }
   };
 
-  const handleUseMyLocation = () => {
-    if (!navigator.geolocation) {
-      setError(t("locationUnavailable"));
-      return;
-    }
-    setLocating(true);
-    setError(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLat(String(pos.coords.latitude));
-        setLng(String(pos.coords.longitude));
-        setLocating(false);
-      },
-      () => {
-        setError(t("locationUnavailable"));
-        setLocating(false);
-      },
-    );
-  };
+  const endBeforeStart = Boolean(
+    startsAt && endsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime(),
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!categoryId) {
+      setError(t("categoryRequired"));
+      return;
+    }
+    if (endBeforeStart) {
+      setError(t("endBeforeStart"));
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -134,7 +154,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         isOnline,
         startsAt: toRFC3339(startsAt),
         endsAt: endsAt ? toRFC3339(endsAt) : null,
-        capacity: capacity ? Number(capacity) : null,
+        capacity: capacityMode === "limited" && capacity ? Number(capacity) : null,
         coverUrl: coverUrl || null,
         ...(!initial && repeatsWeekly ? { recurWeeks: Number(recurWeeks) } : {}),
       });
@@ -146,8 +166,16 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <h2 className={sectionTitleCls}>{t("sectionBasics")}</h2>
+
       <label className={labelCls}>
-        {t("titleLabel")}
+        <span className="flex items-center justify-between">
+          <span>
+            {t("titleLabel")}
+            <Req />
+          </span>
+          <span className="text-xs font-normal text-dust-dim">{title.length}/200</span>
+        </span>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -167,50 +195,63 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         />
       </label>
 
-      <div className="grid grid-cols-2 gap-4">
-        <label className={labelCls}>
-          {t("category")}
-          <select
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            required
-            className={inputCls}
-          >
-            <option value="">{t("chooseOption")}</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
+      <div className={labelCls}>
+        {t("category")}
+        <Req />
+        <div className="flex flex-wrap gap-2">
+          {categories.map((c) => {
+            const active = categoryId === String(c.id);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setCategoryId(String(c.id))}
+                className={`flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-medium transition-all ${
+                  active
+                    ? "border-registan bg-gradient-to-br from-registan to-registan-dim text-[#f8fbff] shadow-[0_6px_18px_-8px_rgba(47,111,235,0.7)]"
+                    : "border-line bg-ink-raised text-dust hover:border-registan-dim hover:text-bone"
+                }`}
+              >
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ background: active ? "#f8fbff" : categoryDotColor(c.slug) }}
+                />
                 {metaName(c, locale)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className={labelCls}>
-          {t("city")}
-          <select
-            value={cityId}
-            onChange={(e) => setCityId(e.target.value)}
-            className={inputCls}
-          >
-            <option value="">{isOnline ? t("notNeeded") : t("chooseOption")}</option>
-            {cities.map((c) => (
-              <option key={c.id} value={c.id}>
-                {metaName(c, locale)}
-              </option>
-            ))}
-          </select>
-        </label>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <label className="flex items-center gap-2 text-sm font-medium text-dust">
-        <input
-          type="checkbox"
-          checked={isOnline}
-          onChange={(e) => setIsOnline(e.target.checked)}
-          className="h-4 w-4 rounded border-line bg-ink-raised accent-registan"
-        />
-        {t("onlineEvent")}
+      <label className={labelCls}>
+        {t("city")}
+        <select
+          value={cityId}
+          onChange={(e) => setCityId(e.target.value)}
+          className={inputCls}
+        >
+          <option value="">{isOnline ? t("notNeeded") : t("chooseOption")}</option>
+          {cities.map((c) => (
+            <option key={c.id} value={c.id}>
+              {metaName(c, locale)}
+            </option>
+          ))}
+        </select>
       </label>
+
+      <h2 className={sectionTitleCls}>{t("sectionLocation")}</h2>
+
+      <div className={labelCls}>
+        {t("locationType")}
+        <div className="inline-flex w-fit rounded-full border border-line bg-ink-raised p-1">
+          <button type="button" onClick={() => setIsOnline(false)} className={segBtnCls(!isOnline)}>
+            {t("locationTypeInPerson")}
+          </button>
+          <button type="button" onClick={() => setIsOnline(true)} className={segBtnCls(isOnline)}>
+            {t("locationTypeOnline")}
+          </button>
+        </div>
+      </div>
 
       {!isOnline ? (
         <div className="grid grid-cols-2 gap-4">
@@ -240,17 +281,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
             />
           </label>
           <div className="col-span-2 flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-dust">{t("coordinates")}</span>
-              <button
-                type="button"
-                onClick={handleUseMyLocation}
-                disabled={locating}
-                className="text-sm font-medium text-registan-dim transition-colors hover:text-registan disabled:opacity-50"
-              >
-                {locating ? t("locating") : t("useMyLocation")}
-              </button>
-            </div>
+            <span className="text-sm font-medium text-dust">{t("coordinates")}</span>
             <p className="text-xs text-dust-dim">{t("coordinatesHint")}</p>
             <LocationPicker
               lat={lat ? Number(lat) : null}
@@ -259,6 +290,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
                 setLat(String(newLat));
                 setLng(String(newLng));
               }}
+              onSelectAddress={setAddress}
             />
             <div className="grid grid-cols-2 gap-4">
               <input
@@ -286,14 +318,20 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         </div>
       ) : null}
 
+      <h2 className={sectionTitleCls}>{t("sectionSchedule")}</h2>
+
       <div className="flex flex-col gap-4 sm:flex-row">
         <label className={`${labelCls} flex-1`}>
           {t("startsAt")}
+          <Req />
           <DateTimeField value={startsAt} onChange={setStartsAt} required />
         </label>
         <label className={`${labelCls} flex-1`}>
           {t("endsAtOptional")}
           <DateTimeField value={endsAt} onChange={setEndsAt} min={startsAt} />
+          {endBeforeStart ? (
+            <span className="text-xs text-pomegranate">{t("endBeforeStart")}</span>
+          ) : null}
         </label>
       </div>
 
@@ -330,36 +368,100 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         </div>
       ) : null}
 
-      <label className={labelCls}>
-        {t("capacity")}
-        <input
-          type="number"
-          min={1}
-          value={capacity}
-          onChange={(e) => setCapacity(e.target.value)}
-          className={inputCls}
-        />
-      </label>
+      <h2 className={sectionTitleCls}>{t("sectionCapacityMedia")}</h2>
+
+      <div className={labelCls}>
+        {t("capacityToggleLabel")}
+        <div className="inline-flex w-fit rounded-full border border-line bg-ink-raised p-1">
+          <button
+            type="button"
+            onClick={() => setCapacityMode("unlimited")}
+            className={segBtnCls(capacityMode === "unlimited")}
+          >
+            {t("capacityUnlimited")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCapacityMode("limited")}
+            className={segBtnCls(capacityMode === "limited")}
+          >
+            {t("capacityLimited")}
+          </button>
+        </div>
+        {capacityMode === "limited" ? (
+          <input
+            type="number"
+            min={1}
+            required
+            value={capacity}
+            onChange={(e) => setCapacity(e.target.value)}
+            className={`${inputCls} mt-1`}
+          />
+        ) : null}
+      </div>
 
       <label className={labelCls}>
         {t("coverImage")}
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          onChange={(e) => handleCover(e.target.files?.[0])}
-          className="text-sm text-dust"
-        />
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragActive(true);
+          }}
+          onDragLeave={() => setDragActive(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragActive(false);
+            handleCoverFile(e.dataTransfer.files?.[0]);
+          }}
+          className={`relative flex flex-col items-center justify-center gap-2.5 overflow-hidden rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors ${
+            dragActive
+              ? "border-registan-strong bg-registan/10"
+              : "border-line bg-ink-raised"
+          }`}
+        >
+          {coverPreview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={coverPreview}
+              alt={t("coverPreviewAlt")}
+              className="max-h-40 rounded-lg object-cover"
+            />
+          ) : (
+            <>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="text-dust-dim">
+                <path
+                  d="M12 16V4M12 4l-4 4M12 4l4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <p className="text-sm text-dust">{t("coverDropHint")}</p>
+            </>
+          )}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(e) => handleCoverFile(e.target.files?.[0])}
+            className="absolute inset-0 z-0 cursor-pointer opacity-0"
+          />
+          {coverPreview ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setCoverPreview(null);
+                setCoverUrl("");
+              }}
+              className="btn btn-outline btn-outline-danger btn-sm relative z-10"
+            >
+              {t("coverRemove")}
+            </button>
+          ) : null}
+        </div>
       </label>
-      {uploading ? (
-        <p className="text-sm text-dust">{t("uploading")}</p>
-      ) : coverUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={coverUrl}
-          alt={t("coverPreviewAlt")}
-          className="max-h-48 rounded-card border border-line object-cover"
-        />
-      ) : null}
+      {uploading ? <p className="text-sm text-dust">{t("uploading")}</p> : null}
 
       <button
         type="submit"
