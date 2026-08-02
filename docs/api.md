@@ -96,19 +96,24 @@ Event object:
 ```json
 { "id", "organizerId", "organizerName", "organizerVerified", "title", "description",
   "categoryId", "categorySlug", "cityId", "citySlug", "district",
-  "locationName", "address", "lat", "lng", "isOnline",
+  "locationName", "address", "lat", "lng", "isOnline", "onlineUrl",
   "startsAt", "endsAt", "capacity", "coverUrl",
   "status", "visibility", "seriesId", "goingCount", "createdAt" }
 ```
 `status` ∈ `draft | published | canceled | finished`. `seriesId` is `null`
 unless the event was created as part of a recurring series (see below), in
 which case it's the first occurrence's own event ID — shared by every
-event in that series.
+event in that series. `onlineUrl` (meeting link, e.g. Zoom/Meet) is
+**redacted (`null`) on every public/unauthenticated response** — see
+[Explore (public)](#explore-public) — it's only ever returned here (the
+organizer's own authenticated routes) and to confirmed `going` attendees
+(see [RSVP & Tickets](#rsvp--tickets)).
 
 ### POST /events
 Body: `{ "title"*, "description", "categoryId"*, "cityId", "district",
-"locationName", "address", "lat", "lng", "isOnline", "startsAt"* (RFC3339),
-"endsAt", "capacity", "coverUrl", "visibility", "recurWeeks" }`.
+"locationName", "address", "lat", "lng", "isOnline", "onlineUrl",
+"startsAt"* (RFC3339), "endsAt", "capacity", "coverUrl", "visibility",
+"recurWeeks" }`.
 Offline events require `cityId`. → 201, status `draft`.
 
 `recurWeeks` (optional int, 0-11) creates a **weekly recurring series**
@@ -148,6 +153,10 @@ publish response.
 Drafts only (409 otherwise) → `data`: `{ "deleted": true }`.
 
 ## Explore (public)
+
+No auth on any route below. Every event object returned here has
+`onlineUrl` forced to `null`, regardless of what the organizer set — see
+the note on the event object above.
 
 ### GET /explore/events
 Query params (all optional): `city` (slug), `category` (slug), `from`/`to`
@@ -190,9 +199,14 @@ The other published upcoming occurrences of `:id`'s recurring series
 Ticket object: `{ "code", "qr", "checkedInAt" }`. The `qr` value
 (`code.signature`, HMAC-SHA256) is what gets rendered as the QR code.
 
-RSVP object: `{ "status", "ticket" }`. `status` ∈ `going | waitlisted`.
-`ticket` is the ticket object when `status` is `going`, `null` when
-`waitlisted` — a waitlisted RSVP has no ticket until it's promoted.
+RSVP object: `{ "status", "ticket", "onlineUrl" }`. `status` ∈
+`going | waitlisted`. `ticket` is the ticket object when `status` is
+`going`, `null` when `waitlisted` — a waitlisted RSVP has no ticket until
+it's promoted. `onlineUrl` (the event's meeting link) is likewise only
+ever non-null when `status` is `going` — this is the one place a
+waitlisted/unconfirmed caller could otherwise get the link, so it's
+enforced in the service layer, not just left to callers to check `status`
+first.
 
 ### POST /events/:id/rsvp (auth)
 Joins the event; capacity-checked in a transaction. A full event doesn't
@@ -218,8 +232,10 @@ removes them from the queue.
 
 ### GET /me/tickets (auth)
 → `data`: array of tickets with event info
-(`eventId`, `eventTitle`, `eventStatus`, `startsAt`, `isOnline`,
+(`eventId`, `eventTitle`, `eventStatus`, `startsAt`, `isOnline`, `onlineUrl`,
 `locationName`, `citySlug`, `coverUrl` + ticket fields), soonest first.
+`onlineUrl` is always populated here when `isOnline` is true — every row is
+inherently a confirmed `going` RSVP (a ticket only exists for one).
 
 ## Check-in (organizer)
 

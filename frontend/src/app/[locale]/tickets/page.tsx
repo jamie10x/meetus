@@ -18,6 +18,7 @@ type MyTicket = {
   eventStatus: string;
   startsAt: string;
   isOnline: boolean;
+  onlineUrl: string | null;
   locationName: string | null;
   citySlug: string | null;
   coverUrl: string | null;
@@ -62,6 +63,16 @@ function TicketCard({ ticket }: { ticket: MyTicket }) {
             : (ticket.locationName ?? ticket.citySlug ?? "")}
         </p>
         <p className="mt-2 font-mono text-xs text-dust-dim">{ticket.code}</p>
+        {ticket.isOnline && ticket.onlineUrl ? (
+          <a
+            href={ticket.onlineUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn-primary btn-sm mt-2.5"
+          >
+            {t("joinCall")}
+          </a>
+        ) : null}
         {ticket.checkedInAt ? (
           <p className="mt-2.5 inline-block rounded-full border border-registan-dim bg-registan/[0.12] px-3 py-1 text-xs font-semibold text-registan-strong">
             {t("checkedIn")}
@@ -83,6 +94,7 @@ function TicketCard({ ticket }: { ticket: MyTicket }) {
               startsAt: ticket.startsAt,
               endsAt: null,
               isOnline: ticket.isOnline,
+              onlineUrl: ticket.onlineUrl,
               locationName: ticket.locationName,
               address: null,
               citySlug: ticket.citySlug,

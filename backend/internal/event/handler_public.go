@@ -77,7 +77,7 @@ func (h *PublicHandler) list(c *gin.Context) {
 
 	resp := pageResponse{Items: make([]DTO, len(page.Items))}
 	for i, e := range page.Items {
-		resp.Items[i] = e.ToDTO()
+		resp.Items[i] = e.ToDTO().Redacted()
 	}
 	if page.NextCursor != "" {
 		resp.NextCursor = &page.NextCursor
@@ -104,6 +104,7 @@ func (h *PublicHandler) trending(c *gin.Context) {
 	dtos := make([]TrendingDTO, len(events))
 	for i, te := range events {
 		dtos[i] = te.ToDTO()
+		dtos[i].DTO = dtos[i].DTO.Redacted()
 	}
 	httpx.OK(c, http.StatusOK, dtos)
 }
@@ -119,7 +120,7 @@ func (h *PublicHandler) get(c *gin.Context) {
 		httpx.Error(c, err)
 		return
 	}
-	httpx.OK(c, http.StatusOK, e.ToDTO())
+	httpx.OK(c, http.StatusOK, e.ToDTO().Redacted())
 }
 
 func (h *PublicHandler) related(c *gin.Context) {
@@ -151,7 +152,7 @@ func (h *PublicHandler) related(c *gin.Context) {
 	}
 	dtos := make([]DTO, len(related))
 	for i, re := range related {
-		dtos[i] = re.ToDTO()
+		dtos[i] = re.ToDTO().Redacted()
 	}
 	httpx.OK(c, http.StatusOK, dtos)
 }
@@ -179,7 +180,7 @@ func (h *PublicHandler) series(c *gin.Context) {
 	}
 	dtos := make([]DTO, len(siblings))
 	for i, se := range siblings {
-		dtos[i] = se.ToDTO()
+		dtos[i] = se.ToDTO().Redacted()
 	}
 	httpx.OK(c, http.StatusOK, dtos)
 }

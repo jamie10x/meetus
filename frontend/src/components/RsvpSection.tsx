@@ -16,6 +16,7 @@ type Ticket = {
 type RSVPState = {
   status: "going" | "waitlisted";
   ticket: Ticket | null;
+  onlineUrl: string | null;
 };
 
 type Props = {
@@ -143,20 +144,32 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
   return (
     <div className="mt-8">
       {rsvp?.status === "going" ? (
-        <div className="flex items-center justify-between rounded-card border border-registan-dim bg-registan/[0.1] p-4">
-          <p className="font-semibold text-registan-strong">
-            {t("goingMessage")}{" "}
-            <Link href="/tickets" className="underline">
-              {t("viewTicket")}
-            </Link>
-          </p>
-          <button
-            onClick={leave}
-            disabled={busy}
-            className="btn btn-danger-ghost btn-sm"
-          >
-            {t("cancel")}
-          </button>
+        <div className="rounded-card border border-registan-dim bg-registan/[0.1] p-4">
+          <div className="flex items-center justify-between">
+            <p className="font-semibold text-registan-strong">
+              {t("goingMessage")}{" "}
+              <Link href="/tickets" className="underline">
+                {t("viewTicket")}
+              </Link>
+            </p>
+            <button
+              onClick={leave}
+              disabled={busy}
+              className="btn btn-danger-ghost btn-sm"
+            >
+              {t("cancel")}
+            </button>
+          </div>
+          {rsvp.onlineUrl ? (
+            <a
+              href={rsvp.onlineUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-primary btn-sm mt-3"
+            >
+              {t("joinCall")}
+            </a>
+          ) : null}
         </div>
       ) : rsvp?.status === "waitlisted" ? (
         <div className="flex items-center justify-between rounded-card border border-line bg-ink-raised p-4">

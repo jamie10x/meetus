@@ -33,6 +33,7 @@ type MyTicket struct {
 	EventStatus  string
 	StartsAt     time.Time
 	IsOnline     bool
+	OnlineURL    *string
 	LocationName *string
 	CitySlug     *string
 	CoverURL     *string
@@ -63,17 +64,21 @@ type ScannedTicket struct {
 // JoinResult is the outcome of a Join call: either a confirmed "going"
 // RSVP with its ticket, or a "waitlisted" one with no ticket yet — a
 // ticket is only issued once a spot actually opens up (see
-// promoteNextWaitlisted).
+// promoteNextWaitlisted). OnlineURL is the event's meeting link, carried
+// through so the service layer can attach it to the response only when
+// Status is "going" — the caller here already has confirmation-in-hand.
 type JoinResult struct {
-	Status string
-	Ticket *Ticket
+	Status    string
+	Ticket    *Ticket
+	OnlineURL *string
 }
 
 // MyRSVP is the caller's own RSVP state for one event: "going" (with a
 // ticket) or "waitlisted" (without one).
 type MyRSVP struct {
-	Status string
-	Ticket *Ticket
+	Status    string
+	Ticket    *Ticket
+	OnlineURL *string
 }
 
 // Promotion describes a waitlisted attendee who just got bumped to
@@ -156,9 +161,10 @@ func (r *Repository) Join(ctx context.Context, eventID, userID int64) (*JoinResu
 	var status string
 	var capacity *int32
 	var startsAt time.Time
+	var onlineURL *string
 	err = tx.QueryRow(ctx,
-		`SELECT status, capacity, starts_at FROM events WHERE id = $1 FOR UPDATE`,
-		eventID).Scan(&status, &capacity, &startsAt)
+		`SELECT status, capacity, starts_at, online_url FROM events WHERE id = $1 FOR UPDATE`,
+		eventID).Scan(&status, &capacity, &startsAt, &onlineURL)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperr.NotFound("event not found")
 	}
@@ -215,7 +221,7 @@ func (r *Repository) Join(ctx context.Context, eventID, userID int64) (*JoinResu
 		}
 	}
 
-	result := &JoinResult{Status: newStatus}
+	result := &JoinResult{Status: newStatus, OnlineURL: onlineURL}
 	if newStatus == "going" {
 		t, err := ensureTicket(ctx, tx, rsvpID)
 		if err != nil {
@@ -293,10 +299,13 @@ func (r *Repository) Cancel(ctx context.Context, eventID, userID int64) (*Promot
 func (r *Repository) GetMine(ctx context.Context, eventID, userID int64) (*MyRSVP, error) {
 	var rsvpID int64
 	var status string
+	var onlineURL *string
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, status FROM rsvps
-		WHERE event_id = $1 AND user_id = $2 AND status IN ('going', 'waitlisted')`,
-		eventID, userID).Scan(&rsvpID, &status)
+		SELECT rv.id, rv.status, e.online_url
+		FROM rsvps rv
+		JOIN events e ON e.id = rv.event_id
+		WHERE rv.event_id = $1 AND rv.user_id = $2 AND rv.status IN ('going', 'waitlisted')`,
+		eventID, userID).Scan(&rsvpID, &status, &onlineURL)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperr.NotFound("no rsvp for this event")
 	}
@@ -304,7 +313,7 @@ func (r *Repository) GetMine(ctx context.Context, eventID, userID int64) (*MyRSV
 		return nil, fmt.Errorf("get my rsvp: %w", err)
 	}
 
-	m := &MyRSVP{Status: status}
+	m := &MyRSVP{Status: status, OnlineURL: onlineURL}
 	if status == "going" {
 		var t Ticket
 		if err := r.pool.QueryRow(ctx,
@@ -320,7 +329,7 @@ func (r *Repository) GetMine(ctx context.Context, eventID, userID int64) (*MyRSV
 func (r *Repository) ListMyTickets(ctx context.Context, userID int64) ([]*MyTicket, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT t.id, t.code, t.checked_in_at,
-		       e.id, e.title, e.status, e.starts_at, e.is_online,
+		       e.id, e.title, e.status, e.starts_at, e.is_online, e.online_url,
 		       e.location_name, ci.slug, e.cover_url
 		FROM rsvps rv
 		JOIN tickets t ON t.rsvp_id = rv.id
@@ -337,7 +346,7 @@ func (r *Repository) ListMyTickets(ctx context.Context, userID int64) ([]*MyTick
 	for rows.Next() {
 		var t MyTicket
 		if err := rows.Scan(&t.ID, &t.Code, &t.CheckedInAt,
-			&t.EventID, &t.EventTitle, &t.EventStatus, &t.StartsAt, &t.IsOnline,
+			&t.EventID, &t.EventTitle, &t.EventStatus, &t.StartsAt, &t.IsOnline, &t.OnlineURL,
 			&t.LocationName, &t.CitySlug, &t.CoverURL); err != nil {
 			return nil, err
 		}

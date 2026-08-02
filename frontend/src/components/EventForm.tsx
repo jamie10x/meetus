@@ -82,6 +82,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
   const [lat, setLat] = useState(initial?.lat != null ? String(initial.lat) : "");
   const [lng, setLng] = useState(initial?.lng != null ? String(initial.lng) : "");
   const [isOnline, setIsOnline] = useState(initial?.isOnline ?? false);
+  const [onlineUrl, setOnlineUrl] = useState(initial?.onlineUrl ?? "");
   const [startsAt, setStartsAt] = useState(
     initial ? toLocalInput(initial.startsAt) : "",
   );
@@ -152,6 +153,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         lat: lat ? Number(lat) : null,
         lng: lng ? Number(lng) : null,
         isOnline,
+        onlineUrl: isOnline && onlineUrl ? onlineUrl : null,
         startsAt: toRFC3339(startsAt),
         endsAt: endsAt ? toRFC3339(endsAt) : null,
         capacity: capacityMode === "limited" && capacity ? Number(capacity) : null,
@@ -316,14 +318,30 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
             </div>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <label className={labelCls}>
+          {t("meetingLink")}
+          <input
+            type="url"
+            value={onlineUrl}
+            onChange={(e) => setOnlineUrl(e.target.value)}
+            placeholder={t("meetingLinkPlaceholder")}
+            className={inputCls}
+          />
+          <span className="text-xs font-normal text-dust-dim">
+            {t("meetingLinkHint")}
+          </span>
+        </label>
+      )}
 
       <h2 className={sectionTitleCls}>{t("sectionSchedule")}</h2>
 
       <div className="flex flex-col gap-4 sm:flex-row">
         <label className={`${labelCls} flex-1`}>
-          {t("startsAt")}
-          <Req />
+          <span>
+            {t("startsAt")}
+            <Req />
+          </span>
           <DateTimeField value={startsAt} onChange={setStartsAt} required />
         </label>
         <label className={`${labelCls} flex-1`}>

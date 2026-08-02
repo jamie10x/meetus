@@ -50,17 +50,23 @@ func (s *Service) ticketDTO(t *Ticket) TicketDTO {
 }
 
 // RSVPDTO is the caller's RSVP outcome or state: "going" (with a ticket)
-// or "waitlisted" (without one yet).
+// or "waitlisted" (without one yet). OnlineURL is only ever populated when
+// Status is "going" — a waitlisted caller has no confirmed spot and must
+// not receive the meeting link (rsvpDTO enforces this, not the callers).
 type RSVPDTO struct {
-	Status string     `json:"status"`
-	Ticket *TicketDTO `json:"ticket"`
+	Status    string     `json:"status"`
+	Ticket    *TicketDTO `json:"ticket"`
+	OnlineURL *string    `json:"onlineUrl"`
 }
 
-func (s *Service) rsvpDTO(status string, t *Ticket) RSVPDTO {
+func (s *Service) rsvpDTO(status string, t *Ticket, onlineURL *string) RSVPDTO {
 	dto := RSVPDTO{Status: status}
 	if t != nil {
 		td := s.ticketDTO(t)
 		dto.Ticket = &td
+	}
+	if status == "going" {
+		dto.OnlineURL = onlineURL
 	}
 	return dto
 }
@@ -70,7 +76,7 @@ func (s *Service) Join(ctx context.Context, eventID, userID int64) (RSVPDTO, err
 	if err != nil {
 		return RSVPDTO{}, err
 	}
-	return s.rsvpDTO(res.Status, res.Ticket), nil
+	return s.rsvpDTO(res.Status, res.Ticket, res.OnlineURL), nil
 }
 
 // Cancel cancels the caller's RSVP. If that frees a spot for a
@@ -110,9 +116,12 @@ func (s *Service) GetMine(ctx context.Context, eventID, userID int64) (RSVPDTO, 
 	if err != nil {
 		return RSVPDTO{}, err
 	}
-	return s.rsvpDTO(m.Status, m.Ticket), nil
+	return s.rsvpDTO(m.Status, m.Ticket, m.OnlineURL), nil
 }
 
+// MyTicketDTO's OnlineURL is always safe to include as-is (unlike
+// RSVPDTO's) — every row ListMyTickets returns is inherently a confirmed
+// "going" RSVP; a waitlisted entry has no ticket and never appears here.
 type MyTicketDTO struct {
 	TicketDTO
 	EventID      int64      `json:"eventId"`
@@ -120,6 +129,7 @@ type MyTicketDTO struct {
 	EventStatus  string     `json:"eventStatus"`
 	StartsAt     time.Time  `json:"startsAt"`
 	IsOnline     bool       `json:"isOnline"`
+	OnlineURL    *string    `json:"onlineUrl"`
 	LocationName *string    `json:"locationName"`
 	CitySlug     *string    `json:"citySlug"`
 	CoverURL     *string    `json:"coverUrl"`
@@ -139,6 +149,7 @@ func (s *Service) ListMyTickets(ctx context.Context, userID int64) ([]MyTicketDT
 			EventStatus:  t.EventStatus,
 			StartsAt:     t.StartsAt,
 			IsOnline:     t.IsOnline,
+			OnlineURL:    t.OnlineURL,
 			LocationName: t.LocationName,
 			CitySlug:     t.CitySlug,
 			CoverURL:     t.CoverURL,

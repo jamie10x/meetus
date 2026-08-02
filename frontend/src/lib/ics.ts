@@ -10,6 +10,10 @@ export type IcsEvent = {
   startsAt: string; // ISO
   endsAt: string | null;
   isOnline: boolean;
+  /** Meeting link — only ever passed in from a context that already has
+   * RSVP-gated access (e.g. the tickets page), never from the public
+   * event-detail page. Omit/null falls back to the literal "Online". */
+  onlineUrl?: string | null;
   locationName: string | null;
   address: string | null;
   citySlug: string | null;
@@ -39,7 +43,7 @@ function escapeIcsText(s: string): string {
 }
 
 function icsLocation(e: IcsEvent): string {
-  if (e.isOnline) return "Online";
+  if (e.isOnline) return e.onlineUrl || "Online";
   return [e.locationName, e.address, e.citySlug].filter(Boolean).join(", ");
 }
 

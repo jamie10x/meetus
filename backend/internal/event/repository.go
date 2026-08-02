@@ -25,7 +25,7 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 const eventSelect = `
 	SELECT e.id, e.organizer_id, e.title, e.description, e.category_id,
 	       e.city_id, e.district, e.location_name, e.address, e.lat, e.lng,
-	       e.is_online, e.starts_at, e.ends_at, e.capacity, e.cover_url,
+	       e.is_online, e.online_url, e.starts_at, e.ends_at, e.capacity, e.cover_url,
 	       e.status, e.visibility, e.series_id, e.created_at, e.updated_at,
 	       o.display_name, o.is_verified, c.slug, ci.slug,
 	       (SELECT count(*) FROM rsvps r WHERE r.event_id = e.id AND r.status = 'going')::int
@@ -39,7 +39,7 @@ func scanEvent(row pgx.Row) (*Event, error) {
 	var e Event
 	err := row.Scan(&e.ID, &e.OrganizerID, &e.Title, &e.Description, &e.CategoryID,
 		&e.CityID, &e.District, &e.LocationName, &e.Address, &e.Lat, &e.Lng,
-		&e.IsOnline, &e.StartsAt, &e.EndsAt, &e.Capacity, &e.CoverURL,
+		&e.IsOnline, &e.OnlineURL, &e.StartsAt, &e.EndsAt, &e.Capacity, &e.CoverURL,
 		&e.Status, &e.Visibility, &e.SeriesID, &e.CreatedAt, &e.UpdatedAt,
 		&e.OrganizerName, &e.OrganizerVerified, &e.CategorySlug, &e.CitySlug, &e.GoingCount)
 	if err != nil {
@@ -73,6 +73,7 @@ type WriteFields struct {
 	Lat          *float64
 	Lng          *float64
 	IsOnline     bool
+	OnlineURL    *string
 	StartsAt     string // RFC3339, validated by service
 	EndsAt       *string
 	Capacity     *int32
@@ -84,12 +85,12 @@ func (r *Repository) Create(ctx context.Context, organizerID int64, f WriteField
 	var id int64
 	err := r.pool.QueryRow(ctx, `
 		INSERT INTO events (organizer_id, title, description, category_id, city_id,
-			district, location_name, address, lat, lng, is_online,
+			district, location_name, address, lat, lng, is_online, online_url,
 			starts_at, ends_at, capacity, cover_url, visibility)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::timestamptz,$13::timestamptz,$14,$15,$16)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::timestamptz,$14::timestamptz,$15,$16,$17)
 		RETURNING id`,
 		organizerID, f.Title, f.Description, f.CategoryID, f.CityID,
-		f.District, f.LocationName, f.Address, f.Lat, f.Lng, f.IsOnline,
+		f.District, f.LocationName, f.Address, f.Lat, f.Lng, f.IsOnline, f.OnlineURL,
 		f.StartsAt, f.EndsAt, f.Capacity, f.CoverURL, f.Visibility).Scan(&id)
 	if err != nil {
 		return nil, fmt.Errorf("create event: %w", mapWriteErr(err))
@@ -135,12 +136,12 @@ func (r *Repository) CreateSeries(ctx context.Context, organizerID int64, f Writ
 		var id int64
 		err := tx.QueryRow(ctx, `
 			INSERT INTO events (organizer_id, title, description, category_id, city_id,
-				district, location_name, address, lat, lng, is_online,
+				district, location_name, address, lat, lng, is_online, online_url,
 				starts_at, ends_at, capacity, cover_url, visibility)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::timestamptz,$13::timestamptz,$14,$15,$16)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::timestamptz,$14::timestamptz,$15,$16,$17)
 			RETURNING id`,
 			organizerID, f.Title, f.Description, f.CategoryID, f.CityID,
-			f.District, f.LocationName, f.Address, f.Lat, f.Lng, f.IsOnline,
+			f.District, f.LocationName, f.Address, f.Lat, f.Lng, f.IsOnline, f.OnlineURL,
 			occStarts, occEnds, f.Capacity, f.CoverURL, f.Visibility).Scan(&id)
 		if err != nil {
 			return nil, fmt.Errorf("create series event: %w", mapWriteErr(err))
@@ -175,11 +176,11 @@ func (r *Repository) Update(ctx context.Context, id int64, f WriteFields) (*Even
 		UPDATE events SET
 			title = $2, description = $3, category_id = $4, city_id = $5,
 			district = $6, location_name = $7, address = $8, lat = $9, lng = $10,
-			is_online = $11, starts_at = $12::timestamptz, ends_at = $13::timestamptz,
-			capacity = $14, cover_url = $15, visibility = $16, updated_at = now()
+			is_online = $11, online_url = $12, starts_at = $13::timestamptz, ends_at = $14::timestamptz,
+			capacity = $15, cover_url = $16, visibility = $17, updated_at = now()
 		WHERE id = $1`,
 		id, f.Title, f.Description, f.CategoryID, f.CityID,
-		f.District, f.LocationName, f.Address, f.Lat, f.Lng, f.IsOnline,
+		f.District, f.LocationName, f.Address, f.Lat, f.Lng, f.IsOnline, f.OnlineURL,
 		f.StartsAt, f.EndsAt, f.Capacity, f.CoverURL, f.Visibility)
 	if err != nil {
 		return nil, fmt.Errorf("update event: %w", mapWriteErr(err))

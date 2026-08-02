@@ -33,6 +33,7 @@ type Input struct {
 	Lat          *float64 `json:"lat"`
 	Lng          *float64 `json:"lng"`
 	IsOnline     bool     `json:"isOnline"`
+	OnlineURL    *string  `json:"onlineUrl" binding:"omitempty,max=500"`
 	StartsAt     string   `json:"startsAt" binding:"required"`
 	EndsAt       *string  `json:"endsAt"`
 	Capacity     *int32   `json:"capacity"`
@@ -92,6 +93,7 @@ func (s *Service) validate(in Input) (WriteFields, error) {
 		Lat:          in.Lat,
 		Lng:          in.Lng,
 		IsOnline:     in.IsOnline,
+		OnlineURL:    in.OnlineURL,
 		StartsAt:     in.StartsAt,
 		EndsAt:       endsAt,
 		Capacity:     in.Capacity,

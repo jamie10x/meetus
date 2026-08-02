@@ -75,6 +75,10 @@ export type EventItem = {
   lat: number | null;
   lng: number | null;
   isOnline: boolean;
+  /** Meeting link (Zoom/Meet/etc.) — always null on public responses,
+   * only ever populated for the organizer's own events or a confirmed
+   * "going" RSVP. See AGENTS.md's onlineUrl gotcha. */
+  onlineUrl: string | null;
   startsAt: string;
   endsAt: string | null;
   capacity: number | null;
@@ -101,6 +105,7 @@ export type EventInput = {
   lat: number | null;
   lng: number | null;
   isOnline: boolean;
+  onlineUrl: string | null;
   startsAt: string;
   endsAt: string | null;
   capacity: number | null;

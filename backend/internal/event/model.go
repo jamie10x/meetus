@@ -31,6 +31,7 @@ type Event struct {
 	Lat          *float64
 	Lng          *float64
 	IsOnline     bool
+	OnlineURL    *string
 	StartsAt     time.Time
 	EndsAt       *time.Time
 	Capacity     *int32
