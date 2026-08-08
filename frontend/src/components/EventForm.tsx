@@ -8,7 +8,7 @@ import { categoryDotColor } from "@/lib/categoryStyle";
 import { metaName, type EventInput, type EventItem, type MetaItem } from "@/lib/types";
 import DateTimeField from "@/components/DateTimeField";
 
-// Leaflet touches `window` at import time — ssr: false keeps it out of
+// MapLibre touches `window` at import time — ssr: false keeps it out of
 // the server bundle, same pattern as the Explore page's EventMap.
 const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
   ssr: false,
@@ -292,7 +292,14 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
                 setLat(String(newLat));
                 setLng(String(newLng));
               }}
-              onSelectAddress={setAddress}
+              onAddressResolved={(resolved, source) =>
+                // An explicit search pick wins; an address merely inferred
+                // from dropping the pin only fills a blank field, so it
+                // can't overwrite something typed by hand.
+                setAddress((current) =>
+                  source === "search" || !current ? resolved : current,
+                )
+              }
             />
             <div className="grid grid-cols-2 gap-4">
               <input

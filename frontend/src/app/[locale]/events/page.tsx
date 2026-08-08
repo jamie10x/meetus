@@ -8,7 +8,7 @@ import TrendingSection from "@/components/TrendingSection";
 import { api } from "@/lib/api";
 import { metaName, type EventItem, type MetaItem } from "@/lib/types";
 
-// Leaflet touches `window` at import time, so the map view can only ever
+// MapLibre touches `window` at import time, so the map view can only ever
 // render client-side — ssr: false keeps it out of the server bundle
 // entirely rather than erroring during SSR.
 const EventMap = dynamic(() => import("@/components/EventMap"), {

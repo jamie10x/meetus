@@ -1,80 +1,210 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
-import L, { type LeafletMouseEvent } from "leaflet";
-import "leaflet/dist/leaflet.css";
+import { useEffect, useRef, useState } from "react";
+import {
+  AttributionControl,
+  MapLibreMap,
+  Marker,
+  NavigationControl,
+  type MapMouseEvent,
+} from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { useTranslations } from "next-intl";
-
-// Same brand-blue dot as EventMap — no image assets, sidesteps the
-// bundler issue with Leaflet's default marker icons.
-const markerIcon = L.divIcon({
-  className: "",
-  html: '<span style="display:block;width:16px;height:16px;border-radius:9999px;background:#5b9dff;border:2px solid #070b16;box-shadow:0 0 0 3px rgba(91,157,255,0.28)"></span>',
-  iconSize: [16, 16],
-  iconAnchor: [8, 8],
-});
-
-const TASHKENT: [number, number] = [41.2995, 69.2401];
+import {
+  MAP_STYLE_URL,
+  TASHKENT,
+  applyBrandTint,
+  createMarkerElement,
+} from "@/lib/mapStyle";
+import { reverseGeocode, searchPlaces, type PlaceResult } from "@/lib/geocode";
 
 type Props = {
   lat: number | null;
   lng: number | null;
   onChange: (lat: number, lng: number) => void;
-  /** Fired when a search result is picked, so the caller can also fill a
-   * separate address text field — the search box itself only owns the map. */
-  onSelectAddress?: (address: string) => void;
+  /** Called with a human-readable address whenever one is resolved.
+   * `source` lets the caller treat the two cases differently: "search"
+   * is an explicit pick and should win over whatever is typed, while
+   * "pin" is inferred from a dropped marker and shouldn't clobber an
+   * address the organizer wrote themselves. */
+  onAddressResolved?: (address: string, source: "search" | "pin") => void;
 };
 
-function ClickHandler({ onChange }: { onChange: (lat: number, lng: number) => void }) {
-  useMapEvents({
-    click(e: LeafletMouseEvent) {
-      onChange(e.latlng.lat, e.latlng.lng);
-    },
+export default function LocationPicker({ lat, lng, onChange, onAddressResolved }: Props) {
+  const t = useTranslations("eventForm");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const markerRef = useRef<Marker | null>(null);
+  const [ready, setReady] = useState(false);
+
+  // Callbacks live in refs so the map's event handlers — registered once
+  // on mount — always call the newest version instead of capturing the
+  // first render's closure.
+  const onChangeRef = useRef(onChange);
+  const onAddressRef = useRef(onAddressResolved);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onAddressRef.current = onAddressResolved;
   });
-  return null;
+
+  // Resolve a street address for a pin the user just placed, so the
+  // Address field can fill itself in. Best-effort: a failed lookup just
+  // leaves the field alone rather than surfacing an error.
+  const fillAddress = (nextLat: number, nextLng: number) => {
+    if (!onAddressRef.current) return;
+    reverseGeocode(nextLat, nextLng)
+      .then((address) => address && onAddressRef.current?.(address, "pin"))
+      .catch(() => {});
+  };
+
+  const place = (nextLat: number, nextLng: number) => {
+    onChangeRef.current(nextLat, nextLng);
+    fillAddress(nextLat, nextLng);
+  };
+
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+
+    const map = new MapLibreMap({
+      container: containerRef.current,
+      style: MAP_STYLE_URL,
+      // MapLibre takes [lng, lat] — the reverse of Leaflet's [lat, lng].
+      center: lat !== null && lng !== null ? [lng, lat] : TASHKENT,
+      zoom: lat !== null && lng !== null ? 15 : 11,
+      attributionControl: false,
+    });
+    map.addControl(new NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(new AttributionControl({ compact: true }), "bottom-right");
+    map.on("click", (e: MapMouseEvent) => place(e.lngLat.lat, e.lngLat.lng));
+    map.on("load", () => {
+      applyBrandTint(map);
+      setReady(true);
+    });
+    // The container is responsive (it sits in a grid column), and
+    // MapLibre only auto-handles *window* resizes — a container that
+    // reflows on its own would otherwise keep a stale canvas size. This
+    // project has already shipped one map-sizing bug (see AGENTS.md), so
+    // observe the element directly.
+    const observer = new ResizeObserver(() => map.resize());
+    observer.observe(containerRef.current);
+
+    mapRef.current = map;
+    return () => {
+      observer.disconnect();
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    };
+    // Mount-only: the map instance manages its own view from here, and
+    // recreating it on every lat/lng change would fight the user's panning.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep the marker in sync with the coordinates owned by the form.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+
+    if (lat === null || lng === null) {
+      markerRef.current?.remove();
+      markerRef.current = null;
+      return;
+    }
+    if (markerRef.current) {
+      markerRef.current.setLngLat([lng, lat]);
+      return;
+    }
+    const marker = new Marker({
+      element: createMarkerElement(true),
+      draggable: true,
+    })
+      .setLngLat([lng, lat])
+      .addTo(map);
+    marker.on("dragend", () => {
+      const pos = marker.getLngLat();
+      place(pos.lat, pos.lng);
+    });
+    markerRef.current = marker;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lat, lng, ready]);
+
+  const flyTo = (nextLat: number, nextLng: number, zoom = 15) => {
+    mapRef.current?.flyTo({ center: [nextLng, nextLat], zoom, duration: 900 });
+  };
+
+  return (
+    <div
+      style={{ height: 300 }}
+      className="relative w-full overflow-hidden rounded-xl border border-line"
+    >
+      <div ref={containerRef} className="h-full w-full" />
+
+      <SearchBox
+        onPick={(r) => {
+          onChangeRef.current(r.lat, r.lng);
+          onAddressRef.current?.(r.label, "search");
+          flyTo(r.lat, r.lng);
+        }}
+      />
+
+      <LocateButton
+        onLocated={(nextLat, nextLng) => {
+          place(nextLat, nextLng);
+          flyTo(nextLat, nextLng, 16);
+        }}
+      />
+
+      {lat === null || lng === null ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center">
+          <span className="rounded-full bg-ink/85 px-3 py-1.5 text-[11px] font-medium text-dust shadow-card backdrop-blur">
+            {t("mapHint")}
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
-/** Floating in-map "locate me" control (same idea as Google Maps' target
- * button) — flies the map to the browser's geolocation and drops the pin
- * there, instead of the coordinates jumping with no visual transition. */
-function LocateControl({ onChange }: { onChange: (lat: number, lng: number) => void }) {
+/** Floating "locate me" control, styled to the app rather than to
+ * MapLibre's default control chrome. */
+function LocateButton({
+  onLocated,
+}: {
+  onLocated: (lat: number, lng: number) => void;
+}) {
   const t = useTranslations("eventForm");
-  const map = useMap();
   const [locating, setLocating] = useState(false);
-  const [error, setError] = useState(false);
+  const [failed, setFailed] = useState(false);
 
-  const handleClick = () => {
+  const locate = () => {
     if (!navigator.geolocation) {
-      setError(true);
+      setFailed(true);
       return;
     }
     setLocating(true);
-    setError(false);
+    setFailed(false);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const { latitude, longitude } = pos.coords;
-        onChange(latitude, longitude);
-        map.flyTo([latitude, longitude], 15, { duration: 0.8 });
+        onLocated(pos.coords.latitude, pos.coords.longitude);
         setLocating(false);
       },
       () => {
-        setError(true);
+        setFailed(true);
         setLocating(false);
       },
     );
   };
 
   return (
-    <div className="absolute bottom-2.5 right-2.5 z-[400] flex flex-col items-end gap-1.5">
-      {error ? (
+    <div className="absolute bottom-3 right-3 z-10 flex flex-col items-end gap-1.5">
+      {failed ? (
         <span className="rounded-md bg-ink/90 px-2 py-1 text-[11px] font-medium text-pomegranate shadow-card">
           {t("locationUnavailable")}
         </span>
       ) : null}
       <button
         type="button"
-        onClick={handleClick}
+        onClick={locate}
         disabled={locating}
         aria-label={t("useMyLocation")}
         title={t("useMyLocation")}
@@ -98,21 +228,12 @@ function LocateControl({ onChange }: { onChange: (lat: number, lng: number) => v
   );
 }
 
-type SearchResult = { display_name: string; lat: string; lon: string };
-
-/** Address search box, top of the map — geocodes via Nominatim (the same
- * free OSM search service, no API key) and flies the map to the pick. */
-function SearchBox({
-  onChange,
-  onSelectAddress,
-}: {
-  onChange: (lat: number, lng: number) => void;
-  onSelectAddress?: (address: string) => void;
-}) {
+/** Address search over the map, backed by the same free OSM service the
+ * tiles come from. */
+function SearchBox({ onPick }: { onPick: (r: PlaceResult) => void }) {
   const t = useTranslations("eventForm");
-  const map = useMap();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<PlaceResult[]>([]);
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);
 
@@ -122,22 +243,16 @@ function SearchBox({
       return;
     }
     let cancelled = false;
-    const handle = setTimeout(async () => {
+    const handle = setTimeout(() => {
       setSearching(true);
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}`,
-        );
-        const data = (await res.json()) as SearchResult[];
-        if (!cancelled) {
-          setResults(data);
+      searchPlaces(query)
+        .then((found) => {
+          if (cancelled) return;
+          setResults(found);
           setOpen(true);
-        }
-      } catch {
-        if (!cancelled) setResults([]);
-      } finally {
-        if (!cancelled) setSearching(false);
-      }
+        })
+        .catch(() => !cancelled && setResults([]))
+        .finally(() => !cancelled && setSearching(false));
     }, 500);
     return () => {
       cancelled = true;
@@ -145,18 +260,8 @@ function SearchBox({
     };
   }, [query]);
 
-  const pick = (r: SearchResult) => {
-    const lat = parseFloat(r.lat);
-    const lon = parseFloat(r.lon);
-    onChange(lat, lon);
-    onSelectAddress?.(r.display_name);
-    map.flyTo([lat, lon], 15, { duration: 0.8 });
-    setQuery(r.display_name);
-    setOpen(false);
-  };
-
   return (
-    <div className="absolute left-[46px] right-2.5 top-2.5 z-[400]">
+    <div className="absolute left-3 right-16 top-3 z-10">
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -165,7 +270,7 @@ function SearchBox({
         className="w-full rounded-lg border border-line bg-ink/90 px-3 py-2 text-sm text-bone placeholder:text-dust-dim shadow-card backdrop-blur transition-colors focus:border-registan-dim focus:outline-none"
       />
       {open && query.trim().length >= 3 ? (
-        <ul className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-line bg-ink-overlay shadow-pop">
+        <ul className="mt-1 max-h-44 overflow-y-auto rounded-lg border border-line bg-ink-overlay shadow-pop">
           {searching ? (
             <li className="px-3 py-2 text-xs text-dust-dim">{t("searching")}</li>
           ) : results.length > 0 ? (
@@ -173,10 +278,14 @@ function SearchBox({
               <li key={i}>
                 <button
                   type="button"
-                  onClick={() => pick(r)}
+                  onClick={() => {
+                    onPick(r);
+                    setQuery(r.label);
+                    setOpen(false);
+                  }}
                   className="block w-full truncate px-3 py-2 text-left text-xs text-dust transition-colors hover:bg-ink-raised hover:text-bone"
                 >
-                  {r.display_name}
+                  {r.label}
                 </button>
               </li>
             ))
@@ -185,61 +294,6 @@ function SearchBox({
           )}
         </ul>
       ) : null}
-    </div>
-  );
-}
-
-/** Click-to-drop-pin location picker, built on the same free OSM/CARTO
- * tiles as the Explore page's map — no API key, no Google Maps billing. */
-export default function LocationPicker({ lat, lng, onChange, onSelectAddress }: Props) {
-  const t = useTranslations("eventForm");
-  // Only the initial center matters — recentering on every marker move
-  // would fight the user while they're panning around.
-  const center = useMemo<[number, number]>(
-    () => (lat !== null && lng !== null ? [lat, lng] : TASHKENT),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-  const hasPin = lat !== null && lng !== null;
-
-  return (
-    <div
-      style={{ height: 260 }}
-      className="relative w-full overflow-hidden rounded-xl border border-line"
-    >
-      <MapContainer
-        center={center}
-        zoom={12}
-        style={{ height: "100%", width: "100%", background: "#070b16" }}
-      >
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        />
-        <ClickHandler onChange={onChange} />
-        <LocateControl onChange={onChange} />
-        <SearchBox onChange={onChange} onSelectAddress={onSelectAddress} />
-        {!hasPin ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-2.5 z-[400] flex justify-center">
-            <span className="rounded-full bg-ink/85 px-3 py-1 text-[11px] font-medium text-dust shadow-card backdrop-blur">
-              {t("mapHint")}
-            </span>
-          </div>
-        ) : null}
-        {hasPin ? (
-          <Marker
-            position={[lat!, lng!]}
-            icon={markerIcon}
-            draggable
-            eventHandlers={{
-              dragend: (e) => {
-                const pos = (e.target as L.Marker).getLatLng();
-                onChange(pos.lat, pos.lng);
-              },
-            }}
-          />
-        ) : null}
-      </MapContainer>
     </div>
   );
 }

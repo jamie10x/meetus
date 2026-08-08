@@ -241,3 +241,88 @@ h1, h2, h3 {
     border-radius: 999px;
   }
 }
+
+/*
+ * MapLibre theming (LocationPicker, EventMap). Deliberately *unlayered*:
+ * MapLibre ships its own stylesheet, and unlayered rules beat anything
+ * inside @layer, so these win without a scattering of !important.
+ */
+.map-pin {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--color-registan-strong);
+  border: 2px solid var(--color-ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-registan-strong) 28%, transparent);
+  cursor: pointer;
+}
+
+/* Slow halo on the one draggable pin in the picker, so it reads as
+   interactive next to the map's static furniture. */
+.map-pin-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 9999px;
+  border: 2px solid var(--color-registan-strong);
+  animation: map-pin-pulse 2s ease-out infinite;
+}
+@keyframes map-pin-pulse {
+  0% { transform: scale(0.8); opacity: 0.7; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-pin-pulse::after { animation: none; opacity: 0.5; }
+}
+
+/* Zoom controls: MapLibre's default is a white card with dark glyphs,
+   which reads as browser chrome against the dark surfaces. */
+.maplibregl-ctrl-group {
+  background: var(--color-ink-raised);
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--color-line);
+}
+.maplibregl-ctrl-group button {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+}
+.maplibregl-ctrl-group button:hover:not(:disabled) {
+  background: var(--color-ink-overlay);
+}
+/* The +/- glyphs are dark SVG data-URIs baked into MapLibre's CSS;
+   inverting is the only way to light them without shipping replacements. */
+.maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(1) brightness(1.6);
+}
+
+.maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--color-ink) 82%, transparent) !important;
+  border-radius: 8px 0 0 0;
+  color: var(--color-dust-dim);
+  font-size: 10px;
+}
+.maplibregl-ctrl-attrib a {
+  color: var(--color-dust);
+}
+.maplibregl-ctrl-attrib-button {
+  filter: invert(1) brightness(1.6);
+}
+
+.maplibregl-popup-content {
+  background: var(--color-ink-overlay);
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  padding: 10px 12px;
+  font-family: var(--font-sans);
+}
+.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--color-line); }
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--color-line); }
+.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--color-line); }
+.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--color-line); }
