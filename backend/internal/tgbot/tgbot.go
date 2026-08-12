@@ -311,9 +311,9 @@ func (b *Bot) handleEventDetail(ctx context.Context, _ *bot.Bot, update *models.
 	sb.WriteString("🕐 " + b.formatTime(l, e.StartsAt) + "\n")
 	sb.WriteString("📍 " + escape(b.placeLabel(l, e)) + "\n")
 	sb.WriteString("👤 " + escape(e.OrganizerName) + "\n")
-	sb.WriteString("👥 " + tf(l, kGoingCount, e.GoingCount))
+	sb.WriteString("👥 " + tc(l, kGoingCount, int(e.GoingCount)))
 	if e.Capacity != nil {
-		sb.WriteString(tf(l, kSpotsLeft, *e.Capacity))
+		sb.WriteString(tc(l, kSpotsLeft, int(*e.Capacity)))
 	}
 	if e.Description != "" {
 		sb.WriteString("\n\n" + escape(truncate(e.Description, 300)))

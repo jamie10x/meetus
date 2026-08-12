@@ -124,15 +124,15 @@ func (s *Service) GetMine(ctx context.Context, eventID, userID int64) (RSVPDTO, 
 // "going" RSVP; a waitlisted entry has no ticket and never appears here.
 type MyTicketDTO struct {
 	TicketDTO
-	EventID      int64      `json:"eventId"`
-	EventTitle   string     `json:"eventTitle"`
-	EventStatus  string     `json:"eventStatus"`
-	StartsAt     time.Time  `json:"startsAt"`
-	IsOnline     bool       `json:"isOnline"`
-	OnlineURL    *string    `json:"onlineUrl"`
-	LocationName *string    `json:"locationName"`
-	CitySlug     *string    `json:"citySlug"`
-	CoverURL     *string    `json:"coverUrl"`
+	EventID      int64     `json:"eventId"`
+	EventTitle   string    `json:"eventTitle"`
+	EventStatus  string    `json:"eventStatus"`
+	StartsAt     time.Time `json:"startsAt"`
+	IsOnline     bool      `json:"isOnline"`
+	OnlineURL    *string   `json:"onlineUrl"`
+	LocationName *string   `json:"locationName"`
+	CitySlug     *string   `json:"citySlug"`
+	CoverURL     *string   `json:"coverUrl"`
 }
 
 func (s *Service) ListMyTickets(ctx context.Context, userID int64) ([]MyTicketDTO, error) {

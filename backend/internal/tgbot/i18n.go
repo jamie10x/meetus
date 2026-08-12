@@ -112,8 +112,6 @@ var catalog = map[lang]map[msgKey]string{
 		kDefaultHint:      "Try /events to browse upcoming meetups, or visit %s",
 		kNoEvents:         "No upcoming events yet. Check back soon or explore %s",
 		kEventsHeader:     "📅 <b>Upcoming events</b>\n\n",
-		kGoingCount:       "%d going",
-		kSpotsLeft:        " / %d spots",
 		kJoinButton:       "✅ Join event",
 		kOpenWebButton:    "🌐 Open on Meetus.uz",
 		kEventUnavailable: "This event is no longer available.",
@@ -167,8 +165,6 @@ var catalog = map[lang]map[msgKey]string{
 		kDefaultHint:      "Введите /events, чтобы посмотреть мероприятия, или откройте %s",
 		kNoEvents:         "Пока нет предстоящих мероприятий. Загляните позже или откройте %s",
 		kEventsHeader:     "📅 <b>Предстоящие мероприятия</b>\n\n",
-		kGoingCount:       "%d участников",
-		kSpotsLeft:        " / %d мест",
 		kJoinButton:       "✅ Участвовать",
 		kOpenWebButton:    "🌐 Открыть на Meetus.uz",
 		kEventUnavailable: "Это мероприятие больше недоступно.",
@@ -216,60 +212,115 @@ var catalog = map[lang]map[msgKey]string{
 	},
 	langUz: {
 		kWelcome: "👋 <b>Meetus.uz</b>ga xush kelibsiz, %s!\n\n" +
-			"O'zbekiston bo'ylab tadbirlarni toping va bir tegishda qo'shiling.\n\n" +
+			"Oʻzbekiston boʻylab tadbirlarni toping va bir tegishda qoʻshiling.\n\n" +
 			"• /events — yaqinlashib kelayotgan tadbirlar\n" +
-			"• /language — tilni o'zgartirish\n" +
+			"• /language — tilni oʻzgartirish\n" +
 			"• Chiptalar va profil: %s",
-		kDefaultHint:      "Tadbirlarni ko'rish uchun /events buyrug'ini yuboring yoki %s ga o'ting",
-		kNoEvents:         "Hozircha tadbirlar yo'q. Birozdan so'ng qayta tekshiring yoki %s sahifasiga o'ting",
+		kDefaultHint:      "Tadbirlarni koʻrish uchun /events buyrugʻini yuboring yoki %s ga oʻting",
+		kNoEvents:         "Hozircha tadbirlar yoʻq. Birozdan soʻng qayta tekshiring yoki %s sahifasiga oʻting",
 		kEventsHeader:     "📅 <b>Yaqinlashib kelayotgan tadbirlar</b>\n\n",
-		kGoingCount:       "%d kishi ishtirok etmoqda",
-		kSpotsLeft:        " / %d joy",
 		kJoinButton:       "✅ Qatnashish",
-		kOpenWebButton:    "🌐 Meetus.uz'da ochish",
+		kOpenWebButton:    "🌐 Meetus.uzda ochish",
 		kEventUnavailable: "Bu tadbir endi mavjud emas.",
 		kJoinedSuccess: "✅ Siz qatnashuvchisiz! QR-chiptangiz quyida.\n\n" +
 			"Tadbir boshlanishidan oldin sizga eslataman.",
-		kJoinedAlert:           "Siz ro'yxatdasiz! 🎉",
+		kJoinedAlert:           "Siz roʻyxatdasiz! 🎉",
 		kLanguagePrompt:        "🌐 Tilni tanlang:",
-		kLanguageSet:           "✅ Til %s qilib o'zgartirildi.",
-		kFeedbackPrompt:        "🎉 <b>%s</b> qanday o'tdi? Bahoni tanlang:",
+		kLanguageSet:           "✅ Til %s qilib oʻzgartirildi.",
+		kFeedbackPrompt:        "🎉 <b>%s</b> qanday oʻtdi? Bahoni tanlang:",
 		kFeedbackThanks:        "🙏 Fikringiz uchun rahmat!",
-		kFeedbackCommentPrompt: "Izoh qoldirmoqchimisiz? Xabar yozing yoki \"O'tkazib yuborish\"ni bosing.",
-		kFeedbackCommentThanks: "🙏 Rahmat — izohingiz qo'shildi!",
-		kSkipButton:            "O'tkazib yuborish",
+		kFeedbackCommentPrompt: "Izoh qoldirmoqchimisiz? Xabar yozing yoki \"Oʻtkazib yuborish\"ni bosing.",
+		kFeedbackCommentThanks: "🙏 Rahmat — izohingiz qoʻshildi!",
+		kSkipButton:            "Oʻtkazib yuborish",
 		kReminder24h:           "⏰ <b>%s</b> tez orada boshlanadi!\n\n🕐 %s\n📍 %s\n\n🎫 Chiptangiz: %s",
-		kReminder1h:            "⏰ <b>%s</b> taxminan bir soatdan so'ng boshlanadi!\n\n🕐 %s\n📍 %s\n\n🎫 Chiptangiz: %s",
+		kReminder1h:            "⏰ <b>%s</b> taxminan bir soatdan soʻng boshlanadi!\n\n🕐 %s\n📍 %s\n\n🎫 Chiptangiz: %s",
 		kPlaceOnline:           "Onlayn",
 		kPlaceSeeEventPage:     "tadbir sahifasiga qarang",
 		kPlaceInPerson:         "Yuzma-yuz",
-		kErrAlreadyJoined:      "Siz allaqachon bu tadbirga qo'shilgansiz.",
+		kErrAlreadyJoined:      "Siz allaqachon bu tadbirga qoʻshilgansiz.",
 		kErrEventFull:          "Afsuski, joylar tugadi.",
-		kErrNotOpen:            "Bu tadbirga ro'yxatdan o'tish yopiq.",
+		kErrNotOpen:            "Bu tadbirga roʻyxatdan oʻtish yopiq.",
 		kErrAlreadyStarted:     "Bu tadbir allaqachon boshlangan.",
-		kErrGeneric:            "Tadbirga qo'shilib bo'lmadi.",
+		kErrGeneric:            "Tadbirga qoʻshilib boʻlmadi.",
 		kChannelConnected: "✅ <b>%s</b> kanali ulandi! Endi Meetus.uz tashkilotchi " +
-			"panelidan bu kanalga tadbir e'lonlarini yuborishingiz mumkin.",
-		kChannelConnectNeedsOrganizer: "Bu kanalning Meetus.uz'da tashkilotchi profiliga ega " +
-			"egasi bo'lishi kerak. Avval kiring va profil yarating, so'ng meni yana admin " +
-			"qilib qo'shing.",
-		kAnnouncementCta:   "🎟️ Ko'rish va qatnashish",
-		kTicketCaption:     "🎟️ <b>%s</b>\n\n🕐 %s\n📍 %s\n\nKirishda ushbu QR-kodni ko'rsating.",
-		kNoUpcomingTickets: "Sizda hozircha yaqinlashib kelayotgan chiptalar yo'q. /events buyrug'ini sinab ko'ring.",
-		kWaitlisted: "Siz kutish ro'yxatidasiz 📋 Hozircha bu tadbirda joy yo'q — " +
-			"joy bo'shashi bilanoq sizga xabar beraman.",
-		kWaitlistPromoted:    "🎉 <b>%s</b> uchun joy bo'shadi va siz qatnashuvchisiz! QR-chiptangiz quyida.",
-		kMuted:               "🔕 Eslatmalar va fikr-mulohaza so'rovlari endi o'chirilgan. Yoqish uchun istalgan vaqtda /mute yuboring.",
-		kUnmuted:             "🔔 Eslatmalar va fikr-mulohaza so'rovlari qayta yoqildi.",
+			"panelidan bu kanalga tadbir eʼlonlarini yuborishingiz mumkin.",
+		kChannelConnectNeedsOrganizer: "Bu kanalning Meetus.uzda tashkilotchi profiliga ega " +
+			"egasi boʻlishi kerak. Avval kiring va profil yarating, soʻng meni yana admin " +
+			"qilib qoʻshing.",
+		kAnnouncementCta:   "🎟️ Koʻrish va qatnashish",
+		kTicketCaption:     "🎟️ <b>%s</b>\n\n🕐 %s\n📍 %s\n\nKirishda ushbu QR-kodni koʻrsating.",
+		kNoUpcomingTickets: "Sizda hozircha yaqinlashib kelayotgan chiptalar yoʻq. /events buyrugʻini sinab koʻring.",
+		kWaitlisted: "Siz kutish roʻyxatidasiz 📋 Hozircha bu tadbirda joy yoʻq — " +
+			"joy boʻshashi bilanoq sizga xabar beraman.",
+		kWaitlistPromoted:    "🎉 <b>%s</b> uchun joy boʻshadi va siz qatnashuvchisiz! QR-chiptangiz quyida.",
+		kMuted:               "🔕 Eslatmalar va fikr-mulohaza soʻrovlari endi oʻchirilgan. Yoqish uchun istalgan vaqtda /mute yuboring.",
+		kUnmuted:             "🔔 Eslatmalar va fikr-mulohaza soʻrovlari qayta yoqildi.",
 		kDigestOn:            "🔔 Haftalik xulosa yoqildi — har dushanba ertalab yuboraman.",
-		kDigestOff:           "🔕 Haftalik xulosa o'chirildi. Qayta yoqish uchun /digest yuboring.",
-		kDigestHeader:        "📅 <b>Bu hafta Meetus.uz'da</b>\n\n",
+		kDigestOff:           "🔕 Haftalik xulosa oʻchirildi. Qayta yoqish uchun /digest yuboring.",
+		kDigestHeader:        "📅 <b>Bu hafta Meetus.uzda</b>\n\n",
 		kNearbyPrompt:        "Manzilingizni ulashing, men yaqin atrofdagi tadbirlarni topaman.",
 		kShareLocationButton: "📍 Manzilimni ulashish",
 		kNearbyHeader:        "📍 <b>Yaqin atrofdagi tadbirlar</b>\n\n",
-		kNearbyEmpty:         "Yaqin atrofda hozircha tadbirlar yo'q. Barchasini ko'rish uchun /events'ni sinab ko'ring.",
-		kGroupSubscribed:     "✅ Bu guruh endi Meetus.uz tadbir e'lonlariga obuna bo'ldi.",
+		kNearbyEmpty:         "Yaqin atrofda hozircha tadbirlar yoʻq. Barchasini koʻrish uchun /events buyrugʻini sinab koʻring.",
+		kGroupSubscribed:     "✅ Bu guruh endi Meetus.uz tadbir eʼlonlariga obuna boʻldi.",
 	},
+}
+
+// pluralIndex picks which of (one, few, many) a count takes. Russian
+// agrees three ways — 1 участник / 2 участника / 5 участников — so a
+// single hardcoded form was wrong for most numbers ("1 участников").
+// English agrees two ways; Uzbek not at all, since a numeral never
+// changes the noun after it.
+func pluralIndex(l lang, n int) int {
+	if n < 0 {
+		n = -n
+	}
+	switch l {
+	case langRu:
+		switch {
+		case n%10 == 1 && n%100 != 11:
+			return 0
+		case n%10 >= 2 && n%10 <= 4 && (n%100 < 12 || n%100 > 14):
+			return 1
+		default:
+			return 2
+		}
+	case langUz:
+		return 0
+	default:
+		if n == 1 {
+			return 0
+		}
+		return 2
+	}
+}
+
+// countCatalog holds messages whose noun agrees with a number, as
+// (one, few, many). Uzbek fills only index 0 meaningfully; English uses
+// 0 and 2. Kept separate from catalog so tc() can't be called on a
+// template that has no plural forms, and vice versa.
+var countCatalog = map[lang]map[msgKey][3]string{
+	langEn: {
+		kGoingCount: {"%d going", "%d going", "%d going"},
+		kSpotsLeft:  {" / %d spot", " / %d spots", " / %d spots"},
+	},
+	langRu: {
+		kGoingCount: {"%d участник", "%d участника", "%d участников"},
+		kSpotsLeft:  {" / %d место", " / %d места", " / %d мест"},
+	},
+	langUz: {
+		kGoingCount: {"%d kishi qatnashadi", "%d kishi qatnashadi", "%d kishi qatnashadi"},
+		kSpotsLeft:  {" / %d ta joy", " / %d ta joy", " / %d ta joy"},
+	},
+}
+
+// tc formats a count-agreeing message in the right plural form.
+func tc(l lang, k msgKey, n int) string {
+	forms, ok := countCatalog[l][k]
+	if !ok {
+		forms = countCatalog[langEn][k]
+	}
+	return fmt.Sprintf(forms[pluralIndex(l, n)], n)
 }
 
 // t looks up a translated template, falling back to English if a language

@@ -17,12 +17,12 @@
     "subtitle": "Discover meetups, workshops, and communities near you. RSVP in one click, get your QR ticket, and show up.",
     "exploreEvents": "Explore events",
     "signIn": "Sign in",
-    "statCities": "{count} cities and counting",
+    "statCities": "{count, plural, one {# city} other {# cities}} and counting",
     "statFree": "Always free to join",
     "ticketPreviewLabel": "Trending now",
     "ticketPreviewCta": "View & join",
     "howItWorksHeading": "How it works",
-    "step1Title": "Find something",
+    "step1Title": "Find something to do",
     "step1Body": "Browse by city, category, or search — tech meetups, language exchanges, sunrise hikes, startup nights.",
     "step2Title": "RSVP with Telegram",
     "step2Body": "One tap, no forms, no passwords. Your Telegram account is your ticket.",
@@ -31,9 +31,9 @@
   },
   "login": {
     "title": "Sign in to Meetus",
-    "subtitle": "Use your Telegram account — no passwords, no OTP codes.",
+    "subtitle": "Use your Telegram account — no passwords, no verification codes.",
     "signingIn": "Signing you in…",
-    "signInFailed": "Sign in failed. Please retry."
+    "signInFailed": "Sign in didn't work. Please try again."
   },
   "telegramLogin": {
     "notConfigured": "Telegram login is not configured. Set {envVar} in {envFile}."
@@ -42,7 +42,7 @@
     "title": "Your profile",
     "changePhoto": "Change photo",
     "uploading": "Uploading…",
-    "avatarUploadFailed": "Upload failed.",
+    "avatarUploadFailed": "Could not upload that image. Please try again.",
     "name": "Name",
     "city": "City",
     "cityNotSet": "Not set",
@@ -52,7 +52,7 @@
     "save": "Save",
     "saving": "Saving…",
     "saved": "Profile saved.",
-    "saveFailed": "Failed to save.",
+    "saveFailed": "Could not save your profile. Please try again.",
     "loading": "Loading…"
   },
   "explore": {
@@ -69,7 +69,7 @@
     "online": "Online",
     "loading": "Loading events…",
     "loadFailed": "Could not load events. Check your connection and try again.",
-    "noResults": "No events match these filters yet.",
+    "noResults": "No events match these filters yet. Try widening your search.",
     "loadMore": "Load more",
     "listView": "List",
     "mapView": "Map",
@@ -77,11 +77,11 @@
   },
   "trending": {
     "title": "Trending this week",
-    "badge": "{count} joined this week"
+    "badge": "{count, plural, one {# person joined} other {# joined}} this week"
   },
   "eventCard": {
     "going": "{count} going",
-    "spotsLeft": "{count} spots left"
+    "spotsLeft": "{count, plural, one {# spot left} other {# spots left}}"
   },
   "eventDetail": {
     "notFoundTitle": "Event not found",
@@ -90,7 +90,7 @@
     "statusFinished": "finished",
     "hostedBy": "Hosted by {name}",
     "goingCount": "{count} going",
-    "spotsLeft": "· {count} spots left",
+    "spotsLeft": "· {count, plural, one {# spot left} other {# spots left}}",
     "online": "Online",
     "inPerson": "In person",
     "location": "Location",
@@ -111,8 +111,8 @@
     "joinWaitlist": "Join waitlist",
     "waitlistedMessage": "You're on the waitlist — we'll message you if a spot opens up.",
     "leaveWaitlist": "Leave waitlist",
-    "joinFailed": "Could not join. Retry.",
-    "cancelFailed": "Could not cancel. Retry."
+    "joinFailed": "Could not join. Please try again.",
+    "cancelFailed": "Could not cancel. Please try again."
   },
   "tickets": {
     "title": "My tickets",
@@ -140,10 +140,10 @@
     "aboutLabel": "About (optional)",
     "create": "Create organizer profile",
     "creating": "Creating…",
-    "createFailed": "Request failed.",
+    "createFailed": "Could not create your organizer profile. Please try again.",
     "yourEvents": "Your events",
     "newEvent": "+ New event",
-    "noEventsYet": "No events yet. Create your first one!",
+    "noEventsYet": "No events yet — create your first one.",
     "statsEvents": "Events",
     "statsUpcoming": "Upcoming",
     "statsTotalRsvps": "Total RSVPs",
@@ -177,7 +177,7 @@
     "locationTypeOnline": "Online",
     "meetingLink": "Meeting link",
     "meetingLinkPlaceholder": "https://zoom.us/j/...",
-    "meetingLinkHint": "Only shown to people who've RSVP'd going — never public.",
+    "meetingLinkHint": "Only people who've joined can see this. It's never shown publicly.",
     "venueName": "Venue name",
     "venuePlaceholder": "e.g. Impact Hub",
     "district": "District",
@@ -197,7 +197,7 @@
     "endBeforeStart": "End time must be after the start time.",
     "repeatsWeekly": "Repeats weekly",
     "recurWeeksLabel": "Number of occurrences",
-    "recurWeeksOption": "{count} occurrences, one week apart",
+    "recurWeeksOption": "{count, plural, one {# occurrence} other {# occurrences}}, a week apart",
     "recurWeeksHint": "Creates separate draft events, one week apart — publish and edit each one individually.",
     "capacityToggleLabel": "Capacity",
     "capacityUnlimited": "Unlimited",
@@ -208,12 +208,12 @@
     "uploading": "Uploading…",
     "saving": "Saving…",
     "coverPreviewAlt": "Cover preview",
-    "uploadFailed": "Upload failed.",
-    "saveFailed": "Failed to save event."
+    "uploadFailed": "Could not upload that image. Please try again.",
+    "saveFailed": "Could not save the event. Please try again."
   },
   "eventNew": {
     "title": "Create event",
-    "subtitle": "Events start as drafts — publish when you're ready.",
+    "subtitle": "Every event starts as a draft — publish it when you're ready.",
     "createDraft": "Create draft"
   },
   "eventEdit": {
@@ -229,20 +229,20 @@
     "cancelEvent": "Cancel event",
     "saveChanges": "Save changes",
     "cannotEdit": "This event is {status} and can no longer be edited.",
-    "actionFailed": "Action failed.",
-    "deleteFailed": "Delete failed.",
+    "actionFailed": "That didn't work. Please try again.",
+    "deleteFailed": "Could not delete the draft. Please try again.",
     "announceHeading": "Announce to channel",
     "announce": "Announce",
     "announcing": "Sending…",
     "announceSent": "Sent to {channel}",
     "announceFailed": "Could not send the announcement.",
-    "autoAnnounceHint": "Publishing will automatically announce this event to your {count} connected channel(s)."
+    "autoAnnounceHint": "Publishing announces this event automatically to {count, plural, one {your connected channel} other {your # connected channels}}."
   },
   "scan": {
     "title": "Check-in scanner",
     "back": "← Back to event",
     "cameraError": "Camera unavailable. Allow camera access and reload the page.",
-    "checkInFailed": "Check-in failed.",
+    "checkInFailed": "Check-in failed. Scan the ticket again.",
     "checkedInTo": "checked in to {eventTitle}",
     "sessionCount": "{count} checked in this session"
   },
@@ -252,7 +252,7 @@
     "loading": "Loading…",
     "loadFailed": "Could not load attendees.",
     "summary": "{going} going · {checkedIn} checked in",
-    "ratings": "★ {average} ({count} ratings)",
+    "ratings": "★ {average} ({count, plural, one {# rating} other {# ratings}})",
     "exportCsv": "Export CSV",
     "noRsvps": "No RSVPs yet.",
     "checkedIn": "checked in",
@@ -262,7 +262,7 @@
   "admin": {
     "title": "Admin",
     "loading": "Loading…",
-    "actionFailed": "Action failed.",
+    "actionFailed": "That didn't work. Please try again.",
     "statUsers": "Users",
     "statOrganizers": "Organizers",
     "statUpcomingEvents": "Upcoming events",
@@ -304,8 +304,8 @@
     "metaCancel": "Cancel",
     "metaDelete": "Delete",
     "metaDeleteConfirm": "Delete this? It cannot be undone.",
-    "metaSaveFailed": "Failed to save.",
-    "metaDeleteFailed": "Failed to delete."
+    "metaSaveFailed": "Could not save. Please try again.",
+    "metaDeleteFailed": "Could not delete. Please try again."
   },
   "languageSwitcher": {
     "uz": "Oʻzbekcha",
