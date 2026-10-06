@@ -10,7 +10,7 @@ Base URL: `/api`. All responses use the envelope:
 Error codes: `validation_error` (400), `unauthorized` (401), `forbidden` (403),
 `not_found` (404), `conflict` (409), `internal_error` (500).
 
-Authenticated endpoints require `Authorization: Bearer <accessToken>`.
+Authenticated endpoints require `Authorization: Bearer <accessToken>`. Banned users receive 403 on authenticated actions, including existing sessions and bot mutations.
 
 ## Auth
 
@@ -41,7 +41,7 @@ minted fresh on every Mini App launch). Response shape is identical to
 there instead).
 
 ### POST /auth/refresh
-Body: `{ "refreshToken": "..." }` → `data`: token pair (rotation: old token is revoked).
+Body: `{ "refreshToken": "..." }` → `data`: token pair. Rotation atomically consumes the old token and stores its successor; concurrent reuse receives 401. An issuance failure rolls back consumption.
 
 ### POST /auth/logout
 Body: `{ "refreshToken": "..." }` → `data`: `{ "loggedOut": true }`. Idempotent.
@@ -56,6 +56,7 @@ Body (all optional): `{ "name", "cityId", "district", "language", "avatarUrl" }`
 `language` ∈ `uz | ru | en`. `avatarUrl` (upload it first via
 [POST /uploads](#post-uploads)) marks the avatar as user-set — a later
 Telegram login will no longer overwrite it with the Telegram profile photo.
+Omitted fields preserve their values; explicit `null` clears `cityId` and `district`. Send `avatarUrl` only when explicitly changing the photo.
 → `data`: updated user.
 
 ## Meta
@@ -128,8 +129,11 @@ plain single event.
 ### GET /events/mine
 → `data`: array of the organizer's events, newest start first.
 
+### GET /events/:id (owner only)
+Returns one owned event, including its meeting URL.
+
 ### PATCH /events/:id
-Same body as create. Rejected for canceled/finished events (409).
+Same body as create. Omitted `visibility` preserves its current value. Rejected for canceled/finished events (409). Capacity cannot be reduced below confirmed attendance or changed while a waitlist exists (409); resolve the waitlist first.
 
 ### POST /events/:id/publish · /unpublish · /cancel
 Lifecycle transitions: draft→published (start must be in the future),
@@ -150,7 +154,7 @@ admin rights in a channel) are logged server-side, not surfaced in the
 publish response.
 
 ### DELETE /events/:id
-Drafts only (409 otherwise) → `data`: `{ "deleted": true }`.
+Drafts with no attendance/history references only (409 otherwise) → `data`: `{ "deleted": true }`.
 
 ## Explore (public)
 
@@ -219,13 +223,13 @@ When a `going` RSVP is later canceled (by anyone, not just this caller)
 and the event has a waitlist, the longest-waiting waitlisted attendee is
 automatically promoted to `going` in the same transaction, their ticket
 is issued, and they're notified via the bot with the QR photo attached —
-see `rsvp.PromotionNotifier` / `tgbot.Announcer.SendWaitlistPromotion`.
+delivery is queued transactionally and performed by the worker.
 
 ### DELETE /events/:id/rsvp (auth)
 Cancels the caller's RSVP, whether `going` or `waitlisted` → `{ "canceled": true }`.
 404 if the caller has no active RSVP. Canceling a `going` RSVP may trigger
 the waitlist promotion described above; canceling a `waitlisted` one just
-removes them from the queue.
+removes them from the queue. Closed or already-started events never promote. Rejoining the waitlist starts a new queue position.
 
 ### GET /events/:id/rsvp (auth)
 → the caller's current RSVP for the event, 404 if none (canceled or never joined).
@@ -240,9 +244,7 @@ inherently a confirmed `going` RSVP (a ticket only exists for one).
 ## Check-in (organizer)
 
 ### POST /checkin (auth + organizer)
-Body: `{ "qr": "<scanned value>" }`. Verifies the HMAC signature, that the
-ticket belongs to one of the caller's events, the RSVP is active, and the
-ticket is unused. → `data`: `{ "attendeeName", "eventTitle", "checkedInAt" }`.
+Body: `{ "eventId": number, "qr": "<scanned value>" }`. Atomically verifies the HMAC signature, selected event and organizer, active RSVP and unused ticket. Check-in opens two hours before start and closes at `endsAt` (or four hours after start); the event must be published. → `data`: `{ "attendeeName", "eventTitle", "checkedInAt" }`.
 409 on duplicate scan, 403 for another organizer's ticket.
 
 ### GET /events/:id/attendees (auth + organizer, owner only)
@@ -257,7 +259,7 @@ CSV download (`name`, `username`, `rsvp_at`, `checked_in_at`), not the JSON enve
 Body: `{ "rating": 1-5 }`. Caller must have an RSVP row for the event (any
 status — canceling afterward doesn't retract the right to rate). Upserts:
 resubmitting changes the rating. → `data`: `{ "submitted": true }`.
-403 if the caller never RSVP'd.
+403 if the caller never RSVP'd; 409 unless the event has finished.
 
 ### GET /events/:id/feedback (auth + organizer, owner only)
 → `data`: `{ "count", "average" }` (average is `0` when count is `0`).
@@ -294,7 +296,7 @@ Search by name/username (ILIKE, limit 50)
 → `data`: `[{ "id", "name", "username", "isBanned", "isAdmin", "createdAt" }]`
 
 ### POST /admin/users/:id/ban · /unban
-Ban blocks login **and** token refresh. Admins cannot ban admins or
+Ban blocks login, token refresh, authenticated HTTP actions and bot mutations. Admins cannot ban admins or
 themselves. → `data`: `{ "id", "isBanned" }`
 
 ### GET /admin/organizers?q=
@@ -339,8 +341,32 @@ someone else, 400 `"channel announcements are not configured on this
 server"` if the backend has no `TELEGRAM_BOT_TOKEN` (dev default), 500 if
 Telegram rejects the send (e.g. the bot lost admin rights since connecting).
 
+## Geocoding
+
+### GET /geocode/search?q= · GET /geocode/reverse?lat=&lon= (auth)
+User-submitted queries only. Returns provider JSON within the standard data envelope. Search query: 3–300 bytes; reverse coordinates: valid latitude/longitude. Responses cached for seven days; aggregate uncached provider requests limited to one per second (429 with Retry-After). The provider is configurable through GEOCODE_BASE_URL.
+
 ## Uploads
 
 ### POST /uploads (auth)
 Multipart field `file`: JPEG/PNG/WebP ≤ 5 MB → 201 `data`: `{ "url" }`.
 Files are served publicly at `/uploads/<name>`.
+
+### Management list pagination
+
+`GET /events/mine`, `/admin/events`, `/admin/users`, and `/admin/organizers`
+return at most 50 rows, ordered by descending numeric ID. Pass optional
+`beforeId=<last row id>` to continue (positive integer; invalid values are
+400). Existing status/search filters apply to every page. The response
+remains a data array; fewer than 50 rows means the end. Use owner GET
+`/events/:id` for editing instead of searching a management list.
+
+### GET /admin/operations (auth + admin)
+Read-only worker and delivery-queue health. Returns `data`:
+`{ "worker": { "status": "ready" | "stale" | "disabled", "lastProgressAt": string | null, "revision": string | null }, "delivery": { "pending": number, "failed": number, "oldestPendingAt": string | null } }`.
+Worker `ready` means a successful delivery-loop iteration within 90 seconds,
+including an idle poll; it does not certify Telegram delivery or other worker
+loops. No bot configured means `disabled`. Missing/expired heartbeat means
+`stale`. Redis/database errors return the standard server-error envelope,
+never a fabricated healthy response. Job payloads and recipient data are
+not exposed. Use pending age and failed count alongside worker progress.

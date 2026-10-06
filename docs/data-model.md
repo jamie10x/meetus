@@ -144,3 +144,21 @@ cd backend && go run ./cmd/migrate down 1
 
 Down migrations must actually reverse the up (they're used in dev). In
 production only `up` runs (compose `migrate` service before the API).
+
+## Delivery and waitlist migrations (0015–0016)
+
+`rsvps.waitlisted_at` records entry into the current waitlist; rejoining
+resets it. A partial `(event_id, waitlisted_at, id)` index supports FIFO
+promotion.
+
+`delivery_jobs` stores unique `dedupe_key`, `kind`, JSON payload, attempts,
+next availability, lease expiry, and completion/failure timestamps. Pending
+rows have a partial `(available_at,id)` index. Publication/promotion enqueue
+in the same transaction as the event/RSVP change. Preserve dedupe keys while
+their originating scan can recur; do not blindly purge completed jobs.
+
+### Public discovery cursor index (0017)
+
+`idx_events_public_cursor` indexes `(starts_at, id)` for published public
+rows. It matches discovery pagination order and avoids sorting all visible
+rows before applying the page limit. It does not change trending ranking.

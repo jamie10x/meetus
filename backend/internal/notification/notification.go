@@ -5,6 +5,7 @@ package notification
 import (
 	"context"
 	"fmt"
+	"meetus.uz/backend/internal/platform/outbox"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -150,9 +151,8 @@ func (r *Repository) MarkFeedbackSent(ctx context.Context, f *FeedbackDue) error
 	return nil
 }
 
-// MarkSent records the send attempt. It is recorded even when Telegram
-// rejects the message (e.g. the user never started the bot) so the worker
-// does not retry forever.
+// MarkSent records scheduling after the durable job is enqueued. Delivery
+// attempts and terminal failures are tracked in delivery_jobs.
 func (r *Repository) MarkSent(ctx context.Context, rem *Reminder) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO notification_log (event_id, user_id, kind)
@@ -163,4 +163,17 @@ func (r *Repository) MarkSent(ctx context.Context, rem *Reminder) error {
 		return fmt.Errorf("mark sent: %w", err)
 	}
 	return nil
+}
+
+func (r *Repository) QueueReminder(ctx context.Context, rem *Reminder) error {
+	if err := outbox.Enqueue(ctx, r.pool, fmt.Sprintf("reminder:%s:%d:%d", rem.Kind, rem.EventID, rem.UserID), "reminder", rem); err != nil {
+		return err
+	}
+	return r.MarkSent(ctx, rem)
+}
+func (r *Repository) QueueFeedback(ctx context.Context, f *FeedbackDue) error {
+	if err := outbox.Enqueue(ctx, r.pool, fmt.Sprintf("feedback:%d:%d", f.EventID, f.UserID), "feedback", f); err != nil {
+		return err
+	}
+	return r.MarkFeedbackSent(ctx, f)
 }

@@ -14,22 +14,10 @@ import (
 
 type Handler struct {
 	service *Service
-
-	// onPublished, if set, is fired (in a background goroutine, since the
-	// request context is canceled once the response is written) after an
-	// event is successfully published — used to auto-announce to the
-	// organizer's connected channels.
-	onPublished func(ctx context.Context, e *Event)
 }
 
 func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
-}
-
-// SetOnPublished registers the auto-announce hook. Must be called before
-// the server starts serving requests; not safe to change concurrently.
-func (h *Handler) SetOnPublished(fn func(ctx context.Context, e *Event)) {
-	h.onPublished = fn
 }
 
 // Register mounts organizer event-management routes. Public discovery
@@ -38,18 +26,12 @@ func (h *Handler) Register(r gin.IRouter, requireAuth, requireOrganizer gin.Hand
 	g := r.Group("/events", requireAuth, requireOrganizer)
 	g.POST("", h.create)
 	g.GET("/mine", h.listMine)
+	g.GET("/:id", h.getOwned)
 	g.PATCH("/:id", h.update)
-	g.POST("/:id/publish", h.transition(h.service.Publish, h.firePublished))
-	g.POST("/:id/unpublish", h.transition(h.service.Unpublish, nil))
-	g.POST("/:id/cancel", h.transition(h.service.Cancel, nil))
+	g.POST("/:id/publish", h.transition(h.service.Publish))
+	g.POST("/:id/unpublish", h.transition(h.service.Unpublish))
+	g.POST("/:id/cancel", h.transition(h.service.Cancel))
 	g.DELETE("/:id", h.delete)
-}
-
-func (h *Handler) firePublished(e *Event) {
-	if h.onPublished == nil {
-		return
-	}
-	go h.onPublished(context.Background(), e)
 }
 
 func eventID(c *gin.Context) (int64, error) {
@@ -75,7 +57,12 @@ func (h *Handler) create(c *gin.Context) {
 }
 
 func (h *Handler) listMine(c *gin.Context) {
-	events, err := h.service.ListMine(c.Request.Context(), organizer.OrganizerID(c))
+	beforeID, err := httpx.BeforeID(c)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	events, err := h.service.ListMine(c.Request.Context(), organizer.OrganizerID(c), beforeID)
 	if err != nil {
 		httpx.Error(c, err)
 		return
@@ -107,8 +94,8 @@ func (h *Handler) update(c *gin.Context) {
 }
 
 // transition wraps the publish/unpublish/cancel service calls that share
-// a signature. after, if non-nil, runs once the transition succeeds.
-func (h *Handler) transition(fn func(ctx context.Context, organizerID, eventID int64) (*Event, error), after func(e *Event)) gin.HandlerFunc {
+// a signature. Durable delivery is queued by the repository transaction.
+func (h *Handler) transition(fn func(ctx context.Context, organizerID, eventID int64) (*Event, error)) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, err := eventID(c)
 		if err != nil {
@@ -119,9 +106,6 @@ func (h *Handler) transition(fn func(ctx context.Context, organizerID, eventID i
 		if err != nil {
 			httpx.Error(c, err)
 			return
-		}
-		if after != nil {
-			after(e)
 		}
 		httpx.OK(c, http.StatusOK, e.ToDTO())
 	}
@@ -138,4 +122,18 @@ func (h *Handler) delete(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, http.StatusOK, gin.H{"deleted": true})
+}
+
+func (h *Handler) getOwned(c *gin.Context) {
+	id, err := eventID(c)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	e, err := h.service.getOwned(c.Request.Context(), organizer.OrganizerID(c), id)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	httpx.OK(c, http.StatusOK, e.ToDTO())
 }

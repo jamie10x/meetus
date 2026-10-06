@@ -1,6 +1,7 @@
 package authn
 
 import (
+	"context"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +14,7 @@ const ctxUserIDKey = "authUserID"
 
 // RequireAuth validates the Bearer access token and stores the user ID
 // in the request context.
-func RequireAuth(tokens *TokenManager) gin.HandlerFunc {
+func RequireAuth(tokens *TokenManager, checks ...func(context.Context, int64) error) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		token, ok := strings.CutPrefix(header, "Bearer ")
@@ -25,6 +26,12 @@ func RequireAuth(tokens *TokenManager) gin.HandlerFunc {
 		if err != nil {
 			httpx.Error(c, err)
 			return
+		}
+		for _, check := range checks {
+			if err := check(c.Request.Context(), userID); err != nil {
+				httpx.Error(c, err)
+				return
+			}
 		}
 		c.Set(ctxUserIDKey, userID)
 		c.Next()

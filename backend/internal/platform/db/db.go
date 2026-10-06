@@ -12,7 +12,8 @@ import (
 func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("parse database url: %w", err)
+		// Parser errors can contain the original DSN, including credentials.
+		return nil, fmt.Errorf("invalid DATABASE_URL configuration")
 	}
 	cfg.MaxConns = 10
 	cfg.MaxConnLifetime = time.Hour

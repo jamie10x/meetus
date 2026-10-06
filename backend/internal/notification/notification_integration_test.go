@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"meetus.uz/backend/internal/config"
@@ -18,6 +19,9 @@ func TestDueAndMarkSent(t *testing.T) {
 	ctx := context.Background()
 	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatalf("postgres required in CI: %v", err)
+		}
 		t.Skipf("postgres unavailable: %v", err)
 	}
 	// Registered before the data cleanup below: t.Cleanup runs LIFO, so the
@@ -122,6 +126,9 @@ func TestDueFeedbackAndMarkSent(t *testing.T) {
 	ctx := context.Background()
 	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatalf("postgres required in CI: %v", err)
+		}
 		t.Skipf("postgres unavailable: %v", err)
 	}
 	t.Cleanup(pool.Close)

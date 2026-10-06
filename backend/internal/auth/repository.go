@@ -61,3 +61,39 @@ func (r *Repository) RevokeRefreshToken(ctx context.Context, id int64) error {
 	}
 	return nil
 }
+
+// Rotate consumes and replaces a refresh token in one transaction. The row
+// lock serializes concurrent consumers; rollback preserves the old token.
+func (r *Repository) Rotate(ctx context.Context, oldHash string, now time.Time, issue func(int64) (string, time.Time, error)) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var id, userID int64
+	var banned bool
+	err = tx.QueryRow(ctx, `SELECT rt.id, rt.user_id, u.is_banned
+ FROM refresh_tokens rt JOIN users u ON u.id = rt.user_id
+ WHERE rt.token_hash=$1 AND rt.revoked_at IS NULL AND rt.expires_at > $2
+ FOR UPDATE OF rt`, oldHash, now).Scan(&id, &userID, &banned)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperr.Unauthorized("invalid refresh token")
+	}
+	if err != nil {
+		return err
+	}
+	if banned {
+		return apperr.Forbidden("account is banned")
+	}
+	nextHash, expires, err := issue(userID)
+	if err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE refresh_tokens SET revoked_at=$2 WHERE id=$1`, id, now); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO refresh_tokens(user_id,token_hash,expires_at) VALUES($1,$2,$3)`, userID, nextHash, expires); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}

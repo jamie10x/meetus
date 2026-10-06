@@ -21,7 +21,7 @@ func signMiniAppFields(t *testing.T, fields map[string]string, botToken string) 
 	t.Helper()
 	keys := make([]string, 0, len(fields))
 	for k := range fields {
-		if k != "hash" && k != "signature" {
+		if k != "hash" {
 			keys = append(keys, k)
 		}
 	}
@@ -143,5 +143,33 @@ func TestVerifyMiniAppInitData_NotInterchangeableWithLoginWidget(t *testing.T) {
 	}
 	if _, err := VerifyMiniAppInitData(v.Encode(), miniAppBotToken, now); err == nil {
 		t.Fatal("a Login Widget signature must not verify as Mini App init data")
+	}
+}
+
+func TestMiniAppSignatureFieldAndDuplicateKeys(t *testing.T) {
+	now := time.Now()
+	fields := map[string]string{"auth_date": strconv.FormatInt(now.Unix(), 10), "user": `{"id":555,"first_name":"Test"}`, "signature": "signed-field"}
+	fields["hash"] = signMiniAppFields(t, fields, miniAppBotToken)
+	values := url.Values{}
+	for k, v := range fields {
+		values.Set(k, v)
+	}
+	if _, err := VerifyMiniAppInitData(values.Encode(), miniAppBotToken, now); err != nil {
+		t.Fatal(err)
+	}
+	values.Set("signature", "tampered")
+	if _, err := VerifyMiniAppInitData(values.Encode(), miniAppBotToken, now); err == nil {
+		t.Fatal("signature tampering accepted")
+	}
+	values.Set("signature", "signed-field")
+	values.Add("user", fields["user"])
+	if _, err := VerifyMiniAppInitData(values.Encode(), miniAppBotToken, now); err == nil {
+		t.Fatal("duplicate fields accepted")
+	}
+}
+func TestMiniAppFutureDate(t *testing.T) {
+	now := time.Now()
+	if _, err := VerifyMiniAppInitData(validMiniAppInitData(t, now.Add(time.Hour)), miniAppBotToken, now); err == nil {
+		t.Fatal("future auth date accepted")
 	}
 }

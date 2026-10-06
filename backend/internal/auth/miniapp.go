@@ -38,9 +38,8 @@ type miniAppUser struct {
 // This is a DIFFERENT signing scheme from the Login Widget
 // (VerifyTelegramLogin), not a variant of it:
 //   - data-check-string: same idea (sorted "key=value" lines, "\n"-joined),
-//     but built from initData's fields, excluding both "hash" and
-//     "signature" (the latter belongs to a separate, newer verification
-//     scheme this function does not implement).
+//     but built from all initData fields except "hash", including
+//     "signature" when present. Excluding signature is only for Ed25519 verification.
 //   - secret key: HMAC-SHA256(key="WebAppData", message=botToken) — the
 //     Login Widget instead uses a plain SHA-256 of the bot token. Do not
 //     share the derived secret between the two flows.
@@ -58,8 +57,11 @@ func VerifyMiniAppInitData(initData string, botToken string, now time.Time) (*Te
 	}
 
 	keys := make([]string, 0, len(values))
-	for k := range values {
-		if k != "hash" && k != "signature" {
+	for k, entries := range values {
+		if len(entries) != 1 {
+			return nil, apperr.Unauthorized("duplicate init data field")
+		}
+		if k != "hash" {
 			keys = append(keys, k)
 		}
 	}
@@ -87,7 +89,7 @@ func VerifyMiniAppInitData(initData string, botToken string, now time.Time) (*Te
 	if err != nil {
 		return nil, apperr.Unauthorized("invalid init data auth_date")
 	}
-	if now.Sub(time.Unix(authDate, 0)) > miniAppAuthMaxAge {
+	if time.Unix(authDate, 0).After(now.Add(time.Minute)) || now.Sub(time.Unix(authDate, 0)) > miniAppAuthMaxAge {
 		return nil, apperr.Unauthorized("init data expired, please relaunch the app")
 	}
 

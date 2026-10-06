@@ -98,30 +98,16 @@ func (s *Service) loginTelegramUser(ctx context.Context, tu *TelegramUser, defau
 // Refresh rotates a valid refresh token: the old token is revoked and a new
 // pair is issued. A revoked or expired token is rejected.
 func (s *Service) Refresh(ctx context.Context, rawRefreshToken string) (*TokenPair, error) {
-	stored, err := s.repo.GetRefreshToken(ctx, hashToken(rawRefreshToken))
-	if err != nil {
-		return nil, err
-	}
-	if stored.RevokedAt != nil {
-		return nil, apperr.Unauthorized("refresh token revoked")
-	}
-	if s.now().After(stored.ExpiresAt) {
-		return nil, apperr.Unauthorized("refresh token expired")
-	}
-
-	// Reject refresh for banned/deleted users before issuing new tokens.
-	u, err := s.users.GetByID(ctx, stored.UserID)
-	if err != nil {
-		return nil, apperr.Unauthorized("account unavailable")
-	}
-	if u.IsBanned {
-		return nil, apperr.Forbidden("account is banned")
-	}
-
-	if err := s.repo.RevokeRefreshToken(ctx, stored.ID); err != nil {
-		return nil, err
-	}
-	return s.issuePair(ctx, stored.UserID)
+	var pair *TokenPair
+	err := s.repo.Rotate(ctx, hashToken(rawRefreshToken), s.now(), func(userID int64) (string, time.Time, error) {
+		var err error
+		pair, err = s.makePair(userID)
+		if err != nil {
+			return "", time.Time{}, err
+		}
+		return hashToken(pair.RefreshToken), s.now().Add(s.refreshTokenTTL), nil
+	})
+	return pair, err
 }
 
 func (s *Service) Logout(ctx context.Context, rawRefreshToken string) error {
@@ -134,6 +120,17 @@ func (s *Service) Logout(ctx context.Context, rawRefreshToken string) error {
 }
 
 func (s *Service) issuePair(ctx context.Context, userID int64) (*TokenPair, error) {
+	pair, err := s.makePair(userID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.StoreRefreshToken(ctx, userID, hashToken(pair.RefreshToken), s.now().Add(s.refreshTokenTTL)); err != nil {
+		return nil, err
+	}
+	return pair, nil
+}
+
+func (s *Service) makePair(userID int64) (*TokenPair, error) {
 	now := s.now()
 
 	access, err := s.tokens.IssueAccess(userID, now)
@@ -143,10 +140,6 @@ func (s *Service) issuePair(ctx context.Context, userID int64) (*TokenPair, erro
 
 	raw, err := newRefreshToken()
 	if err != nil {
-		return nil, err
-	}
-	expiresAt := now.Add(s.refreshTokenTTL)
-	if err := s.repo.StoreRefreshToken(ctx, userID, hashToken(raw), expiresAt); err != nil {
 		return nil, err
 	}
 

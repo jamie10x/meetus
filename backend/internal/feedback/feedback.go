@@ -33,6 +33,16 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 // who RSVP'd (in any status — canceling afterward doesn't retract the
 // right to rate) may leave feedback.
 func (r *Repository) Submit(ctx context.Context, eventID, userID int64, rating int) error {
+	var finished bool
+	if err := r.pool.QueryRow(ctx, `SELECT status='finished' FROM events WHERE id=$1`, eventID).Scan(&finished); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apperr.NotFound("event not found")
+		}
+		return fmt.Errorf("get event for feedback: %w", err)
+	}
+	if !finished {
+		return apperr.Conflict("feedback opens after the event finishes")
+	}
 	var exists bool
 	err := r.pool.QueryRow(ctx,
 		`SELECT EXISTS(SELECT 1 FROM rsvps WHERE event_id = $1 AND user_id = $2)`,

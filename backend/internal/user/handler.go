@@ -1,6 +1,7 @@
 package user
 
 import (
+	"encoding/json"
 	"net/http"
 	"slices"
 
@@ -37,12 +38,22 @@ func (h *Handler) getMe(c *gin.Context) {
 	httpx.OK(c, http.StatusOK, u.ToDTO())
 }
 
+type nullable[T any] struct {
+	Set   bool
+	Value *T
+}
+
+func (n *nullable[T]) UnmarshalJSON(data []byte) error {
+	n.Set = true
+	return json.Unmarshal(data, &n.Value)
+}
+
 type updateMeRequest struct {
-	Name      *string `json:"name"`
-	CityID    *int32  `json:"cityId"`
-	District  *string `json:"district"`
-	Language  *string `json:"language"`
-	AvatarURL *string `json:"avatarUrl"`
+	Name      *string          `json:"name"`
+	CityID    nullable[int32]  `json:"cityId"`
+	District  nullable[string] `json:"district"`
+	Language  *string          `json:"language"`
+	AvatarURL *string          `json:"avatarUrl"`
 }
 
 func (h *Handler) updateMe(c *gin.Context) {
@@ -65,11 +76,13 @@ func (h *Handler) updateMe(c *gin.Context) {
 	}
 
 	u, err := h.repo.UpdateProfile(c.Request.Context(), authn.UserID(c), ProfileUpdate{
-		Name:      req.Name,
-		CityID:    req.CityID,
-		District:  req.District,
-		Language:  req.Language,
-		AvatarURL: req.AvatarURL,
+		Name:        req.Name,
+		CityID:      req.CityID.Value,
+		CityIDSet:   req.CityID.Set,
+		District:    req.District.Value,
+		DistrictSet: req.District.Set,
+		Language:    req.Language,
+		AvatarURL:   req.AvatarURL,
 	})
 	if err != nil {
 		httpx.Error(c, err)

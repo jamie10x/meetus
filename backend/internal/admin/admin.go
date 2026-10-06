@@ -105,12 +105,21 @@ func (h *Handler) stats(c *gin.Context) {
 		s.EventsByStatus[status] = n
 	}
 
+	if err := rows.Err(); err != nil {
+		httpx.Error(c, err)
+		return
+	}
 	httpx.OK(c, http.StatusOK, s)
 }
 
 // listEvents returns events in any status, newest first, optionally
 // filtered by status.
 func (h *Handler) listEvents(c *gin.Context) {
+	beforeID, err := httpx.BeforeID(c)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
 	status := c.Query("status")
 	switch status {
 	case "", "draft", "published", "canceled", "finished":
@@ -119,7 +128,7 @@ func (h *Handler) listEvents(c *gin.Context) {
 		return
 	}
 
-	events, err := h.eventRepo.ListForAdmin(c.Request.Context(), status, listLimit)
+	events, err := h.eventRepo.ListForAdmin(c.Request.Context(), status, listLimit, beforeID)
 	if err != nil {
 		httpx.Error(c, err)
 		return
@@ -167,13 +176,18 @@ type adminUser struct {
 }
 
 func (h *Handler) listUsers(c *gin.Context) {
+	beforeID, err := httpx.BeforeID(c)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
 	q := c.Query("q")
 	rows, err := h.pool.Query(c.Request.Context(), `
 		SELECT id, name, username, is_banned, is_admin, created_at
 		FROM users
-		WHERE $1 = '' OR name ILIKE '%' || $1 || '%' OR username ILIKE '%' || $1 || '%'
-		ORDER BY created_at DESC
-		LIMIT $2`, q, listLimit)
+		WHERE ($1 = '' OR name ILIKE '%' || $1 || '%' OR username ILIKE '%' || $1 || '%') AND ($3::bigint=0 OR id<$3)
+		ORDER BY id DESC
+		LIMIT $2`, q, listLimit, beforeID)
 	if err != nil {
 		httpx.Error(c, fmt.Errorf("admin list users: %w", err))
 		return
@@ -188,6 +202,10 @@ func (h *Handler) listUsers(c *gin.Context) {
 			return
 		}
 		users = append(users, u)
+	}
+	if err := rows.Err(); err != nil {
+		httpx.Error(c, err)
+		return
 	}
 	httpx.OK(c, http.StatusOK, users)
 }
@@ -228,14 +246,19 @@ type adminOrganizer struct {
 }
 
 func (h *Handler) listOrganizers(c *gin.Context) {
+	beforeID, err := httpx.BeforeID(c)
+	if err != nil {
+		httpx.Error(c, err)
+		return
+	}
 	q := c.Query("q")
 	rows, err := h.pool.Query(c.Request.Context(), `
 		SELECT o.id, o.display_name, u.name, o.is_verified, o.created_at
 		FROM organizers o
 		JOIN users u ON u.id = o.user_id
-		WHERE $1 = '' OR o.display_name ILIKE '%' || $1 || '%'
-		ORDER BY o.created_at DESC
-		LIMIT $2`, q, listLimit)
+		WHERE ($1 = '' OR o.display_name ILIKE '%' || $1 || '%') AND ($3::bigint=0 OR o.id<$3)
+		ORDER BY o.id DESC
+		LIMIT $2`, q, listLimit, beforeID)
 	if err != nil {
 		httpx.Error(c, fmt.Errorf("admin list organizers: %w", err))
 		return
@@ -250,6 +273,10 @@ func (h *Handler) listOrganizers(c *gin.Context) {
 			return
 		}
 		organizers = append(organizers, o)
+	}
+	if err := rows.Err(); err != nil {
+		httpx.Error(c, err)
+		return
 	}
 	httpx.OK(c, http.StatusOK, organizers)
 }

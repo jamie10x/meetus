@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,15 +26,16 @@ func NewHandler(service *Service, eventRepo *event.Repository) *Handler {
 	return &Handler{service: service, eventRepo: eventRepo}
 }
 
-func (h *Handler) Register(r gin.IRouter, requireAuth, requireOrganizer gin.HandlerFunc) {
-	r.POST("/events/:id/rsvp", requireAuth, h.join)
-	r.DELETE("/events/:id/rsvp", requireAuth, h.cancel)
-	r.GET("/events/:id/rsvp", requireAuth, h.mine)
-	r.GET("/me/tickets", requireAuth, h.myTickets)
+func (h *Handler) Register(r gin.IRouter, requireAuth, requireOrganizer gin.HandlerFunc, limits ...gin.HandlerFunc) {
+	r = r.Group("", append([]gin.HandlerFunc{requireAuth}, limits...)...)
+	r.POST("/events/:id/rsvp", h.join)
+	r.DELETE("/events/:id/rsvp", h.cancel)
+	r.GET("/events/:id/rsvp", h.mine)
+	r.GET("/me/tickets", h.myTickets)
 
-	r.POST("/checkin", requireAuth, requireOrganizer, h.checkIn)
-	r.GET("/events/:id/attendees", requireAuth, requireOrganizer, h.attendees)
-	r.GET("/events/:id/attendees.csv", requireAuth, requireOrganizer, h.attendeesCSV)
+	r.POST("/checkin", requireOrganizer, h.checkIn)
+	r.GET("/events/:id/attendees", requireOrganizer, h.attendees)
+	r.GET("/events/:id/attendees.csv", requireOrganizer, h.attendeesCSV)
 }
 
 func eventID(c *gin.Context) (int64, error) {
@@ -95,7 +97,8 @@ func (h *Handler) myTickets(c *gin.Context) {
 }
 
 type checkInRequest struct {
-	QR string `json:"qr" binding:"required"`
+	QR      string `json:"qr" binding:"required,max=200"`
+	EventID int64  `json:"eventId" binding:"required,min=1"`
 }
 
 func (h *Handler) checkIn(c *gin.Context) {
@@ -104,7 +107,7 @@ func (h *Handler) checkIn(c *gin.Context) {
 		httpx.Error(c, apperr.Validation("qr is required"))
 		return
 	}
-	result, err := h.service.CheckIn(c.Request.Context(), organizer.OrganizerID(c), req.QR)
+	result, err := h.service.CheckIn(c.Request.Context(), organizer.OrganizerID(c), req.EventID, req.QR)
 	if err != nil {
 		httpx.Error(c, err)
 		return
@@ -184,7 +187,16 @@ func (h *Handler) attendeesCSV(c *gin.Context) {
 		if a.CheckedInAt != nil {
 			checkedIn = a.CheckedInAt.Format(time.RFC3339)
 		}
-		_ = w.Write([]string{a.Name, username, a.RSVPAt.Format(time.RFC3339), checkedIn})
+		_ = w.Write([]string{csvText(a.Name), csvText(username), a.RSVPAt.Format(time.RFC3339), checkedIn})
 	}
 	w.Flush()
+}
+
+// CSV quoting does not disable spreadsheet formula evaluation.
+func csvText(value string) string {
+	trimmed := strings.TrimLeft(value, " ")
+	if trimmed != "" && strings.ContainsAny(trimmed[:1], "=+-@\t\r\n") {
+		return "'" + value
+	}
+	return value
 }

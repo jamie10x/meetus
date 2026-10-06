@@ -2,41 +2,16 @@ package rsvp
 
 import (
 	"context"
-	"log/slog"
 	"time"
-
-	"meetus.uz/backend/internal/event"
-	"meetus.uz/backend/internal/platform/apperr"
-	"meetus.uz/backend/internal/user"
 )
 
-// PromotionNotifier delivers a waitlist-promotion message (with ticket)
-// to a newly-confirmed attendee. Satisfied by *tgbot.Announcer; declared
-// here rather than importing tgbot directly so rsvp doesn't depend on
-// it — tgbot already depends on rsvp, and Go disallows the cycle. Same
-// pattern as channel.Announcer.
-type PromotionNotifier interface {
-	SendWaitlistPromotion(ctx context.Context, telegramID int64, langCode string, ticketCode string, e *event.Event) error
-}
-
 type Service struct {
-	repo       *Repository
-	signer     *TicketSigner
-	events     *event.Repository
-	users      *user.Repository
-	onPromoted PromotionNotifier
+	repo   *Repository
+	signer *TicketSigner
 }
 
-func NewService(repo *Repository, signer *TicketSigner, events *event.Repository, users *user.Repository) *Service {
-	return &Service{repo: repo, signer: signer, events: events, users: users}
-}
-
-// SetPromotionNotifier wires in the Telegram notification sent when a
-// waitlisted attendee is promoted. Left unset (nil-safe), promotions
-// still happen — the user just isn't messaged, which is fine for
-// contexts (tests) that don't need it.
-func (s *Service) SetPromotionNotifier(n PromotionNotifier) {
-	s.onPromoted = n
+func NewService(repo *Repository, signer *TicketSigner) *Service {
+	return &Service{repo: repo, signer: signer}
 }
 
 type TicketDTO struct {
@@ -79,36 +54,10 @@ func (s *Service) Join(ctx context.Context, eventID, userID int64) (RSVPDTO, err
 	return s.rsvpDTO(res.Status, res.Ticket, res.OnlineURL), nil
 }
 
-// Cancel cancels the caller's RSVP. If that frees a spot for a
-// waitlisted attendee, the promotion notification is sent in the
-// background — like the auto-announce-on-publish hook, on
-// context.Background() rather than this request's context, since the
-// request context is canceled the instant the HTTP response is written.
+// Cancel commits the RSVP change and any promotion delivery job atomically.
 func (s *Service) Cancel(ctx context.Context, eventID, userID int64) error {
-	promotion, err := s.repo.Cancel(ctx, eventID, userID)
-	if err != nil {
-		return err
-	}
-	if promotion != nil && s.onPromoted != nil {
-		go s.notifyPromoted(context.Background(), promotion)
-	}
-	return nil
-}
-
-func (s *Service) notifyPromoted(ctx context.Context, p *Promotion) {
-	e, err := s.events.GetByID(ctx, p.EventID)
-	if err != nil {
-		slog.Error("waitlist promotion: could not load event", "event_id", p.EventID, "err", err)
-		return
-	}
-	u, err := s.users.GetByID(ctx, p.UserID)
-	if err != nil {
-		slog.Error("waitlist promotion: could not load user", "user_id", p.UserID, "err", err)
-		return
-	}
-	if err := s.onPromoted.SendWaitlistPromotion(ctx, u.TelegramID, u.Language, p.Ticket.Code, e); err != nil {
-		slog.Error("waitlist promotion notify failed", "user_id", p.UserID, "event_id", p.EventID, "err", err)
-	}
+	_, err := s.repo.Cancel(ctx, eventID, userID)
+	return err
 }
 
 func (s *Service) GetMine(ctx context.Context, eventID, userID int64) (RSVPDTO, error) {
@@ -166,32 +115,10 @@ type CheckInResult struct {
 
 // CheckIn verifies a scanned QR, authorizes the organizer, and marks the
 // ticket as used exactly once.
-func (s *Service) CheckIn(ctx context.Context, organizerID int64, qr string) (*CheckInResult, error) {
+func (s *Service) CheckIn(ctx context.Context, organizerID, eventID int64, qr string) (*CheckInResult, error) {
 	code, err := s.signer.VerifyQR(qr)
 	if err != nil {
 		return nil, err
 	}
-	t, err := s.repo.GetByCode(ctx, code)
-	if err != nil {
-		return nil, err
-	}
-	if t.EventOrganizerID != organizerID {
-		return nil, apperr.Forbidden("this ticket belongs to another organizer's event")
-	}
-	if t.RSVPStatus != "going" {
-		return nil, apperr.Conflict("this RSVP was canceled")
-	}
-	if t.CheckedInAt != nil {
-		return nil, apperr.Conflict("ticket already checked in at " +
-			t.CheckedInAt.Format("15:04"))
-	}
-	at, err := s.repo.MarkCheckedIn(ctx, t.TicketID)
-	if err != nil {
-		return nil, err
-	}
-	return &CheckInResult{
-		AttendeeName: t.AttendeeName,
-		EventTitle:   t.EventTitle,
-		CheckedInAt:  at,
-	}, nil
+	return s.repo.CheckIn(ctx, organizerID, eventID, code)
 }

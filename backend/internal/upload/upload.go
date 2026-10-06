@@ -7,6 +7,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	_ "golang.org/x/image/webp"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"net/http"
 	"os"
@@ -40,8 +44,8 @@ func NewHandler(dir, apiBaseURL string) (*Handler, error) {
 
 // Register mounts the authenticated upload endpoint and the public
 // static file route.
-func (h *Handler) Register(r gin.IRouter, engine *gin.Engine, requireAuth gin.HandlerFunc) {
-	r.POST("/uploads", requireAuth, h.upload)
+func (h *Handler) Register(r gin.IRouter, engine *gin.Engine, requireAuth gin.HandlerFunc, limits ...gin.HandlerFunc) {
+	r.POST("/uploads", append(append([]gin.HandlerFunc{requireAuth}, limits...), h.upload)...)
 	engine.Static("/uploads", h.dir)
 }
 
@@ -69,6 +73,27 @@ func (h *Handler) upload(c *gin.Context) {
 		return
 	}
 
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	dimensions, _, err := image.DecodeConfig(file)
+	if err != nil || dimensions.Width <= 0 || dimensions.Height <= 0 || int64(dimensions.Width)*int64(dimensions.Height) > 25_000_000 {
+		httpx.Error(c, apperr.Validation("image must be valid and at most 25 megapixels"))
+		return
+	}
+	if _, err = file.Seek(0, io.SeekStart); err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	if _, _, err = image.Decode(file); err != nil {
+		httpx.Error(c, apperr.Validation("invalid image content"))
+		return
+	}
+	if _, err = file.Seek(int64(n), io.SeekStart); err != nil {
+		httpx.Error(c, err)
+		return
+	}
 	nameBytes := make([]byte, 16)
 	if _, err := rand.Read(nameBytes); err != nil {
 		httpx.Error(c, err)
@@ -81,7 +106,13 @@ func (h *Handler) upload(c *gin.Context) {
 		httpx.Error(c, fmt.Errorf("create file: %w", err))
 		return
 	}
-	defer dst.Close()
+	complete := false
+	defer func() {
+		dst.Close()
+		if !complete {
+			os.Remove(dst.Name())
+		}
+	}()
 
 	if _, err := dst.Write(head[:n]); err != nil {
 		httpx.Error(c, fmt.Errorf("write file: %w", err))
@@ -92,5 +123,10 @@ func (h *Handler) upload(c *gin.Context) {
 		return
 	}
 
+	if err = dst.Close(); err != nil {
+		httpx.Error(c, err)
+		return
+	}
+	complete = true
 	httpx.OK(c, http.StatusCreated, gin.H{"url": h.apiBaseURL + "/uploads/" + name})
 }

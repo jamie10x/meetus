@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"meetus.uz/backend/internal/platform/apperr"
@@ -77,32 +78,38 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*User, error) {
 }
 
 type ProfileUpdate struct {
-	Name      *string
-	CityID    *int32
-	District  *string
-	Language  *string
-	AvatarURL *string
+	CityIDSet   bool
+	DistrictSet bool
+	Name        *string
+	CityID      *int32
+	District    *string
+	Language    *string
+	AvatarURL   *string
 }
 
 func (r *Repository) UpdateProfile(ctx context.Context, id int64, p ProfileUpdate) (*User, error) {
 	row := r.pool.QueryRow(ctx, `
 		UPDATE users SET
 			name             = COALESCE($2, name),
-			city_id          = COALESCE($3, city_id),
-			district         = COALESCE($4, district),
+			city_id          = CASE WHEN $7 THEN $3 ELSE city_id END,
+			district         = CASE WHEN $8 THEN $4 ELSE district END,
 			language         = COALESCE($5, language),
 			avatar_url       = COALESCE($6, avatar_url),
 			avatar_is_custom = CASE WHEN $6 IS NOT NULL THEN true ELSE avatar_is_custom END,
 			updated_at       = now()
 		WHERE id = $1
 		RETURNING `+userColumns,
-		id, p.Name, p.CityID, p.District, p.Language, p.AvatarURL)
+		id, p.Name, p.CityID, p.District, p.Language, p.AvatarURL, p.CityIDSet || p.CityID != nil, p.DistrictSet || p.District != nil)
 
 	u, err := scanUser(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperr.NotFound("user not found")
 	}
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return nil, apperr.Validation("invalid cityId")
+		}
 		return nil, fmt.Errorf("update profile: %w", err)
 	}
 	return u, nil
@@ -161,4 +168,16 @@ func (r *Repository) ListWeeklyDigestSubscribers(ctx context.Context) ([]*Digest
 		subs = append(subs, s)
 	}
 	return subs, rows.Err()
+}
+
+// RequireActive checks current moderation state, including for existing JWTs.
+func (r *Repository) RequireActive(ctx context.Context, id int64) error {
+	u, err := r.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if u.IsBanned {
+		return apperr.Forbidden("account is banned")
+	}
+	return nil
 }

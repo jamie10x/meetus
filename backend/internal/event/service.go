@@ -3,6 +3,9 @@ package event
 import (
 	"context"
 	"fmt"
+	"math"
+	"net/url"
+	"strings"
 	"time"
 
 	"meetus.uz/backend/internal/platform/apperr"
@@ -47,6 +50,23 @@ type Input struct {
 }
 
 func (s *Service) validate(in Input) (WriteFields, error) {
+	if strings.TrimSpace(in.Title) == "" {
+		return WriteFields{}, apperr.Validation("title cannot be empty")
+	}
+	if (in.Lat == nil) != (in.Lng == nil) {
+		return WriteFields{}, apperr.Validation("lat and lng must be provided together")
+	}
+	if in.Lat != nil && (math.IsNaN(*in.Lat) || math.IsNaN(*in.Lng) || *in.Lat < -90 || *in.Lat > 90 || *in.Lng < -180 || *in.Lng > 180) {
+		return WriteFields{}, apperr.Validation("invalid coordinates")
+	}
+	for _, raw := range []*string{in.OnlineURL, in.CoverURL} {
+		if raw != nil && *raw != "" {
+			u, err := url.Parse(*raw)
+			if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.User != nil {
+				return WriteFields{}, apperr.Validation("URLs must use http or https")
+			}
+		}
+	}
 	startsAt, err := time.Parse(time.RFC3339, in.StartsAt)
 	if err != nil {
 		return WriteFields{}, apperr.Validation("startsAt must be RFC3339, e.g. 2026-08-01T18:00:00+05:00")
@@ -146,6 +166,9 @@ func (s *Service) Update(ctx context.Context, organizerID, eventID int64, in Inp
 	if err != nil {
 		return nil, err
 	}
+	if in.Visibility == nil {
+		fields.Visibility = e.Visibility
+	}
 	return s.repo.Update(ctx, eventID, fields)
 }
 
@@ -160,7 +183,7 @@ func (s *Service) Publish(ctx context.Context, organizerID, eventID int64) (*Eve
 	if !e.StartsAt.After(s.now()) {
 		return nil, apperr.Validation("cannot publish an event that starts in the past")
 	}
-	if err := s.repo.SetStatus(ctx, eventID, StatusPublished); err != nil {
+	if err := s.repo.Transition(ctx, e, StatusPublished); err != nil {
 		return nil, err
 	}
 	return s.repo.GetByID(ctx, eventID)
@@ -174,7 +197,7 @@ func (s *Service) Unpublish(ctx context.Context, organizerID, eventID int64) (*E
 	if e.Status != StatusPublished {
 		return nil, apperr.Conflict("only published events can be unpublished")
 	}
-	if err := s.repo.SetStatus(ctx, eventID, StatusDraft); err != nil {
+	if err := s.repo.Transition(ctx, e, StatusDraft); err != nil {
 		return nil, err
 	}
 	return s.repo.GetByID(ctx, eventID)
@@ -188,7 +211,7 @@ func (s *Service) Cancel(ctx context.Context, organizerID, eventID int64) (*Even
 	if e.Status == StatusCanceled || e.Status == StatusFinished {
 		return nil, apperr.Conflict("event is already " + string(e.Status))
 	}
-	if err := s.repo.SetStatus(ctx, eventID, StatusCanceled); err != nil {
+	if err := s.repo.Transition(ctx, e, StatusCanceled); err != nil {
 		return nil, err
 	}
 	return s.repo.GetByID(ctx, eventID)
@@ -205,6 +228,6 @@ func (s *Service) Delete(ctx context.Context, organizerID, eventID int64) error 
 	return s.repo.Delete(ctx, eventID)
 }
 
-func (s *Service) ListMine(ctx context.Context, organizerID int64) ([]*Event, error) {
-	return s.repo.ListByOrganizer(ctx, organizerID)
+func (s *Service) ListMine(ctx context.Context, organizerID int64, beforeID int64) ([]*Event, error) {
+	return s.repo.ListByOrganizer(ctx, organizerID, beforeID)
 }

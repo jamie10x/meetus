@@ -136,8 +136,8 @@ func (r *Repository) ListPublic(ctx context.Context, f ListFilters) (*Page, erro
 }
 
 // GetPublished returns a published event by ID. Unlisted events resolve
-// (direct links work); drafts and canceled events return not-found for
-// non-owners.
+// (direct links work); finished/canceled pages remain readable, while drafts
+// return not-found for non-owners.
 func (r *Repository) GetPublished(ctx context.Context, id int64) (*Event, error) {
 	e, err := scanEvent(r.pool.QueryRow(ctx,
 		eventSelect+` WHERE e.id = $1 AND e.status IN ('published', 'finished', 'canceled')`, id))

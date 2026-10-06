@@ -18,8 +18,9 @@ import (
 	"meetus.uz/backend/internal/config"
 	"meetus.uz/backend/internal/event"
 	"meetus.uz/backend/internal/feedback"
-	"meetus.uz/backend/internal/groupfeed"
+	"meetus.uz/backend/internal/geocode"
 	"meetus.uz/backend/internal/meta"
+	"meetus.uz/backend/internal/operations"
 	"meetus.uz/backend/internal/organizer"
 	"meetus.uz/backend/internal/platform/authn"
 	"meetus.uz/backend/internal/platform/ratelimit"
@@ -42,18 +43,49 @@ func New(deps Deps) (*gin.Engine, error) {
 	}
 
 	r := gin.New()
-	r.Use(gin.Recovery(), requestLogger(), corsMiddleware(cfg))
+	// Caddy is the only production ingress. Trust private Docker-network hops;
+	// never trust arbitrary direct internet clients' forwarding headers.
+	if cfg.IsProduction() {
+		r.SetTrustedProxies([]string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"})
+	} else {
+		r.SetTrustedProxies(nil)
+	}
+	r.Use(gin.Recovery(), requestLogger(), corsMiddleware(cfg), func(c *gin.Context) {
+		limit := int64(1 << 20)
+		if c.Request.URL.Path == "/api/uploads" {
+			limit = 6 << 20
+		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
+		if c.GetHeader("Authorization") != "" {
+			c.Header("Cache-Control", "private, no-store")
+		}
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+		defer cancel()
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	})
 
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	r.GET("/readyz", func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+		defer cancel()
+		if deps.Pool.Ping(ctx) != nil || deps.Redis.Ping(ctx).Err() != nil {
+			c.JSON(503, gin.H{"status": "unavailable"})
+			return
+		}
+		c.JSON(200, gin.H{"status": "ready", "revision": cfg.Revision})
+	})
+
 	// Shared infrastructure.
 	tokens := authn.NewTokenManager(cfg.JWTSecret, cfg.AccessTokenTTL)
-	requireAuth := authn.RequireAuth(tokens)
 
 	// Modules.
 	userRepo := user.NewRepository(deps.Pool)
+	requireAuth := authn.RequireAuth(tokens, userRepo.RequireActive)
+
 	authRepo := auth.NewRepository(deps.Pool)
 	authService := auth.NewService(userRepo, authRepo, tokens, cfg.TelegramBotToken, cfg.RefreshTokenTTL)
 
@@ -68,6 +100,7 @@ func New(deps Deps) (*gin.Engine, error) {
 	}
 
 	api := r.Group("/api")
+	geocode.New(deps.Redis, cfg.GeocodeBaseURL).Register(api, requireAuth)
 
 	// Abuse-prone endpoints get per-IP rate limits.
 	authGroup := api.Group("", ratelimit.PerIP(deps.Redis, "auth", 20, time.Minute))
@@ -85,11 +118,11 @@ func New(deps Deps) (*gin.Engine, error) {
 	event.NewPublicHandler(eventRepo).Register(api)
 
 	ticketSigner := rsvp.NewTicketSigner(cfg.TicketSecret)
-	rsvpService := rsvp.NewService(rsvp.NewRepository(deps.Pool), ticketSigner, eventRepo, userRepo)
-	rsvpGroup := api.Group("", ratelimit.PerIP(deps.Redis, "rsvp", 60, time.Minute))
-	rsvp.NewHandler(rsvpService, eventRepo).Register(rsvpGroup, requireAuth, requireOrganizer)
+	rsvpService := rsvp.NewService(rsvp.NewRepository(deps.Pool), ticketSigner)
+	rsvp.NewHandler(rsvpService, eventRepo).Register(api, requireAuth, requireOrganizer, ratelimit.PerUser(deps.Redis, "rsvp", 120, time.Minute))
 
 	admin.NewHandler(deps.Pool, eventRepo).Register(api, requireAuth, requireAdmin)
+	operations.NewHandler(operations.NewRepository(deps.Pool), deps.Redis, cfg.TelegramBotToken != "").Register(api, requireAuth, requireAdmin)
 
 	feedback.NewHandler(feedback.NewRepository(deps.Pool), eventRepo).Register(api, requireAuth, requireOrganizer)
 
@@ -104,79 +137,11 @@ func New(deps Deps) (*gin.Engine, error) {
 			return nil, err
 		}
 		announcer = a
-		rsvpService.SetPromotionNotifier(a)
 	}
 	channelRepo := channel.NewRepository(deps.Pool)
 	channel.NewHandler(channelRepo, eventRepo, userRepo, announcer).Register(api, requireAuth, requireOrganizer)
 
-	groupRepo := groupfeed.NewRepository(deps.Pool)
-
-	eventHandler.SetOnPublished(func(ctx context.Context, e *event.Event) {
-		if announcer == nil {
-			return
-		}
-
-		// The platform's own channel gets every published event,
-		// independent of whatever the publishing organizer has (or
-		// hasn't) connected — never gated on the per-organizer lookup
-		// below.
-		if cfg.OfficialChannelID != 0 {
-			if err := announcer.SendAnnouncement(ctx, cfg.OfficialChannelID, cfg.OfficialChannelLanguage, e); err != nil {
-				slog.Error("official channel auto-announce failed", "event_id", e.ID, "err", err)
-			} else {
-				slog.Info("official channel auto-announce sent", "event_id", e.ID)
-			}
-		}
-
-		// Groups that opted into the same platform-wide feed (see
-		// groupfeed package) get every published event too, same as the
-		// official channel — always in the configured official-channel
-		// language, since a group subscription has no per-chat language
-		// override of its own (unlike organizer channels).
-		if groupChatIDs, err := groupRepo.ListChatIDs(ctx); err != nil {
-			slog.Error("group feed auto-announce: could not list subscribed groups", "event_id", e.ID, "err", err)
-		} else {
-			lang := cfg.OfficialChannelLanguage
-			for _, chatID := range groupChatIDs {
-				if err := announcer.SendAnnouncement(ctx, chatID, lang, e); err != nil {
-					slog.Error("group feed auto-announce failed", "event_id", e.ID, "chat_id", chatID, "err", err)
-				} else {
-					slog.Info("group feed auto-announce sent", "event_id", e.ID, "chat_id", chatID)
-				}
-			}
-		}
-
-		channels, err := channelRepo.ListForOrganizer(ctx, e.OrganizerID)
-		if err != nil || len(channels) == 0 {
-			return
-		}
-		orgLang, err := organizerRepo.GetLanguage(ctx, e.OrganizerID)
-		if err != nil {
-			slog.Error("auto-announce: could not load organizer language", "event_id", e.ID, "err", err)
-			return
-		}
-		for _, ch := range channels {
-			// A channel can be both someone's own organizer channel and
-			// the official channel (e.g. the platform's own account
-			// connected its own channel as an organizer first) — it
-			// already got the official-channel send above, so skip it
-			// here rather than posting the same event twice.
-			if cfg.OfficialChannelID != 0 && ch.ChatID == cfg.OfficialChannelID {
-				continue
-			}
-			lang := orgLang
-			if ch.Language != nil {
-				lang = *ch.Language
-			}
-			if err := announcer.SendAnnouncement(ctx, ch.ChatID, lang, e); err != nil {
-				slog.Error("auto-announce failed", "event_id", e.ID, "channel_id", ch.ID, "err", err)
-			} else {
-				slog.Info("auto-announce sent", "event_id", e.ID, "channel_id", ch.ID)
-			}
-		}
-	})
-
-	uploadHandler.Register(api, r, requireAuth)
+	uploadHandler.Register(api, r, requireAuth, ratelimit.PerUser(deps.Redis, "upload", 20, 24*time.Hour))
 
 	return r, nil
 }

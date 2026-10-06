@@ -66,7 +66,7 @@ func VerifyTelegramLogin(fields map[string]string, botToken string, now time.Tim
 	if err != nil {
 		return nil, apperr.Unauthorized("invalid telegram auth_date")
 	}
-	if now.Sub(time.Unix(authDate, 0)) > telegramAuthMaxAge {
+	if time.Unix(authDate, 0).After(now.Add(time.Minute)) || now.Sub(time.Unix(authDate, 0)) > telegramAuthMaxAge {
 		return nil, apperr.Unauthorized("telegram login expired, please sign in again")
 	}
 

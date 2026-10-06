@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"meetus.uz/backend/internal/platform/apperr"
+	"meetus.uz/backend/internal/platform/outbox"
 )
 
 type Repository struct {
@@ -172,7 +173,31 @@ func (r *Repository) CreateSeries(ctx context.Context, organizerID int64, f Writ
 }
 
 func (r *Repository) Update(ctx context.Context, id int64, f WriteFields) (*Event, error) {
-	tag, err := r.pool.Exec(ctx, `
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	var status Status
+	var capacity *int32
+	if err = tx.QueryRow(ctx, `SELECT status,capacity FROM events WHERE id=$1 FOR UPDATE`, id).Scan(&status, &capacity); err != nil {
+		return nil, err
+	}
+	if status != StatusDraft && status != StatusPublished {
+		return nil, apperr.Conflict("event cannot be edited")
+	}
+	var going, waiting int
+	if err = tx.QueryRow(ctx, `SELECT count(*) FILTER (WHERE status='going'), count(*) FILTER (WHERE status='waitlisted') FROM rsvps WHERE event_id=$1`, id).Scan(&going, &waiting); err != nil {
+		return nil, err
+	}
+	changed := (capacity == nil) != (f.Capacity == nil) || (capacity != nil && f.Capacity != nil && *capacity != *f.Capacity)
+	if f.Capacity != nil && int(*f.Capacity) < going {
+		return nil, apperr.Conflict("capacity cannot be below confirmed attendance")
+	}
+	if changed && waiting > 0 {
+		return nil, apperr.Conflict("capacity cannot change while attendees are waitlisted")
+	}
+	tag, err := tx.Exec(ctx, `
 		UPDATE events SET
 			title = $2, description = $3, category_id = $4, city_id = $5,
 			district = $6, location_name = $7, address = $8, lat = $9, lng = $10,
@@ -188,7 +213,14 @@ func (r *Repository) Update(ctx context.Context, id int64, f WriteFields) (*Even
 	if tag.RowsAffected() == 0 {
 		return nil, apperr.NotFound("event not found")
 	}
-	return r.GetByID(ctx, id)
+	e, err := scanEvent(tx.QueryRow(ctx, eventSelect+` WHERE e.id=$1`, id))
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return e, nil
 }
 
 func (r *Repository) GetByID(ctx context.Context, id int64) (*Event, error) {
@@ -202,10 +234,10 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*Event, error) {
 	return e, nil
 }
 
-func (r *Repository) ListByOrganizer(ctx context.Context, organizerID int64) ([]*Event, error) {
+func (r *Repository) ListByOrganizer(ctx context.Context, organizerID int64, beforeID int64) ([]*Event, error) {
 	rows, err := r.pool.Query(ctx, eventSelect+`
-		WHERE e.organizer_id = $1
-		ORDER BY e.starts_at DESC`, organizerID)
+		WHERE e.organizer_id = $1 AND ($2::bigint=0 OR e.id<$2)
+		ORDER BY e.id DESC LIMIT 50`, organizerID, beforeID)
 	if err != nil {
 		return nil, fmt.Errorf("list organizer events: %w", err)
 	}
@@ -227,11 +259,11 @@ func collectEvents(rows pgx.Rows) ([]*Event, error) {
 
 // ListForAdmin returns events in any status (optionally filtered),
 // newest first. Admin-only — never expose through public routes.
-func (r *Repository) ListForAdmin(ctx context.Context, status string, limit int) ([]*Event, error) {
+func (r *Repository) ListForAdmin(ctx context.Context, status string, limit int, beforeID int64) ([]*Event, error) {
 	rows, err := r.pool.Query(ctx, eventSelect+`
-		WHERE $1 = '' OR e.status = $1::event_status
-		ORDER BY e.created_at DESC
-		LIMIT $2`, status, limit)
+		WHERE ($1 = '' OR e.status::text = $1) AND ($3::bigint=0 OR e.id<$3)
+		ORDER BY e.id DESC
+		LIMIT $2`, status, limit, beforeID)
 	if err != nil {
 		return nil, fmt.Errorf("list events for admin: %w", err)
 	}
@@ -249,9 +281,38 @@ func (r *Repository) SetStatus(ctx context.Context, id int64, status Status) err
 }
 
 func (r *Repository) Delete(ctx context.Context, id int64) error {
-	_, err := r.pool.Exec(ctx, `DELETE FROM events WHERE id = $1`, id)
+	tag, err := r.pool.Exec(ctx, `DELETE FROM events WHERE id = $1 AND status = 'draft'`, id)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return apperr.Conflict("event has attendance history; cancel it instead")
+		}
 		return fmt.Errorf("delete event: %w", err)
 	}
+	if tag.RowsAffected() != 1 {
+		return apperr.Conflict("only drafts can be deleted")
+	}
 	return nil
+}
+
+func (r *Repository) Transition(ctx context.Context, previous *Event, target Status) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	tag, err := tx.Exec(ctx, `UPDATE events SET status=$2,updated_at=clock_timestamp()
+ WHERE id=$1 AND status=$3 AND updated_at=$4 AND ($2::event_status <> 'published' OR starts_at>now())`, previous.ID, target, previous.Status, previous.UpdatedAt)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return apperr.Conflict("event changed; reload and retry")
+	}
+	if target == StatusPublished {
+		if err = outbox.Enqueue(ctx, tx, fmt.Sprintf("publish:%d:%d", previous.ID, previous.UpdatedAt.UnixNano()), "publish", map[string]any{"eventId": previous.ID}); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }

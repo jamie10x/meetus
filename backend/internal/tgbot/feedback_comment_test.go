@@ -2,6 +2,7 @@ package tgbot
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -21,6 +22,9 @@ func TestFeedbackCommentPending(t *testing.T) {
 	}
 	rdb, err := redisx.NewClient(ctx, cfg.RedisAddr)
 	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatalf("redis required in CI: %v", err)
+		}
 		t.Skipf("redis unavailable: %v", err)
 	}
 	t.Cleanup(func() { rdb.Close() })

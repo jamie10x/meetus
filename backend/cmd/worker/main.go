@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
 	"meetus.uz/backend/internal/channel"
@@ -21,7 +22,9 @@ import (
 	"meetus.uz/backend/internal/housekeeping"
 	"meetus.uz/backend/internal/notification"
 	"meetus.uz/backend/internal/platform/db"
+	"meetus.uz/backend/internal/platform/outbox"
 	"meetus.uz/backend/internal/platform/redisx"
+	"meetus.uz/backend/internal/platform/workerhealth"
 	"meetus.uz/backend/internal/rsvp"
 	"meetus.uz/backend/internal/tgbot"
 	"meetus.uz/backend/internal/user"
@@ -36,13 +39,7 @@ const (
 	housekeepingLockKey  = "meetus:worker:housekeeping"
 	housekeepingLockTTL  = 55 * time.Minute
 
-	// digestCheckInterval polls frequently so the actual send happens
-	// close to the top of the target hour; digestLockKeyPrefix is keyed
-	// per ISO week (not a fixed key like the other locks) so a new send
-	// window opens automatically every week without any reset logic.
 	digestCheckInterval = 15 * time.Minute
-	digestLockKeyPrefix = "meetus:worker:weekly-digest:"
-	digestLockTTL       = 8 * 24 * time.Hour
 	digestSendHour      = 9 // 09:00 Asia/Tashkent, Mondays
 )
 
@@ -96,11 +93,20 @@ func run() error {
 	}
 
 	notifications := notification.NewRepository(pool)
-	users := user.NewRepository(pool)
 
+	announcer, err := tgbot.NewAnnouncer(cfg.TelegramBotToken, cfg.WebBaseURL, rsvp.NewTicketSigner(cfg.TicketSecret))
+	if err != nil {
+		return err
+	}
+	monitor := workerhealth.New(rdb, cfg.Revision)
+	go outbox.Run(ctx, pool, deliveryHandler(pool, cfg, bot, announcer), func(ctx context.Context) {
+		if err := monitor.Pulse(ctx); err != nil {
+			slog.Warn("worker progress unavailable")
+		}
+	})
 	go reminderLoop(ctx, notifications, bot, rdb)
 	go housekeepingLoop(ctx, housekeeping.NewRunner(pool), rdb)
-	go digestLoop(ctx, users, bot, rdb)
+	go digestLoop(ctx, pool)
 
 	// Blocks until ctx is canceled.
 	bot.Start(ctx)
@@ -175,15 +181,8 @@ func sendDue(ctx context.Context, repo *notification.Repository, bot *tgbot.Bot,
 		return
 	}
 	for _, rem := range due {
-		if err := bot.SendReminder(ctx, rem); err != nil {
-			// Typical case: the user never opened the bot chat (403).
-			// Recorded anyway so we don't retry forever.
-			slog.Warn("reminder send failed", "event", rem.EventID,
-				"user", rem.UserID, "err", err)
-		}
-		if err := repo.MarkSent(ctx, rem); err != nil {
-			slog.Error("mark sent failed", "event", rem.EventID,
-				"user", rem.UserID, "err", err)
+		if err := repo.QueueReminder(ctx, rem); err != nil {
+			slog.Error("queue reminder failed", "event_id", rem.EventID)
 		}
 	}
 	if len(due) > 0 {
@@ -191,38 +190,24 @@ func sendDue(ctx context.Context, repo *notification.Repository, bot *tgbot.Bot,
 	}
 }
 
-// digestLoop wakes up periodically and, once per ISO week during the
-// Monday-morning send hour, fans the weekly "what's on" digest out to
-// every opted-in subscriber. The Redis lock (keyed per week, not a fixed
-// key) is what makes this safe to run on every worker instance without
-// double-sending.
-func digestLoop(ctx context.Context, users *user.Repository, bot *tgbot.Bot, rdb *redis.Client) {
+// digestLoop queues one durable batch per ISO week, with catch-up after Monday 09:00.
+func digestLoop(ctx context.Context, pool *pgxpool.Pool) {
 	loc, err := time.LoadLocation("Asia/Tashkent")
 	if err != nil {
-		slog.Error("digest loop: load location failed", "err", err)
 		return
 	}
 	ticker := time.NewTicker(digestCheckInterval)
 	defer ticker.Stop()
-
 	check := func() {
 		now := time.Now().In(loc)
-		if now.Weekday() != time.Monday || now.Hour() != digestSendHour {
+		if now.Weekday() == time.Monday && now.Hour() < digestSendHour {
 			return
 		}
 		year, week := now.ISOWeek()
-		lockKey := fmt.Sprintf("%s%d-%02d", digestLockKeyPrefix, year, week)
-		ok, err := rdb.SetNX(ctx, lockKey, "1", digestLockTTL).Result()
-		if err != nil {
-			slog.Error("digest lock failed", "err", err)
-			return
+		if err := outbox.Enqueue(ctx, pool, fmt.Sprintf("digest-week:%d:%d", year, week), "digest-batch", map[string]int{"year": year, "week": week}); err != nil {
+			slog.Error("queue digest failed")
 		}
-		if !ok {
-			return
-		}
-		sendWeeklyDigest(ctx, users, bot)
 	}
-
 	check()
 	for {
 		select {
@@ -234,22 +219,6 @@ func digestLoop(ctx context.Context, users *user.Repository, bot *tgbot.Bot, rdb
 	}
 }
 
-func sendWeeklyDigest(ctx context.Context, users *user.Repository, bot *tgbot.Bot) {
-	subs, err := users.ListWeeklyDigestSubscribers(ctx)
-	if err != nil {
-		slog.Error("load weekly digest subscribers failed", "err", err)
-		return
-	}
-	failed := 0
-	for _, sub := range subs {
-		if err := bot.SendWeeklyDigest(ctx, sub); err != nil {
-			slog.Warn("weekly digest send failed", "user", sub.UserID, "err", err)
-			failed++
-		}
-	}
-	slog.Info("weekly digest processed", "subscribers", len(subs), "failed", failed)
-}
-
 func sendDueFeedback(ctx context.Context, repo *notification.Repository, bot *tgbot.Bot) {
 	due, err := repo.DueFeedback(ctx)
 	if err != nil {
@@ -257,11 +226,8 @@ func sendDueFeedback(ctx context.Context, repo *notification.Repository, bot *tg
 		return
 	}
 	for _, f := range due {
-		if err := bot.SendFeedbackRequest(ctx, f); err != nil {
-			slog.Warn("feedback prompt send failed", "event", f.EventID, "user", f.UserID, "err", err)
-		}
-		if err := repo.MarkFeedbackSent(ctx, f); err != nil {
-			slog.Error("mark feedback sent failed", "event", f.EventID, "user", f.UserID, "err", err)
+		if err := repo.QueueFeedback(ctx, f); err != nil {
+			slog.Error("queue feedback failed", "event_id", f.EventID)
 		}
 	}
 	if len(due) > 0 {

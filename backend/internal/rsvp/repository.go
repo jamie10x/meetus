@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"meetus.uz/backend/internal/platform/apperr"
+	"meetus.uz/backend/internal/platform/outbox"
 )
 
 type Repository struct {
@@ -124,7 +125,7 @@ func promoteNextWaitlisted(ctx context.Context, tx pgx.Tx, eventID int64) (*Prom
 	err := tx.QueryRow(ctx, `
 		SELECT id, user_id FROM rsvps
 		WHERE event_id = $1 AND status = 'waitlisted'
-		ORDER BY created_at
+		ORDER BY waitlisted_at, id
 		LIMIT 1`, eventID).Scan(&rsvpID, &userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -209,13 +210,13 @@ func (r *Repository) Join(ctx context.Context, eventID, userID int64) (*JoinResu
 
 	if rsvpID != 0 {
 		if _, err := tx.Exec(ctx,
-			`UPDATE rsvps SET status = $2, updated_at = now() WHERE id = $1`,
+			`UPDATE rsvps SET status = $2, updated_at = now(), waitlisted_at = CASE WHEN $2='waitlisted' THEN clock_timestamp() ELSE NULL END WHERE id = $1`,
 			rsvpID, newStatus); err != nil {
 			return nil, fmt.Errorf("reactivate rsvp: %w", err)
 		}
 	} else {
 		if err := tx.QueryRow(ctx,
-			`INSERT INTO rsvps (event_id, user_id, status) VALUES ($1, $2, $3) RETURNING id`,
+			`INSERT INTO rsvps (event_id, user_id, status,waitlisted_at) VALUES ($1, $2, $3,CASE WHEN $3='waitlisted' THEN clock_timestamp() END) RETURNING id`,
 			eventID, userID, newStatus).Scan(&rsvpID); err != nil {
 			return nil, fmt.Errorf("insert rsvp: %w", err)
 		}
@@ -250,8 +251,9 @@ func (r *Repository) Cancel(ctx context.Context, eventID, userID int64) (*Promot
 	}
 	defer tx.Rollback(ctx)
 
-	var dummy int64
-	err = tx.QueryRow(ctx, `SELECT id FROM events WHERE id = $1 FOR UPDATE`, eventID).Scan(&dummy)
+	var eventStatus string
+	var startsAt time.Time
+	err = tx.QueryRow(ctx, `SELECT status,starts_at FROM events WHERE id = $1 FOR UPDATE`, eventID).Scan(&eventStatus, &startsAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperr.NotFound("event not found")
 	}
@@ -280,9 +282,15 @@ func (r *Repository) Cancel(ctx context.Context, eventID, userID int64) (*Promot
 	}
 
 	var promotion *Promotion
-	if oldStatus == "going" {
+	if oldStatus == "going" && eventStatus == "published" && startsAt.After(time.Now()) {
 		promotion, err = promoteNextWaitlisted(ctx, tx, eventID)
 		if err != nil {
+			return nil, err
+		}
+	}
+
+	if promotion != nil {
+		if err = outbox.Enqueue(ctx, tx, fmt.Sprintf("promotion:%d:%d:%d", eventID, promotion.UserID, time.Now().UnixNano()), "promotion", promotion); err != nil {
 			return nil, err
 		}
 	}
@@ -355,42 +363,6 @@ func (r *Repository) ListMyTickets(ctx context.Context, userID int64) ([]*MyTick
 	return tickets, rows.Err()
 }
 
-func (r *Repository) GetByCode(ctx context.Context, code string) (*ScannedTicket, error) {
-	var s ScannedTicket
-	err := r.pool.QueryRow(ctx, `
-		SELECT t.id, t.checked_in_at, u.name, rv.status,
-		       e.id, e.title, e.organizer_id, e.status
-		FROM tickets t
-		JOIN rsvps rv ON rv.id = t.rsvp_id
-		JOIN users u ON u.id = rv.user_id
-		JOIN events e ON e.id = rv.event_id
-		WHERE t.code = $1`, code).
-		Scan(&s.TicketID, &s.CheckedInAt, &s.AttendeeName, &s.RSVPStatus,
-			&s.EventID, &s.EventTitle, &s.EventOrganizerID, &s.EventStatus)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, apperr.NotFound("ticket not found")
-	}
-	if err != nil {
-		return nil, fmt.Errorf("get ticket by code: %w", err)
-	}
-	return &s, nil
-}
-
-func (r *Repository) MarkCheckedIn(ctx context.Context, ticketID int64) (time.Time, error) {
-	var at time.Time
-	err := r.pool.QueryRow(ctx, `
-		UPDATE tickets SET checked_in_at = now()
-		WHERE id = $1 AND checked_in_at IS NULL
-		RETURNING checked_in_at`, ticketID).Scan(&at)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return time.Time{}, apperr.Conflict("ticket already checked in")
-	}
-	if err != nil {
-		return time.Time{}, fmt.Errorf("mark checked in: %w", err)
-	}
-	return at, nil
-}
-
 func (r *Repository) ListAttendees(ctx context.Context, eventID int64) ([]*Attendee, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT u.id, u.name, u.username, u.avatar_url, rv.created_at, t.checked_in_at
@@ -414,4 +386,60 @@ func (r *Repository) ListAttendees(ctx context.Context, eventID int64) ([]*Atten
 		attendees = append(attendees, &a)
 	}
 	return attendees, rows.Err()
+}
+
+// CheckIn locks in the same order as Join/Cancel: event, RSVP, then ticket.
+func (r *Repository) CheckIn(ctx context.Context, organizerID, eventID int64, code string) (*CheckInResult, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	var owner int64
+	var status, title string
+	var starts time.Time
+	var ends *time.Time
+	err = tx.QueryRow(ctx, `SELECT organizer_id,status,title,starts_at,ends_at FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&owner, &status, &title, &starts, &ends)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperr.NotFound("event not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+	if owner != organizerID {
+		return nil, apperr.Forbidden("you do not own this event")
+	}
+	deadline := starts.Add(4 * time.Hour)
+	if ends != nil {
+		deadline = *ends
+	}
+	now := time.Now()
+	if status != "published" || now.Before(starts.Add(-2*time.Hour)) || !now.Before(deadline) {
+		return nil, apperr.Conflict("event is not open for check-in")
+	}
+	var ticketID int64
+	var name, rsvpStatus string
+	var checked *time.Time
+	err = tx.QueryRow(ctx, `SELECT t.id,u.name,rv.status,t.checked_in_at FROM tickets t
+ JOIN rsvps rv ON rv.id=t.rsvp_id JOIN users u ON u.id=rv.user_id
+ WHERE t.code=$1 AND rv.event_id=$2 FOR UPDATE OF rv,t`, code, eventID).Scan(&ticketID, &name, &rsvpStatus, &checked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperr.Conflict("ticket is not for this event")
+	}
+	if err != nil {
+		return nil, err
+	}
+	if rsvpStatus != "going" {
+		return nil, apperr.Conflict("this RSVP is not active")
+	}
+	if checked != nil {
+		return nil, apperr.Conflict("ticket already checked in")
+	}
+	if _, err = tx.Exec(ctx, `UPDATE tickets SET checked_in_at=$2 WHERE id=$1`, ticketID, now); err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return &CheckInResult{AttendeeName: name, EventTitle: title, CheckedInAt: now}, nil
 }

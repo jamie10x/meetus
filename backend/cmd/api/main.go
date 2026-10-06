@@ -55,6 +55,9 @@ func run() error {
 		Addr:              cfg.HTTPAddr,
 		Handler:           engine,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      35 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	errCh := make(chan error, 1)

@@ -23,6 +23,7 @@ import (
 	"meetus.uz/backend/internal/feedback"
 	"meetus.uz/backend/internal/groupfeed"
 	"meetus.uz/backend/internal/notification"
+	"meetus.uz/backend/internal/platform/apperr"
 	"meetus.uz/backend/internal/rsvp"
 	"meetus.uz/backend/internal/user"
 )
@@ -124,12 +125,19 @@ func (b *Bot) upsertUser(ctx context.Context, from *models.User) (*user.User, er
 	if from.LastName != "" {
 		name += " " + from.LastName
 	}
-	return b.users.UpsertTelegramUser(ctx, user.TelegramProfile{
+	u, err := b.users.UpsertTelegramUser(ctx, user.TelegramProfile{
 		TelegramID: from.ID,
 		Name:       name,
 		Username:   from.Username,
 		Language:   mapTelegramLangCode(from.LanguageCode),
 	})
+	if err != nil {
+		return nil, err
+	}
+	if u.IsBanned {
+		return nil, apperr.Forbidden("account is banned")
+	}
+	return u, nil
 }
 
 // webURL builds a locale-correct site link (path must start with "/", or
@@ -623,6 +631,9 @@ func (b *Bot) handleMyChatMember(ctx context.Context, mcm *models.ChatMemberUpda
 func (b *Bot) handleChannelMembership(ctx context.Context, mcm *models.ChatMemberUpdated) {
 	adderID := mcm.From.ID
 	u, err := b.upsertUser(ctx, &mcm.From)
+	if err != nil {
+		return
+	}
 	l := langEn
 	if err == nil {
 		l = normalizeLang(u.Language)
@@ -665,16 +676,16 @@ func (b *Bot) handleGroupMembership(ctx context.Context, mcm *models.ChatMemberU
 			slog.Error("group unsubscribe failed", "chat_id", mcm.Chat.ID, "err", err)
 		}
 	default:
+		u, err := b.upsertUser(ctx, &mcm.From)
+		if err != nil {
+			return
+		}
 		if err := b.groups.Subscribe(ctx, mcm.Chat.ID, mcm.Chat.Title); err != nil {
 			slog.Error("group subscribe failed", "chat_id", mcm.Chat.ID, "err", err)
 			return
 		}
 		slog.Info("group subscribed", "chat_id", mcm.Chat.ID, "title", mcm.Chat.Title)
-		u, err := b.upsertUser(ctx, &mcm.From)
-		l := langEn
-		if err == nil {
-			l = normalizeLang(u.Language)
-		}
+		l := normalizeLang(u.Language)
 		b.send(ctx, mcm.Chat.ID, t(l, kGroupSubscribed), nil)
 	}
 }

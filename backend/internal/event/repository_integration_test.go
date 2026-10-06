@@ -2,6 +2,7 @@ package event
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -20,6 +21,9 @@ func TestListNearby_DistanceFiltering(t *testing.T) {
 	ctx := context.Background()
 	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatalf("postgres required in CI: %v", err)
+		}
 		t.Skipf("postgres unavailable: %v", err)
 	}
 	t.Cleanup(pool.Close)
@@ -97,6 +101,9 @@ func TestListRelated_RankingAndFiltering(t *testing.T) {
 	ctx := context.Background()
 	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatalf("postgres required in CI: %v", err)
+		}
 		t.Skipf("postgres unavailable: %v", err)
 	}
 	t.Cleanup(pool.Close)
@@ -192,6 +199,9 @@ func TestCreateSeries_WeeklyOccurrencesAndListing(t *testing.T) {
 	ctx := context.Background()
 	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatalf("postgres required in CI: %v", err)
+		}
 		t.Skipf("postgres unavailable: %v", err)
 	}
 	t.Cleanup(pool.Close)

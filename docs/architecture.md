@@ -46,7 +46,7 @@ service would be pure pass-through (`meta`, `organizer`, `upload`).
 | `platform/tglang` | Telegram `language_code` → uz/ru/en mapping | leaf package — shared by `auth` (Mini App login) and `tgbot` so both first-contact paths agree |
 | `user` | users table, profile GET/PATCH | `Repository.UpsertTelegramUser` (used by auth **and** bot) |
 | `organizer` | organizer profiles, `RequireOrganizer` middleware, `OrganizerID(c)` | |
-| `event` | event CRUD + lifecycle (owner side), public explore queries, trending ranking | `Repository.ListPublic`/`ListTrending` (keyset pagination), `Service` lifecycle rules, `Handler.SetOnPublished` (auto-announce hook, fired async after a successful publish) |
+| `event` | event CRUD + lifecycle (owner side), public explore queries, trending ranking | `Repository.ListPublic`/`ListTrending` (keyset pagination), `Service` lifecycle rules, transactional publication delivery jobs |
 | `rsvp` | RSVPs, tickets, QR signing, check-in, attendees | `TicketSigner`, transactional `Repository.Join` |
 | `notification` | due-reminder + due-feedback queries, sent log | `Repository.Due`/`MarkSent`, `DueFeedback`/`MarkFeedbackSent` |
 | `tgbot` | Telegram bot handlers, i18n catalog, reminder/feedback/announcement message sending | `Bot.Start`, `Bot.SendReminder`, `Bot.SendFeedbackRequest`, `Announcer` (non-polling sender), `i18n.go`, Redis-backed pending-comment marker (`awaitFeedbackComment`/`popPendingFeedbackComment`) |
@@ -86,12 +86,12 @@ the Login Widget — don't reuse `VerifyTelegramLogin` for it:
   verifies under the other (guarded by a test:
   `auth.TestVerifyMiniAppInitData_NotInterchangeableWithLoginWidget`).
 
-`auth.VerifyMiniAppInitData` also excludes `signature` (not just `hash`)
-from the data-check-string — that field belongs to a separate, newer
-ed25519 verification scheme this project doesn't implement — and rejects
-`auth_date` older than **1 hour** (tighter than the widget's 24h, since
-initData is minted fresh every time the Mini App launches, not something
-that sits on a static page). `POST /api/auth/telegram-miniapp` wraps it;
+`auth.VerifyMiniAppInitData` excludes only `hash` from the HMAC
+check string; `signature`, when present, is authenticated too. Excluding
+both belongs to Telegram's separate Ed25519 scheme. Duplicate query keys,
+auth dates over one minute in the future, and dates older than one hour
+are rejected. The Login Widget retains its 24-hour maximum age.
+`POST /api/auth/telegram-miniapp` wraps it;
 `auth.Service.loginTelegramUser` is the shared tail (upsert, ban check,
 issue tokens) both login paths call.
 
@@ -117,23 +117,22 @@ empty (a plain browser), fall through to the normal Login Widget page.
 1. Looks up the caller's RSVP (`going` or `waitlisted`) and cancels it.
 2. Only if it *was* `going` (a waitlisted attendee leaving doesn't free a
    spot): `promoteNextWaitlisted` promotes the longest-waiting `waitlisted`
-   row (`ORDER BY created_at LIMIT 1`) to `going` and issues its ticket, in
+   row (`ORDER BY waitlisted_at, id LIMIT 1`) to `going` and issues its ticket, in
    the same transaction.
-3. The service layer (`rsvp.Service.Cancel`) fires the promoted attendee's
-   Telegram notification in a background goroutine with
-   `context.Background()` — same reasoning as auto-announce below: the
-   HTTP request's own context is canceled the instant the response is
-   written. `rsvp.PromotionNotifier` is an interface (satisfied by
-   `*tgbot.Announcer`, wired in `router.go`) so `rsvp` doesn't import
-   `tgbot` — `tgbot` already imports `rsvp`, and Go disallows the cycle.
-   The notification reuses the same QR-photo rendering as a fresh join
-   (`sendTicketPhotoTo`, a package-level helper in `tgbot` shared by `Bot`
-   and `Announcer`, since `Announcer` has no `*Bot` to call a method on).
+3. While still inside that transaction, enqueue the promotion in
+   `delivery_jobs`. The worker reloads current event/RSVP/user state before
+   delivering the ticket. No request-scoped or detached goroutine sends it.
 
-Ticket QR value = `code + "." + HMAC-SHA256(code, TICKET_SECRET)`.
-Check-in (`POST /api/checkin`) verifies the signature **before** any DB read,
-then: ticket exists → caller owns the event → RSVP active → not already
-checked in → set `checked_in_at` (guarded by `WHERE checked_in_at IS NULL`).
+Promotion only runs for published events that have not started. Ordering
+uses `waitlisted_at, id`; canceling and rejoining resets queue priority.
+Capacity changes are rejected while a waitlist exists, and cannot reduce
+capacity below confirmed attendance.
+
+Ticket QR = `code + "." + HMAC-SHA256(code, TICKET_SECRET)`.
+Check-in requires the selected event ID and a signed QR. A transaction
+locks the event then the RSVP/ticket, verifies ownership, published status,
+confirmed attendance, and single use. The check-in window starts two hours
+before the event and closes at its end (or four hours after its start).
 
 Inside the bot, joining a full event sends the waitlist message
 (`kWaitlisted`) instead of a QR photo; the `/tickets` command and every
@@ -147,34 +146,28 @@ Worker ticks every minute. Steps:
    but > 2 h away) and `reminder_1h` (starts within 1 h). The query anti-joins
    `notification_log` and excludes `users.notifications_muted` (`/mute` in
    the bot) so each (event, user, kind) fires once, and never to a muted user.
-3. `tgbot.Bot.SendReminder` → Telegram; `MarkSent` **always** logs the attempt,
-   even on send failure (a user who never opened the bot chat 403s forever).
-   A muted user's reminder is simply never selected in step 2, so it's never
-   marked sent either — unmuting before the reminder window closes still
-   gets it.
-4. Same tick, same lock: `notification.Repository.DueFeedback` finds attendees
-   of events the hourly `housekeeping.Runner` has already flipped to
-   `finished` (also excluding muted users) and sends a 1-5 star rating
-   prompt (`tgbot.Bot.SendFeedbackRequest`).
-   No time window here — dedup via `notification_log` is the only guard,
-   since "ask once, whenever the scan next runs after the event ends" is
-   sufficient and needs no extra state.
+3. Enqueue a deterministic `(event,user,kind)` job, then mark
+   `notification_log`. The log now means scheduled, not delivered. If the
+   process crashes between those writes, the next scan's unique job key
+   prevents a duplicate.
+4. The same scan queues feedback requests for finished events. The worker
+   rechecks bans and mute preferences before sending.
 
-### Weekly digest
-A separate worker loop (`digestLoop` in `cmd/worker/main.go`) polls every
-15 minutes and, only during the Monday 09:00 `Asia/Tashkent` hour, takes a
-Redis `SETNX` lock keyed per **ISO week** (`meetus:worker:weekly-digest:<year>-<week>`,
-~8-day TTL) — not a fixed key like the other worker locks — so the send
-window reopens automatically every week with no reset logic, and only one
-worker instance sends per week. On success it calls
-`user.Repository.ListWeeklyDigestSubscribers` (opted in via `/digest`,
-excluding muted users same as reminders) and `tgbot.Bot.SendWeeklyDigest`
-per subscriber, which lists published events starting within the next 7
-days — scoped to the subscriber's `city_id` if they have one set
-(`event.ListFilters.CityID`, a plain column filter, distinct from the
-slug-based `CitySlug` filter the public explore endpoints use), global
-otherwise. Sends nothing if the window is empty — an empty digest isn't
-worth a notification.
+### Durable delivery and weekly digest
+`delivery_jobs` is a PostgreSQL outbox. Publication and waitlist promotion
+jobs commit atomically with their domain changes. Reminder/feedback keys
+and one digest-batch key per ISO week deduplicate scans. The digest scan
+runs every 15 minutes, from Monday 09:00 Asia/Tashkent onward, allowing
+catch-up after downtime. Fan-out creates individually deduplicated jobs
+per recipient; retries resume unfinished recipients.
+
+Workers claim jobs with `FOR UPDATE SKIP LOCKED`, a 90-second lease, a
+45-second delivery deadline, and at most six attempts with exponential
+backoff. Telegram forbidden/bad-request/unauthorized errors are terminal.
+Failed rows remain inspectable. Delivery is **at least once**: Telegram may
+accept a message just before a process crashes, causing a duplicate retry.
+No exactly-once claim is made. Digest content is rebuilt from upcoming
+events and current city/preferences at send time; an empty digest is skipped.
 
 ### Nearby events
 `event.Repository.ListNearby` ranks published upcoming in-person events by
@@ -288,29 +281,15 @@ siblings, deliberately — a real recurring meetup often needs its Nth
 instance moved, retitled, or skipped without touching the rest.
 
 ### Map view
-`frontend/src/components/EventMap.tsx` renders in-person events with
-`lat`/`lng` set (organizers enter these on the event form, or omit them —
-lat/lng is always optional) as markers on a Leaflet map, toggled against
-the plain list on the Explore page. Tiles come from CARTO's free
-`dark_all` basemap (`{s}.basemaps.cartocdn.com`, built on OpenStreetMap
-data) rather than stock OSM tiles, specifically because stock tiles are
-white/bright and would clash badly with the site's dark-first theme — no
-API key needed for either, but the OSM+CARTO attribution stays on the map
-per their usage terms (`TileLayer`'s `attribution` prop). Markers are a
-custom blue `L.divIcon` (a styled `<span>`, no image asset) instead of
-Leaflet's default pin — sidesteps the well-known bundler issue where
-Leaflet's default marker icons resolve to broken relative image URLs, and
-matches the brand better anyway.
+`EventMap.tsx` uses MapLibre GL and the shared dark map style. Its dynamic
+import disables SSR, and the container retains an inline height. Popups
+use DOM text rather than organizer-supplied HTML. Attribution remains visible.
 
-The map is loaded via `next/dynamic(..., { ssr: false })`: Leaflet touches
-`window` at import time and cannot run during SSR. **The map container's
-height must be set as an inline `style`, not a Tailwind class** — a
-Tailwind arbitrary-value height class was tried first and (independent of
-Leaflet) rendered as `2px` in this project's build for reasons not fully
-root-caused; the inline style is the verified-working fix and there's no
-reason to revisit it. Leaflet reads the container's size once at init, so
-if it's ever `0`, no tiles load and no tile requests even fire — that's
-the symptom to look for if the map ever appears blank again.
+Location search is explicit (Search button or Enter), never autocomplete.
+The authenticated geocoding proxy caches results for seven days and
+limits all upstream requests across instances to one per second via Redis.
+`GEOCODE_BASE_URL` selects the provider; the default is Nominatim. The
+proxy fails closed if the shared limiter is unavailable.
 
 ### Organizer verification
 `organizers.is_verified` is a plain admin-set boolean (`POST
@@ -339,31 +318,19 @@ titles/descriptions are organizer-controlled free text, and plain
 swap it back for a bare `JSON.stringify` call.
 
 ### PWA and offline tickets
-`frontend/public/sw.js` is a small hand-rolled service worker (no
-Workbox — this is the only PWA behavior the app needs). Three fetch
-strategies, dispatched by request shape: `GET /api/me/tickets` is
-network-first with a cache fallback (so a ticket, once loaded while
-online, is still viewable with no signal at the door — the QR itself is
-rendered entirely client-side from the cached response's `qr` string via
-the `qrcode` package, so nothing else needs to be online); full-page
-navigations are also network-first with a cache fallback, deliberately
-**not** cache-first — event listings and RSVP counts change constantly,
-and a cache-first page would go stale while the user is online; and
-same-origin static assets (fingerprinted JS/CSS, the generated PWA icons)
-are cache-first, since Next's build makes those safe to cache aggressively.
-`app/manifest.ts`, `app/icon.tsx`, and `app/apple-icon.tsx` generate the
-manifest and icons via `next/og`'s `ImageResponse` at build time — a
-simple brand-blue "M" mark, not an emoji, since Satori (the renderer
-behind `ImageResponse`) doesn't reliably render emoji glyphs without an
-extra font/CDN dependency. The default `app/favicon.ico` Next.js ships
-with was deleted so the generated icon is the only one — keeping both
-left some browsers showing the old unbranded default.
+`frontend/public/sw.js` caches fingerprinted Next static assets and the
+public locale ticket-page shell. It never intercepts API, authenticated,
+or RSC requests. Activation removes all earlier `meetus-*` caches to purge
+legacy private responses. Navigation is network-first. Registration is
+disabled (and old registrations removed) during development.
 
-**Known gotcha**: the service worker's cache-first strategy for static
-assets can serve a stale JS chunk during local frontend development,
-including across `npm run dev` restarts, since it survives in the
-browser's Cache Storage independent of the dev server process. See the
-callout in [development.md](development.md) for how to clear it.
+Private offline tickets and a minimal user snapshot live in the
+application's local storage, tied to a random login session ID with a
+30-day expiry. Logout/account switch removes them; stale requests cannot
+write into a different session. Offline snapshots cannot grant admin
+access. Only network failure can return a ticket snapshot; authorization
+errors are never replaced by cached tickets. Cache storage is not used
+for account data. Generated icons/manifest remain public Next routes.
 
 **`proxy.ts`'s matcher must exclude `icon`/`apple-icon`/`pwa-icon`.**
 Next's generated icon routes are served at those exact extensionless
@@ -450,24 +417,14 @@ channel and a separate ru-language one) — the override lives on the
 channel, not the event or the organizer, since it's a property of *that
 audience*.
 
-**Auto-announce on publish**: `event.Handler` accepts an optional
-`onPublished func(ctx context.Context, e *Event)` hook (`SetOnPublished`),
-fired only by the `/:id/publish` route (not unpublish/cancel) and only in
-a background goroutine with `context.Background()` — the request's own
-context is canceled the moment the HTTP response is written, so reusing it
-would abort the send before it even starts. `router.go` wires the actual
-closure: list the organizer's connected channels, resolve the organizer's
-own language (`organizer.Repository.GetLanguage`, a join to `users`), then
-call `Announcer.SendAnnouncement` per channel — channel override wins,
-organizer's language is the fallback, same precedence as manual announce.
-Failures are logged (`slog.Error("auto-announce failed", ...)`), never
-surfaced to the publish response, since publish already succeeded by the
-time announcing runs — a channel that lost bot admin rights shouldn't make
-publishing *look* like it failed. The manual `POST /events/:id/announce`
-endpoint still exists for re-sends (e.g. after editing channel language, or
-if auto-announce failed and the organizer wants to retry one channel).
+**Auto-announce on publish**: the successful lifecycle transaction writes
+a `publish` outbox job. The worker creates one announcement job per chat,
+resolving channel language override before organizer language. The official
+channel is queued first and independently of organizer channels. Delivery
+failure does not undo publication. The manual announce endpoint still
+allows deliberate re-sends; automatic retries belong to the worker.
 
-**Official channel**: the same hook also, unconditionally, posts to
+**Official channel**: the same worker fan-out also, unconditionally, posts to
 Meetus.uz's own channel (`cfg.OfficialChannelID`) if one is configured —
 every published event from every organizer, not just organizers who've
 connected their own channel. This is deliberately a `config.Config` field
@@ -476,7 +433,7 @@ deploy/README.md for how to obtain the chat ID), **not** a
 `channel_connections` row — it isn't owned by any organizer, so it doesn't
 fit that table's `organizer_id`-scoped model, and a single platform-wide
 value needs no admin UI, just the same env-var pattern already used for
-`TELEGRAM_BOT_TOKEN`/`TICKET_SECRET`. In the hook, the official-channel
+`TELEGRAM_BOT_TOKEN`/`TICKET_SECRET`. In the worker, the official-channel
 send happens *before* the per-organizer channel lookup and is never gated
 on it — an organizer with zero channels of their own still triggers the
 official-channel post; only the per-organizer loop below it depends on
@@ -489,7 +446,7 @@ ends up as *both* the official channel and that account's own organizer
 channel. Without the skip, that organizer's own publishes would post to it
 twice.
 
-**Group feed**: the same hook also fans out to Telegram *groups* that have
+**Group feed**: the same worker fan-out also fans out to Telegram *groups* that have
 opted into the platform-wide feed — same idea as the official channel, same
 `SendAnnouncement` call, always in `TELEGRAM_OFFICIAL_CHANNEL_LANGUAGE`
 (groups have no per-chat language override, unlike organizer channels). A
@@ -502,7 +459,7 @@ channel-connect flow; `ChatTypeGroup`/`ChatTypeSupergroup` →
 organizer, so it lives in its own `group_subscriptions` table (chat ID +
 title only) rather than `channel_connections` — there's no organizer-scoped
 concept of "this group belongs to you" the way a channel connection has
-one. `router.go` lists subscribed chat IDs via `groupfeed.Repository.ListChatIDs`
+one. The worker lists subscribed chat IDs via `groupfeed.Repository.ListChatIDs`
 and sends to each, right after the official-channel send and before the
 per-organizer loop.
 
@@ -679,7 +636,7 @@ violations are translated to `Validation` in repositories (`mapWriteErr`).
 | `channel.Announcer` interface defined in `channel`, not imported from `tgbot` | `tgbot` already imports `channel` (for `my_chat_member`); Go doesn't allow the reverse, so the interface lives at the consumer instead |
 | Trending is a separate query, not a parameter on `eventSelect` | `eventSelect` backs several already-tested read paths that don't need the extra RSVP-velocity column; duplicating one query is simpler than parameterizing a shared one |
 | Per-channel language lives on `channel_connections`, not `events` or `organizers` | It's a property of the channel's *audience*, not the event or the organizer — one organizer commonly runs channels for different language audiences |
-| Auto-announce hook fires in a goroutine with `context.Background()`, not the request context | The request context is canceled the instant the HTTP response is written; reusing it would abort the Telegram send before it starts |
+| Auto-announcements use transactional outbox jobs and worker deadlines | Jobs survive request completion and process restart |
 | Official channel is an env var (`TELEGRAM_OFFICIAL_CHANNEL_ID`), not a `channel_connections` row or admin UI | It isn't owned by any single organizer, so it doesn't fit that table's model; a one-time platform-wide value doesn't justify a new admin screen — same reasoning already applied to `TELEGRAM_BOT_TOKEN` |
 | Official channel posts every published event with no approval/moderation gate | Matches the existing per-organizer auto-announce (also ungated); a moderation queue is real added complexity not justified without evidence of abuse — admins can still unpublish/cancel a bad event after the fact |
 | Auto-announce failures are logged, never surfaced on the publish response | Publishing already succeeded by the time announcing runs; a channel that lost bot admin rights shouldn't make publish *look* like it failed |
@@ -688,3 +645,13 @@ violations are translated to `Validation` in repositories (`mapWriteErr`).
 | Admin meta CRUD uses one generic handler keyed by a hardcoded table name string, not two near-identical handlers | `cities` and `categories` share the exact same shape and validation; the table name is never user-supplied, so there's no injection risk, just de-duplication |
 | Frontend is a committed dark-first brand identity, not an OS-`prefers-color-scheme` toggle | A single considered dark palette (see "Frontend visual identity") reads as a deliberate premium product identity; a light/dark split would have doubled the design surface for every component with no clear product need |
 | Category cover art is CSS-only (gradients/patterns), never uploaded images | No image sourcing/licensing/storage needed, renders instantly, and staying disciplined to two brand accents keeps a mixed-category grid coherent instead of an arbitrary rainbow |
+
+### Worker progress and operations
+
+The delivery loop pulses Redis after successful bounded processing cycles,
+including idle cycles, at most once per 15 seconds. The progress key expires
+in 90 seconds so a live process with a stalled loop cannot indefinitely appear
+healthy. `/api/admin/operations` combines that status with aggregate durable
+queue counts; active-admin authorization applies and job payloads are excluded.
+The host health script independently checks readiness, backup freshness,
+queue age/failures and upload disk space. Alert routing remains operator-owned.

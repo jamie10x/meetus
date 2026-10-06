@@ -8,6 +8,7 @@ import (
 )
 
 type Config struct {
+	Revision string
 	AppEnv   string
 	HTTPAddr string
 
@@ -32,13 +33,15 @@ type Config struct {
 	OfficialChannelID       int64
 	OfficialChannelLanguage string
 
-	UploadDir  string
-	APIBaseURL string
-	WebBaseURL string
+	GeocodeBaseURL string
+	UploadDir      string
+	APIBaseURL     string
+	WebBaseURL     string
 }
 
 func Load() (*Config, error) {
 	cfg := &Config{
+		Revision: getenv("APP_REVISION", "development"),
 		AppEnv:   getenv("APP_ENV", "development"),
 		HTTPAddr: getenv("HTTP_ADDR", ":8080"),
 
@@ -56,9 +59,10 @@ func Load() (*Config, error) {
 
 		OfficialChannelLanguage: getenv("TELEGRAM_OFFICIAL_CHANNEL_LANGUAGE", "uz"),
 
-		UploadDir:  getenv("UPLOAD_DIR", "./uploads"),
-		APIBaseURL: getenv("API_BASE_URL", "http://localhost:8080"),
-		WebBaseURL: getenv("WEB_BASE_URL", "http://localhost:3000"),
+		GeocodeBaseURL: getenv("GEOCODE_BASE_URL", "https://nominatim.openstreetmap.org"),
+		UploadDir:      getenv("UPLOAD_DIR", "./uploads"),
+		APIBaseURL:     getenv("API_BASE_URL", "http://localhost:8080"),
+		WebBaseURL:     getenv("WEB_BASE_URL", "http://localhost:3000"),
 	}
 
 	if raw := os.Getenv("TELEGRAM_OFFICIAL_CHANNEL_ID"); raw != "" {
