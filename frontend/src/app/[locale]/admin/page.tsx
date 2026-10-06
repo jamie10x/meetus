@@ -1,9 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { errorMessage } from "@/lib/errorMessage";
+
+import OperationsStatus from "@/components/OperationsStatus";
+import LoadMore from "@/components/LoadMore";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import MetaManager from "@/components/MetaManager";
 import VerifiedBadge from "@/components/VerifiedBadge";
@@ -64,6 +68,7 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
 
 export default function AdminPage() {
   const t = useTranslations("admin");
+  const tErrors = useTranslations("errors");
   const tCommon = useTranslations("common");
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -75,6 +80,7 @@ export default function AdminPage() {
   const [userQuery, setUserQuery] = useState("");
   const [organizers, setOrganizers] = useState<AdminOrganizer[]>([]);
   const [organizerQuery, setOrganizerQuery] = useState("");
+  const eventRequest = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -82,11 +88,13 @@ export default function AdminPage() {
   }, [loading, user, router]);
 
   const loadEvents = useCallback((status: string) => {
+    eventRequest.current?.abort();
+    const controller = new AbortController(); eventRequest.current = controller;
     const qs = status ? `?status=${status}` : "";
-    api<EventItem[]>(`/admin/events${qs}`, { auth: true })
-      .then(setEvents)
-      .catch(() => setEvents([]));
-  }, []);
+    api<EventItem[]>(`/admin/events${qs}`, { auth: true, signal: controller.signal })
+      .then(data => { if (!controller.signal.aborted) setEvents(data); })
+      .catch(() => { if (!controller.signal.aborted) setError(t("actionFailed")); });
+  }, [t]);
 
   useEffect(() => {
     if (!user?.isAdmin) return;
@@ -99,30 +107,32 @@ export default function AdminPage() {
   // Debounced user search.
   useEffect(() => {
     if (!user?.isAdmin) return;
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       api<AdminUser[]>(
         `/admin/users?q=${encodeURIComponent(userQuery)}`,
-        { auth: true },
+        { auth: true, signal: controller.signal },
       )
-        .then(setUsers)
-        .catch(() => setUsers([]));
+        .then(data => { if (!controller.signal.aborted) setUsers(data); })
+        .catch(() => { if (!controller.signal.aborted) setError(t("actionFailed")); });
     }, 300);
-    return () => clearTimeout(timer);
-  }, [user, userQuery]);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [user, userQuery, t]);
 
   // Debounced organizer search.
   useEffect(() => {
     if (!user?.isAdmin) return;
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       api<AdminOrganizer[]>(
         `/admin/organizers?q=${encodeURIComponent(organizerQuery)}`,
-        { auth: true },
+        { auth: true, signal: controller.signal },
       )
-        .then(setOrganizers)
-        .catch(() => setOrganizers([]));
+        .then(data => { if (!controller.signal.aborted) setOrganizers(data); })
+        .catch(() => { if (!controller.signal.aborted) setError(t("actionFailed")); });
     }, 300);
-    return () => clearTimeout(timer);
-  }, [user, organizerQuery]);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [user, organizerQuery, t]);
 
   if (loading || !user?.isAdmin) {
     return <main className="p-8 text-center text-dust">{t("loading")}</main>;
@@ -134,7 +144,7 @@ export default function AdminPage() {
       await api(path, { method: "POST", auth: true });
       refresh();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t("actionFailed"));
+      setError(errorMessage(e, tErrors, t("actionFailed")));
     }
   };
 
@@ -232,8 +242,10 @@ export default function AdminPage() {
             </li>
           ) : null}
         </ul>
+        <LoadMore key={`/admin/events?status=${statusFilter}`} path={`/admin/events?status=${statusFilter}`} rows={events} setRows={setEvents} />
       </section>
 
+      <OperationsStatus />
       <MetaManager resource="cities" heading={t("citiesHeading")} />
       <MetaManager resource="categories" heading={t("categoriesHeading")} />
 
@@ -303,6 +315,7 @@ export default function AdminPage() {
             </li>
           ) : null}
         </ul>
+        <LoadMore key={`/admin/organizers?q=${encodeURIComponent(organizerQuery)}`} path={`/admin/organizers?q=${encodeURIComponent(organizerQuery)}`} rows={organizers} setRows={setOrganizers} />
       </section>
 
       <section>
@@ -373,6 +386,7 @@ export default function AdminPage() {
             </li>
           ) : null}
         </ul>
+        <LoadMore key={`/admin/users?q=${encodeURIComponent(userQuery)}`} path={`/admin/users?q=${encodeURIComponent(userQuery)}`} rows={users} setRows={setUsers} />
       </section>
     </main>
   );

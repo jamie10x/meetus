@@ -39,8 +39,7 @@ export default async function EventDetailPage({ params }: Props) {
   const tCommon = await getTranslations({ locale, namespace: "common" });
   const event = await fetchEvent(id);
   if (!event) notFound();
-  const related = await fetchRelatedEvents(id);
-  const seriesEvents = event.seriesId ? await fetchSeriesEvents(id) : [];
+  const [related, seriesEvents] = await Promise.all([fetchRelatedEvents(id), event.seriesId ? fetchSeriesEvents(id) : Promise.resolve([])]);
 
   const spotsLeft =
     event.capacity !== null ? event.capacity - event.goingCount : null;
@@ -120,6 +119,7 @@ export default async function EventDetailPage({ params }: Props) {
             className="mt-4"
             path={`/${locale}/events/${event.id}`}
             event={{
+              id: event.id,
               title: event.title,
               description: event.description,
               startsAt: event.startsAt,

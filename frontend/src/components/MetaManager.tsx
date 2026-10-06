@@ -1,8 +1,10 @@
 "use client";
 
+import { errorMessage } from "@/lib/errorMessage";
+
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import type { MetaItem } from "@/lib/types";
 
 type Props = {
@@ -17,6 +19,7 @@ const emptyForm = { slug: "", nameUz: "", nameRu: "", nameEn: "" };
  * both rather than duplicating the same list/edit/add interaction twice. */
 export default function MetaManager({ resource, heading }: Props) {
   const t = useTranslations("admin");
+  const tErrors = useTranslations("errors");
   const [items, setItems] = useState<MetaItem[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
@@ -70,7 +73,7 @@ export default function MetaManager({ resource, heading }: Props) {
       cancel();
       load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t("metaSaveFailed"));
+      setError(errorMessage(e, tErrors, t("metaSaveFailed")));
     }
   };
 
@@ -81,7 +84,7 @@ export default function MetaManager({ resource, heading }: Props) {
       await api(`${adminPath}/${id}`, { method: "DELETE", auth: true });
       load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t("metaDeleteFailed"));
+      setError(errorMessage(e, tErrors, t("metaDeleteFailed")));
     }
   };
 

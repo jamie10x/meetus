@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { errorMessage } from "@/lib/errorMessage";
+
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { getTelegramWebApp, isTelegramMiniApp } from "@/lib/telegram-webapp";
 
@@ -27,6 +29,7 @@ type Props = {
 
 export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
   const t = useTranslations("rsvp");
+  const tErrors = useTranslations("errors");
   const { user, loading } = useAuth();
   const [rsvp, setRsvp] = useState<RSVPState | null>(null);
   const [checked, setChecked] = useState(false);
@@ -39,19 +42,20 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      setChecked(true);
-      return;
-    }
+    let stale = false;
+    setRsvp(null);
+    setChecked(false);
+    if (!user) { setChecked(true); return; }
     api<RSVPState>(`/events/${eventId}/rsvp`, { auth: true })
-      .then(setRsvp)
-      .catch(() => setRsvp(null))
-      .finally(() => setChecked(true));
+      .then((value) => { if (!stale) setRsvp(value); })
+      .catch(() => { if (!stale) setRsvp(null); })
+      .finally(() => { if (!stale) setChecked(true); });
+    return () => { stale = true; };
   }, [user, eventId]);
 
   const isFull = spotsLeft === 0;
 
-  const join = async () => {
+  const join = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
@@ -60,11 +64,11 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
         auth: true,
       }));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t("joinFailed"));
+      setError(errorMessage(e, tErrors, t("joinFailed")));
     } finally {
       setBusy(false);
     }
-  };
+  }, [eventId, t, tErrors]);
 
   // Inside Telegram, joining happens through the native MainButton instead
   // of the in-page button, so it feels like a first-class Telegram action.
@@ -85,12 +89,11 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
     tg.MainButton.show();
     return () => {
       tg.MainButton.offClick(join);
+      tg.MainButton.hide();
+      tg.MainButton.hideProgress();
+      tg.MainButton.enable();
     };
-    // join is intentionally omitted — it's recreated every render but does
-    // the same thing each time, and re-subscribing on every render would
-    // thrash Telegram's native button.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canJoinViaMainButton, isFull]);
+  }, [canJoinViaMainButton, isFull, join, t]);
 
   useEffect(() => {
     const tg = getTelegramWebApp();
@@ -106,7 +109,7 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
 
   if (loading || !checked) return null;
 
-  if (isPast) {
+  if (isPast && !rsvp) {
     return (
       <p className="mt-8 rounded-card border border-line bg-ink-raised p-4 text-center text-dust">
         {t("eventStarted")}
@@ -118,7 +121,7 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
     return (
       <div className="mt-8 rounded-card border border-registan-dim bg-registan/[0.08] p-4 text-center">
         <Link
-          href="/login"
+          href={`/login?next=${encodeURIComponent(`/events/${eventId}`)}`}
           className="font-semibold text-registan-strong hover:underline"
         >
           {t("signInLink")}
@@ -135,7 +138,7 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
       await api(`/events/${eventId}/rsvp`, { method: "DELETE", auth: true });
       setRsvp(null);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t("cancelFailed"));
+      setError(errorMessage(e, tErrors, t("cancelFailed")));
     } finally {
       setBusy(false);
     }
@@ -154,7 +157,7 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
             </p>
             <button
               onClick={leave}
-              disabled={busy}
+              disabled={busy || isPast}
               className="btn btn-danger-ghost btn-sm"
             >
               {t("cancel")}

@@ -1,5 +1,7 @@
 "use client";
 
+import { errorMessage } from "@/lib/errorMessage";
+
 import { use, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -13,6 +15,7 @@ export default function EditEventPage({
   params: Promise<{ id: string }>;
 }) {
   const t = useTranslations("eventEdit");
+  const tErrors = useTranslations("errors");
   const tStatus = useTranslations("organizer");
   const { id } = use(params);
   const router = useRouter();
@@ -26,21 +29,25 @@ export default function EditEventPage({
   >({});
 
   useEffect(() => {
-    api<EventItem[]>("/events/mine", { auth: true })
-      .then((events) => {
-        const found = events.find((e) => e.id === Number(id));
-        if (found) setEvent(found);
-        else setNotFound(true);
-      })
-      .catch(() => setNotFound(true));
-    api<Channel[]>("/organizers/me/channels", { auth: true })
+    const controller = new AbortController();
+    setNotFound(false);
+    api<EventItem>(`/events/${id}`, { auth: true, signal: controller.signal })
+      .then(setEvent)
+      .catch(error => {
+        if (controller.signal.aborted) return;
+        if (error instanceof ApiError && error.status === 404) setNotFound(true);
+        else setActionError(errorMessage(error, tErrors, t("actionFailed")));
+      });
+    api<Channel[]>("/organizers/me/channels", { auth: true, signal: controller.signal })
       .then(setChannels)
-      .catch(() => setChannels([]));
-  }, [id]);
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [id, t, tErrors]);
 
   if (notFound) {
     return <main className="p-8 text-center text-dust">{t("notFound")}</main>;
   }
+  if (!event && actionError) return <main role="alert" className="p-8 text-center text-pomegranate">{actionError}</main>;
   if (!event) {
     return <main className="p-8 text-center text-dust">{t("loading")}</main>;
   }
@@ -63,7 +70,7 @@ export default function EditEventPage({
       });
       setEvent(updated);
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : t("actionFailed"));
+      setActionError(errorMessage(e, tErrors, t("actionFailed")));
     }
   };
 
@@ -88,7 +95,7 @@ export default function EditEventPage({
       await api(`/events/${event.id}`, { method: "DELETE", auth: true });
       router.push("/organizer");
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : t("deleteFailed"));
+      setActionError(errorMessage(e, tErrors, t("deleteFailed")));
     }
   };
 

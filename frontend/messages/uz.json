@@ -1,6 +1,9 @@
 {
   "common": {
-    "verifiedOrganizer": "Tasdiqlangan tashkilotchi"
+    "verifiedOrganizer": "Tasdiqlangan tashkilotchi",
+    "loadMore": "Yana yuklash",
+    "loading": "Yuklanmoqda…",
+    "loadFailed": "Maʼlumotlarni yuklab boʻlmadi. Qayta urinib koʻring."
   },
   "nav": {
     "explore": "Tadbirlar",
@@ -125,7 +128,8 @@
     "eventCanceled": "Tadbir bekor qilindi",
     "showAtEntrance": "Kirishda ushbu QR-kodni koʻrsating",
     "qrUnavailable": "QR-kod mavjud emas",
-    "loading": "Yuklanmoqda…"
+    "loading": "Yuklanmoqda…",
+    "qrAlt": "{title} uchun chipta QR kodi"
   },
   "calendar": {
     "downloadIcs": "Kalendarga qoʻshish (.ics)",
@@ -209,7 +213,9 @@
     "saving": "Saqlanmoqda…",
     "coverPreviewAlt": "Muqova koʻrinishi",
     "uploadFailed": "Rasmni yuklab boʻlmadi. Qayta urinib koʻring.",
-    "saveFailed": "Tadbirni saqlab boʻlmadi. Qayta urinib koʻring."
+    "saveFailed": "Tadbirni saqlab boʻlmadi. Qayta urinib koʻring.",
+    "searchLocation": "Qidirish",
+    "searchFailed": "Joylarni qidirib boʻlmadi. Qayta urinib koʻring."
   },
   "eventNew": {
     "title": "Tadbir yaratish",
@@ -244,7 +250,9 @@
     "cameraError": "Kamera mavjud emas. Kameraga ruxsat bering va sahifani qayta yuklang.",
     "checkInFailed": "Roʻyxatga olib boʻlmadi. Chiptani qayta skanerlang.",
     "checkedInTo": "{eventTitle} uchun roʻyxatga olindi",
-    "sessionCount": "Ushbu sessiyada roʻyxatga olinganlar: {count}"
+    "sessionCount": "Ushbu sessiyada roʻyxatga olinganlar: {count}",
+    "manualCode": "Chipta QR kodini kiriting",
+    "submitCode": "Qayd etish"
   },
   "attendees": {
     "title": "Ishtirokchilar",
@@ -371,5 +379,38 @@
     ],
     "contactHeading": "Biz bilan bogʻlaning",
     "contactBody": "Maxfiylik boʻyicha savol, maʼlumot soʻrovi yoki boshqa murojaat uchun @meetusuz_bot botimizga yozing yoki privacy@meetus.uz manziliga elektron xat yuboring."
+  },
+  "operations": {
+    "title": "Bildirishnomalarni yetkazish",
+    "worker": "Ishlovchi",
+    "ready": "Ishlayapti",
+    "stale": "Yaqinda faollik kuzatilmadi",
+    "disabled": "Sozlanmagan",
+    "lastProgress": "Oxirgi faollik",
+    "pending": "Yuborilishi kutilmoqda",
+    "failed": "Yuborishda xatolik",
+    "oldest": "Eng eski kutilayotgan xabar",
+    "none": "Yoʻq",
+    "unavailable": "Yetkazish holati mavjud emas. Tez orada qayta uriniladi.",
+    "loading": "Yetkazish holati yuklanmoqda…"
+  },
+  "dateTime": {
+    "date": "{label}: sana",
+    "time": "{label}: vaqt"
+  },
+  "errors": {
+    "alreadyCheckedIn": "Bu chipta bilan kirish allaqachon qayd etilgan.",
+    "wrongEvent": "Bu chipta boshqa tadbirga tegishli.",
+    "inactiveTicket": "Bu chipta endi faol emas.",
+    "checkInClosed": "Bu tadbir uchun kirishni qayd etish yopilgan.",
+    "capacityWaitlist": "Kutish roʻyxatida ishtirokchilar bor ekan, sigʻimni oʻzgartirib boʻlmaydi.",
+    "capacityAttendance": "Sigʻim tasdiqlangan ishtirokchilar sonidan kam boʻlishi mumkin emas.",
+    "banned": "Bu hisob bloklangan.",
+    "validation": "Kiritilgan maʼlumotlarni tekshirib, qayta urinib koʻring.",
+    "unauthorized": "Hisobingizga qayta kiring.",
+    "forbidden": "Bu amalni bajarishga ruxsatingiz yoʻq.",
+    "notFound": "Bu maʼlumot endi mavjud emas.",
+    "conflict": "Maʼlumotlar oʻzgargan yoki amal allaqachon bajarilgan. Sahifani yangilab, qayta urinib koʻring.",
+    "rateLimited": "Soʻrovlar juda koʻp. Biroz kutib, qayta urinib koʻring."
   }
 }

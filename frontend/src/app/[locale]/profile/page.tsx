@@ -1,9 +1,11 @@
 "use client";
 
+import { errorMessage } from "@/lib/errorMessage";
+
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
-import { api, uploadImage, ApiError } from "@/lib/api";
+import { api, uploadImage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { metaName, type MetaItem, type User } from "@/lib/types";
 
@@ -15,6 +17,7 @@ const LANGUAGES = [
 
 export default function ProfilePage() {
   const t = useTranslations("profile");
+  const tErrors = useTranslations("errors");
   const locale = useLocale();
   const { user, loading, setUser } = useAuth();
   const router = useRouter();
@@ -65,13 +68,13 @@ export default function ProfilePage() {
           cityId: cityId ? Number(cityId) : null,
           district: district || null,
           language,
-          avatarUrl: avatarUrl || null,
+          ...(avatarUrl && avatarUrl !== user.avatarUrl ? { avatarUrl } : {}),
         },
       });
       setUser(updated);
       setMessage(t("saved"));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t("saveFailed"));
+      setError(errorMessage(err, tErrors, t("saveFailed")));
     } finally {
       setSaving(false);
     }
@@ -84,7 +87,7 @@ export default function ProfilePage() {
     try {
       setAvatarUrl(await uploadImage(file));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t("avatarUploadFailed"));
+      setError(errorMessage(e, tErrors, t("avatarUploadFailed")));
     } finally {
       setUploadingAvatar(false);
     }

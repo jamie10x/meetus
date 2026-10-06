@@ -5,6 +5,7 @@
  */
 
 export type IcsEvent = {
+  id: number;
   title: string;
   description: string;
   startsAt: string; // ISO
@@ -39,7 +40,7 @@ function escapeIcsText(s: string): string {
     .replace(/\\/g, "\\\\")
     .replace(/;/g, "\\;")
     .replace(/,/g, "\\,")
-    .replace(/\n/g, "\\n");
+    .replace(/\r\n|\r|\n/g, "\\n");
 }
 
 function icsLocation(e: IcsEvent): string {
@@ -56,7 +57,7 @@ function icsRange(e: IcsEvent): { start: Date; end: Date } {
 /** Builds the raw .ics file content (CRLF line endings per RFC 5545). */
 export function buildIcsContent(e: IcsEvent): string {
   const { start, end } = icsRange(e);
-  const uid = `${start.getTime()}-${e.title.length}@meetus.uz`;
+  const uid = `${e.id}@meetus.uz`;
 
   const lines = [
     "BEGIN:VCALENDAR",

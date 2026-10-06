@@ -1,9 +1,11 @@
 "use client";
 
+import { errorMessage } from "@/lib/errorMessage";
+
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
-import { api, uploadImage, ApiError } from "@/lib/api";
+import { api, uploadImage } from "@/lib/api";
 import { categoryDotColor } from "@/lib/categoryStyle";
 import { metaName, type EventInput, type EventItem, type MetaItem } from "@/lib/types";
 import DateTimeField from "@/components/DateTimeField";
@@ -64,6 +66,7 @@ function Req() {
 
 export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
   const t = useTranslations("eventForm");
+  const tErrors = useTranslations("errors");
   const locale = useLocale();
   const [categories, setCategories] = useState<MetaItem[]>([]);
   const [cities, setCities] = useState<MetaItem[]>([]);
@@ -118,7 +121,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
       setCoverUrl(url);
       setCoverPreview(url);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t("uploadFailed"));
+      setError(errorMessage(e, tErrors, t("uploadFailed")));
       setCoverPreview(coverUrl || null);
     } finally {
       setUploading(false);
@@ -143,6 +146,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
     setError(null);
     try {
       await onSubmit({
+        visibility: initial?.visibility ?? "public",
         title,
         description,
         categoryId: Number(categoryId),
@@ -161,7 +165,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         ...(!initial && repeatsWeekly ? { recurWeeks: Number(recurWeeks) } : {}),
       });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t("saveFailed"));
+      setError(errorMessage(err, tErrors, t("saveFailed")));
       setSaving(false);
     }
   };
@@ -349,11 +353,11 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
             {t("startsAt")}
             <Req />
           </span>
-          <DateTimeField value={startsAt} onChange={setStartsAt} required />
+          <DateTimeField label={t("startsAt")} value={startsAt} onChange={setStartsAt} required />
         </label>
         <label className={`${labelCls} flex-1`}>
           {t("endsAtOptional")}
-          <DateTimeField value={endsAt} onChange={setEndsAt} min={startsAt} />
+          <DateTimeField label={t("endsAtOptional")} value={endsAt} onChange={setEndsAt} min={startsAt} />
           {endBeforeStart ? (
             <span className="text-xs text-pomegranate">{t("endBeforeStart")}</span>
           ) : null}

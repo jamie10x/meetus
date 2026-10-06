@@ -95,6 +95,7 @@ export type TrendingEventItem = EventItem & {
 };
 
 export type EventInput = {
+  visibility?: "public" | "unlisted";
   title: string;
   description: string;
   categoryId: number;

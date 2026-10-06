@@ -1,6 +1,9 @@
 {
   "common": {
-    "verifiedOrganizer": "Verified organizer"
+    "verifiedOrganizer": "Verified organizer",
+    "loadMore": "Load more",
+    "loading": "Loading…",
+    "loadFailed": "Could not load data. Please try again."
   },
   "nav": {
     "explore": "Explore",
@@ -125,7 +128,8 @@
     "eventCanceled": "Event canceled",
     "showAtEntrance": "Show this QR at the entrance",
     "qrUnavailable": "QR unavailable",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "qrAlt": "Ticket QR for {title}"
   },
   "calendar": {
     "downloadIcs": "Add to calendar (.ics)",
@@ -209,7 +213,9 @@
     "saving": "Saving…",
     "coverPreviewAlt": "Cover preview",
     "uploadFailed": "Could not upload that image. Please try again.",
-    "saveFailed": "Could not save the event. Please try again."
+    "saveFailed": "Could not save the event. Please try again.",
+    "searchLocation": "Search",
+    "searchFailed": "Could not search for places. Please try again."
   },
   "eventNew": {
     "title": "Create event",
@@ -244,7 +250,9 @@
     "cameraError": "Camera unavailable. Allow camera access and reload the page.",
     "checkInFailed": "Check-in failed. Scan the ticket again.",
     "checkedInTo": "checked in to {eventTitle}",
-    "sessionCount": "{count} checked in this session"
+    "sessionCount": "{count} checked in this session",
+    "manualCode": "Paste ticket QR code",
+    "submitCode": "Check in"
   },
   "attendees": {
     "title": "Attendees",
@@ -371,5 +379,38 @@
     ],
     "contactHeading": "Contact us",
     "contactBody": "For any privacy question, data request, or concern, message our bot at @meetusuz_bot or email privacy@meetus.uz."
+  },
+  "operations": {
+    "title": "Notification delivery",
+    "worker": "Worker",
+    "ready": "Running",
+    "stale": "No recent progress",
+    "disabled": "Not configured",
+    "lastProgress": "Last progress",
+    "pending": "Pending messages",
+    "failed": "Failed messages",
+    "oldest": "Oldest pending message",
+    "none": "None",
+    "unavailable": "Delivery status is unavailable. Retrying shortly.",
+    "loading": "Loading delivery status…"
+  },
+  "dateTime": {
+    "date": "{label}: date",
+    "time": "{label}: time"
+  },
+  "errors": {
+    "alreadyCheckedIn": "This ticket has already been checked in.",
+    "wrongEvent": "This ticket belongs to another event.",
+    "inactiveTicket": "This ticket is no longer active.",
+    "checkInClosed": "Check-in is closed for this event.",
+    "capacityWaitlist": "Capacity cannot change while attendees are on the waitlist.",
+    "capacityAttendance": "Capacity cannot be lower than the confirmed attendee count.",
+    "banned": "This account has been suspended.",
+    "validation": "Check the entered details and try again.",
+    "unauthorized": "Please sign in again.",
+    "forbidden": "You do not have permission for this action.",
+    "notFound": "This item is no longer available.",
+    "conflict": "This item has changed or the action is already complete. Reload and try again.",
+    "rateLimited": "Too many requests. Please wait and try again."
   }
 }

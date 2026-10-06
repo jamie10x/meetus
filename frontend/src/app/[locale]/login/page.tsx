@@ -1,22 +1,29 @@
 "use client";
 
+import { errorMessage } from "@/lib/errorMessage";
+
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import TelegramLoginButton from "@/components/TelegramLoginButton";
 import { useAuth } from "@/lib/auth-context";
-import { ApiError } from "@/lib/api";
 import type { TelegramAuthFields } from "@/lib/types";
+
+function returnPath() {
+  const value = new URLSearchParams(window.location.search).get("next") ?? "";
+  return /^\/(events\/\d+|organizer(?:\/events\/(?:new|\d+\/(?:edit|attendees|scan)))?|tickets|profile)$/.test(value) ? value : "/";
+}
 
 export default function LoginPage() {
   const t = useTranslations("login");
+  const tErrors = useTranslations("errors");
   const { user, loading, loginWithTelegram } = useAuth();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) router.replace("/");
+    if (!loading && user) router.replace(returnPath());
   }, [loading, user, router]);
 
   const handleAuth = useCallback(
@@ -25,14 +32,14 @@ export default function LoginPage() {
       setError(null);
       try {
         await loginWithTelegram(fields);
-        router.replace("/");
+        router.replace(returnPath());
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : t("signInFailed"));
+        setError(errorMessage(e, tErrors, t("signInFailed")));
       } finally {
         setSubmitting(false);
       }
     },
-    [loginWithTelegram, router, t],
+    [loginWithTelegram, router, t, tErrors],
   );
 
   // Avoids flashing the Login Widget while a Mini App silent auto-login

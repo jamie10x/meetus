@@ -40,7 +40,7 @@ function TicketCard({ ticket }: { ticket: MyTicket }) {
       <div className="shrink-0 rounded-xl bg-bone p-2">
         {qrDataUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={qrDataUrl} alt={`Ticket QR for ${ticket.eventTitle}`} />
+          <img src={qrDataUrl} alt={t("qrAlt", { title: ticket.eventTitle })} />
         ) : (
           <div className="flex h-[220px] w-[220px] items-center justify-center text-sm text-ink/50">
             {t("qrUnavailable")}
@@ -89,6 +89,7 @@ function TicketCard({ ticket }: { ticket: MyTicket }) {
             className="mt-3"
             path={`/${locale}/events/${ticket.eventId}`}
             event={{
+              id: ticket.eventId,
               title: ticket.eventTitle,
               description: "",
               startsAt: ticket.startsAt,

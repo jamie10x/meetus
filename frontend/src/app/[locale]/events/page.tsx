@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import EventCard from "@/components/EventCard";
@@ -78,6 +78,9 @@ export default function ExplorePage() {
   const [items, setItems] = useState<EventItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const generation = useRef(0);
+  const morePending = useRef(false);
   const [failed, setFailed] = useState(false);
   const [view, setView] = useState<"list" | "map">("list");
 
@@ -110,6 +113,9 @@ export default function ExplorePage() {
 
   useEffect(() => {
     let stale = false;
+    generation.current++;
+    morePending.current = false;
+    setLoadingMore(false);
     setLoading(true);
     setFailed(false);
     api<Page>(`/explore/events?${buildQuery()}`)
@@ -130,14 +136,18 @@ export default function ExplorePage() {
   }, [buildQuery]);
 
   const loadMore = async () => {
-    if (!nextCursor) return;
-    const page = await api<Page>(
-      `/explore/events?${buildQuery(nextCursor)}`,
-    ).catch(() => null);
-    if (page) {
-      setItems((prev) => [...prev, ...page.items]);
+    if (!nextCursor || morePending.current || loading) return;
+    const current = generation.current;
+    morePending.current = true;
+    setLoadingMore(true);
+    try {
+      const page = await api<Page>(`/explore/events?${buildQuery(nextCursor)}`);
+      if (current !== generation.current) return;
+      setItems((prev) => [...new Map([...prev, ...page.items].map((item) => [item.id, item])).values()]);
       setNextCursor(page.nextCursor);
-    }
+    } catch { if (current === generation.current) setFailed(true); }
+    finally { if (current === generation.current) { morePending.current = false; setLoadingMore(false); } }
+
   };
 
   return (
@@ -155,9 +165,10 @@ export default function ExplorePage() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={t("searchPlaceholder")}
+              aria-label={t("searchPlaceholder")}
               className={`${selectCls} min-w-56 flex-1 rounded-2xl`}
             />
-            <select value={city} onChange={(e) => setCity(e.target.value)} className={selectCls}>
+            <select aria-label={t("allCities")} value={city} onChange={(e) => setCity(e.target.value)} className={selectCls}>
               <option value="">{t("allCities")}</option>
               {cities.map((c) => (
                 <option key={c.id} value={c.slug}>
@@ -254,7 +265,7 @@ export default function ExplorePage() {
             )}
 
             {nextCursor ? (
-              <button onClick={loadMore} className="btn btn-secondary mx-auto mt-8 block">
+              <button disabled={loadingMore} onClick={loadMore} className="btn btn-secondary mx-auto mt-8 block">
                 {t("loadMore")}
               </button>
             ) : null}

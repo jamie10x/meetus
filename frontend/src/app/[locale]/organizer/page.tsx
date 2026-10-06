@@ -1,11 +1,14 @@
 "use client";
 
+import { errorMessage } from "@/lib/errorMessage";
+
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import type { Channel, EventItem, Organizer } from "@/lib/types";
+import LoadMore from "@/components/LoadMore";
 import VerifiedBadge from "@/components/VerifiedBadge";
 
 type OrganizerStats = {
@@ -19,6 +22,7 @@ const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "";
 
 export default function OrganizerPage() {
   const t = useTranslations("organizer");
+  const tErrors = useTranslations("errors");
   const tEventCard = useTranslations("eventCard");
   const tCommon = useTranslations("common");
   const { user, loading } = useAuth();
@@ -65,9 +69,9 @@ export default function OrganizerPage() {
           .then(setChannels)
           .catch(() => setChannels([]));
       })
-      .catch(() => setOrganizer(null))
+      .catch((error) => { if (error instanceof ApiError && error.status === 404) setOrganizer(null); else setError(tCommon("loadFailed")); })
       .finally(() => setChecked(true));
-  }, [user]);
+  }, [user, tCommon]);
 
   if (loading || !user || !checked) {
     return <main className="p-8 text-center text-dust">{t("loading")}</main>;
@@ -97,6 +101,8 @@ export default function OrganizerPage() {
     }
   };
 
+  if (!organizer && error) return <main role="alert" className="p-8 text-pomegranate">{error}</main>;
+
   if (!organizer) {
     const become = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -110,7 +116,7 @@ export default function OrganizerPage() {
         });
         setOrganizer(o);
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : t("createFailed"));
+        setError(errorMessage(err, tErrors, t("createFailed")));
       } finally {
         setSubmitting(false);
       }
@@ -227,6 +233,7 @@ export default function OrganizerPage() {
         </ul>
       )}
 
+      <LoadMore path="/events/mine" rows={events} setRows={setEvents} />
       <section className="mt-10">
         <h2 className="mb-2 text-lg font-semibold text-bone">{t("channelsHeading")}</h2>
         {BOT_USERNAME ? (

@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
+import { enUS, ru, uz } from "react-day-picker/locale";
 
 type Props = {
+  label: string;
   value: string; // datetime-local format: "YYYY-MM-DDTHH:mm", or ""
   onChange: (value: string) => void;
   required?: boolean;
@@ -31,8 +33,9 @@ function toValue(date: Date, time: string): string {
  * globals.css); the time half stays a native `<input type="time">`, which
  * is already good UX (native wheel picker on mobile) and low-risk to
  * hand-roll a worse version of. */
-export default function DateTimeField({ value, onChange, required, min }: Props) {
+export default function DateTimeField({ value, onChange, required, min, label }: Props) {
   const locale = useLocale();
+  const t = useTranslations("dateTime");
   const { date, time } = parseValue(value);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -65,6 +68,8 @@ export default function DateTimeField({ value, onChange, required, min }: Props)
     <div ref={rootRef} className="relative flex gap-2">
       <button
         type="button"
+        aria-label={t("date", { label })}
+        aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className="flex-1 rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-left text-bone transition-all focus:border-registan-dim focus:outline-none focus:ring-2 focus:ring-registan/20"
       >
@@ -72,6 +77,7 @@ export default function DateTimeField({ value, onChange, required, min }: Props)
       </button>
       <input
         type="time"
+        aria-label={t("time", { label })}
         required={required}
         value={time}
         onChange={(e) => onChange(toValue(date ?? new Date(), e.target.value))}
@@ -81,7 +87,8 @@ export default function DateTimeField({ value, onChange, required, min }: Props)
         <div className="absolute left-0 top-[calc(100%+6px)] z-20 rounded-xl border border-line bg-ink-overlay p-2 shadow-pop">
           <DayPicker
             mode="single"
-            locale={undefined}
+            required
+            locale={locale === "ru" ? ru : locale === "uz" ? uz : enUS}
             selected={date}
             defaultMonth={date}
             disabled={minDate ? { before: minDate } : undefined}

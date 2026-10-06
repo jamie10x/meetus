@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { api, API_URL, getAccessToken } from "@/lib/api";
+import { api, downloadFile } from "@/lib/api";
 
 type Attendee = {
   userId: number;
@@ -87,12 +87,8 @@ export default function AttendeesPage({
         {attendees.length > 0 ? (
           <button
             onClick={async () => {
-              const res = await fetch(
-                `${API_URL}/api/events/${id}/attendees.csv`,
-                { headers: { Authorization: `Bearer ${getAccessToken()}` } },
-              );
-              if (!res.ok) return;
-              const blob = await res.blob();
+              const blob = await downloadFile(`/events/${id}/attendees.csv`).catch(() => { setFailed(true); return null; });
+              if (!blob) return;
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.href = url;

@@ -1,5 +1,7 @@
 "use client";
 
+import { errorMessage } from "@/lib/errorMessage";
+
 import { useEffect, useRef, useState } from "react";
 import {
   AttributionControl,
@@ -35,6 +37,7 @@ export default function LocationPicker({ lat, lng, onChange, onAddressResolved }
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
+  const pinRequest = useRef({ value: 0 }).current;
   const [ready, setReady] = useState(false);
 
   // Callbacks live in refs so the map's event handlers — registered once
@@ -52,8 +55,9 @@ export default function LocationPicker({ lat, lng, onChange, onAddressResolved }
   // leaves the field alone rather than surfacing an error.
   const fillAddress = (nextLat: number, nextLng: number) => {
     if (!onAddressRef.current) return;
+    const request = ++pinRequest.value;
     reverseGeocode(nextLat, nextLng)
-      .then((address) => address && onAddressRef.current?.(address, "pin"))
+      .then((address) => { if (request === pinRequest.value && address) onAddressRef.current?.(address, "pin"); })
       .catch(() => {});
   };
 
@@ -90,6 +94,7 @@ export default function LocationPicker({ lat, lng, onChange, onAddressResolved }
 
     mapRef.current = map;
     return () => {
+      pinRequest.value++;
       observer.disconnect();
       map.remove();
       mapRef.current = null;
@@ -141,6 +146,7 @@ export default function LocationPicker({ lat, lng, onChange, onAddressResolved }
 
       <SearchBox
         onPick={(r) => {
+          pinRequest.value++;
           onChangeRef.current(r.lat, r.lng);
           onAddressRef.current?.(r.label, "search");
           flyTo(r.lat, r.lng);
@@ -232,33 +238,22 @@ function LocateButton({
  * tiles come from. */
 function SearchBox({ onPick }: { onPick: (r: PlaceResult) => void }) {
   const t = useTranslations("eventForm");
+  const tErrors = useTranslations("errors");
+  const [failed, setFailed] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceResult[]>([]);
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);
 
-  useEffect(() => {
-    if (query.trim().length < 3) {
-      setResults([]);
-      return;
-    }
-    let cancelled = false;
-    const handle = setTimeout(() => {
-      setSearching(true);
-      searchPlaces(query)
-        .then((found) => {
-          if (cancelled) return;
-          setResults(found);
-          setOpen(true);
-        })
-        .catch(() => !cancelled && setResults([]))
-        .finally(() => !cancelled && setSearching(false));
-    }, 500);
-    return () => {
-      cancelled = true;
-      clearTimeout(handle);
-    };
-  }, [query]);
+  const search = async () => {
+    if (query.trim().length < 3 || searching) return;
+    setSearching(true);
+    setFailed(null);
+    setOpen(true);
+    try { setResults(await searchPlaces(query)); }
+    catch (error) { setResults([]); setFailed(errorMessage(error, tErrors, t("searchFailed"))); }
+    finally { setSearching(false); }
+  };
 
   return (
     <div className="absolute left-3 right-16 top-3 z-10">
@@ -266,13 +261,19 @@ function SearchBox({ onPick }: { onPick: (r: PlaceResult) => void }) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => results.length > 0 && setOpen(true)}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void search(); } if (e.key === "Escape") setOpen(false); }}
+        aria-label={t("searchLocationPlaceholder")}
         placeholder={t("searchLocationPlaceholder")}
         className="w-full rounded-lg border border-line bg-ink/90 px-3 py-2 text-sm text-bone placeholder:text-dust-dim shadow-card backdrop-blur transition-colors focus:border-registan-dim focus:outline-none"
       />
+      <button type="button" disabled={searching || query.trim().length < 3} onClick={search} className="btn btn-secondary btn-sm mt-1">{t("searchLocation")}</button>
+      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="ml-2 text-[10px] text-dust">© OpenStreetMap</a>
       {open && query.trim().length >= 3 ? (
         <ul className="mt-1 max-h-44 overflow-y-auto rounded-lg border border-line bg-ink-overlay shadow-pop">
           {searching ? (
             <li className="px-3 py-2 text-xs text-dust-dim">{t("searching")}</li>
+          ) : failed ? (
+            <li role="alert" className="px-3 py-2 text-xs text-pomegranate">{failed}</li>
           ) : results.length > 0 ? (
             results.map((r, i) => (
               <li key={i}>
