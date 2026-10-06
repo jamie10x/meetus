@@ -112,3 +112,23 @@ Malformed database configuration errors now omit the original DSN, preventing
 credentials from entering startup logs. A regression test covers this case.
 CI also runs on `codex/**` pushes; production deployment remains restricted
 to `main`. Changes are prepared on `codex/review-hardening` for review.
+
+## Website, Mini App and bot UX continuation
+
+- Mobile Explore/Tickets/Organize/Profile navigation with safe-area spacing,
+  focus states and reduced-motion support; native Telegram action avoids
+  overlapping navigation and direct-entry Back has an Explore fallback.
+- Attendance and tickets refresh on return/reconnect and while visible. Failed
+  reads show retry states rather than an empty account or a false join action.
+  Ticket history is separate, offline status explicit, inactive entry QRs hidden.
+- Website language selection updates the shared account preference; returning
+  from a bot language change synchronizes the route. All new copy is in uz/ru/en.
+- Explore filters survive navigation and have clear/reset controls. Cards show
+  uploaded covers and waitlist availability. Event forms include a preview and
+  explicit Tashkent time, matching bot and event displays across timezones.
+- Bot waitlist responses accurately describe attendance; ticket photos and
+  waitlist replies include an event Mini App management button.
+- Regression coverage adds a mobile Mini App SDK fixture with real signed
+  auto-login/API calls, native RSVP action, outage/retry, language synchronization,
+  external cancellation and no-reload promotion, plus timezone conversion tests.
+  This does not replace real Telegram iOS/Android camera/native-chrome testing.

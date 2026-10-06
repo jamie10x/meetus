@@ -12,7 +12,7 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-bone/[0.09] bg-ink/95 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-5">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
         <Link
           href="/"
           className="flex items-center whitespace-nowrap font-display text-xl font-black tracking-tight text-bone"
@@ -21,7 +21,7 @@ export default function Header() {
           <span className="italic">Meetus</span>
         </Link>
 
-        <nav className="flex items-center gap-5 text-sm">
+        <nav className="flex items-center gap-3 text-sm sm:gap-5">
           <Link href="/events" className="text-dust transition-colors hover:text-bone">
             {t("explore")}
           </Link>
@@ -48,6 +48,7 @@ export default function Header() {
                 </Link>
               ) : null}
               <Link
+                aria-label={t("profile")}
                 href="/profile"
                 className="flex items-center gap-2 text-dust transition-colors hover:text-bone"
               >

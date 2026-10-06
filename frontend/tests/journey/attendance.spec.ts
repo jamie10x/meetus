@@ -56,6 +56,8 @@ test('organizer creates and publishes; attendees join, cancel, promote and check
     await day.click();
     await owner.getByRole('button', { name: 'Limited', exact: true }).click();
     await owner.locator('input[type="number"]').fill('1');
+    await owner.getByText('Preview event', { exact: true }).click();
+    await expect(owner.getByRole('heading', { name: title, exact: true })).toBeVisible();
     await owner.getByRole('button', { name: 'Create draft', exact: true }).click();
     await owner.getByRole('link', { name: title, exact: true }).click();
     await expect(owner).toHaveURL(/\/organizer\/events\/\d+\/edit$/);
@@ -81,7 +83,8 @@ test('organizer creates and publishes; attendees join, cancel, promote and check
     await expect(waiting.getByText("You're on the waitlist", { exact: false })).toBeVisible();
     await expect(waiting.getByRole('link', { name: 'Join the call' })).toHaveCount(0);
     await attendee.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await waiting.reload();
+    await expect(attendee.getByRole('link', { name: 'View your ticket', exact: true })).toHaveCount(0);
+    await waiting.evaluate(() => window.dispatchEvent(new Event("focus")));
     await expect(waiting.getByText("You're going!", { exact: false })).toBeVisible();
     const promoted = (await tickets(waiting)).find(ticket => ticket.eventId === eventId)!;
     expect(promoted.qr).toBeTruthy();
@@ -148,5 +151,73 @@ test('Explore map renders and its popup preserves the locale', async ({ browser,
     await page.locator('.map-pin').click();
     await page.getByRole('button', { name: title, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/en/events/${id}$`));
+    await page.goBack();
+    await expect(page.getByLabel('Search events…')).toHaveValue(title);
+    await expect(page.getByRole('button', { name: 'Map', exact: true })).toHaveAttribute('aria-pressed', 'true');
   } finally { await context.close().catch(() => undefined); }
+});
+
+test('mobile Mini App shares attendance and language with the server', async ({ browser, request }) => {
+  const stamp = Date.now();
+  const login = await request.post(`${API}/auth/telegram`, { data: signedUser(stamp, 'Mini App host') });
+  const headers = { Authorization: `Bearer ${(await login.json()).data.tokens.accessToken}` };
+  expect((await request.post(`${API}/organizers`, { headers, data: { displayName: `Mini host ${stamp}` } })).ok()).toBeTruthy();
+  const title = `Mini App gathering ${stamp}`;
+  const created = await request.post(`${API}/events`, { headers, data: {
+    title, categoryId: 1, cityId: 1, isOnline: false, locationName: 'Tashkent community hall', startsAt: new Date(Date.now() + 3_600_000).toISOString(),
+  } });
+  expect(created.ok()).toBeTruthy();
+  const id = (await created.json()).data.id;
+  expect((await request.post(`${API}/events/${id}/publish`, { headers })).ok()).toBeTruthy();
+  const fields = { auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id: stamp + 1, first_name: 'Mini attendee', language_code: 'en' }) };
+  const secret = createHmac('sha256', 'WebAppData').update('').digest();
+  const hash = createHmac('sha256', secret).update(Object.entries(fields).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join('\n')).digest('hex');
+  const initData = new URLSearchParams({ ...fields, hash }).toString();
+  const context = await browser.newContext({ baseURL: 'http://localhost:3000', viewport: { width: 390, height: 844 }, isMobile: true });
+  try {
+    await stubTelegram(context);
+    await context.addInitScript(data => {
+      let onMain: (() => void) | undefined;
+      const main = { text: '', isVisible: false, isActive: true, isProgressVisible: false,
+        show() { this.isVisible = true; }, hide() { this.isVisible = false; }, enable() { this.isActive = true; }, disable() { this.isActive = false; },
+        setText(text: string) { this.text = text; }, onClick(fn: () => void) { onMain = fn; }, offClick(fn: () => void) { if (fn === onMain) onMain = undefined; },
+        showProgress() { this.isProgressVisible = true; }, hideProgress() { this.isProgressVisible = false; },
+      };
+      window.Telegram = { WebApp: { initData: data, ready() {}, expand() {}, colorScheme: 'dark', themeParams: {}, setHeaderColor() {}, setBackgroundColor() {}, MainButton: main,
+        BackButton: { isVisible: false, show() {}, hide() {}, onClick() {}, offClick() {} },
+      } };
+      Object.assign(window, { clickTelegramMain: () => onMain?.() });
+    }, initData);
+    const page = await context.newPage();
+    await page.route(`**/api/events/${id}/rsvp`, route => route.fulfill({ status: 503, json: { error: { code: 'unavailable', message: 'Fixture outage' } } }));
+    await page.goto(`/en/events/${id}`);
+    await expect(page.getByText('Could not verify your attendance.', { exact: false })).toBeVisible();
+    expect(await page.evaluate(() => window.Telegram?.WebApp?.MainButton.isVisible)).toBe(false);
+    await page.unroute(`**/api/events/${id}/rsvp`);
+    await page.getByRole('button', { name: 'Try again', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.Telegram?.WebApp?.MainButton.text)).toBe('Join event');
+    await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeHidden();
+    await page.screenshot({ path: test.info().outputPath('mini-event.png'), fullPage: true });
+    await page.evaluate(() => (window as unknown as { clickTelegramMain: () => void }).clickTelegramMain());
+    await expect(page.getByText("You're going!", { exact: false })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+    await page.getByRole('link', { name: 'View your ticket', exact: true }).click();
+    await expect(page.getByRole('img', { name: `Ticket QR for ${title}` })).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('mobile-ticket.png'), fullPage: true });
+    const token = await page.evaluate(() => localStorage.getItem('meetus.accessToken'));
+    const attendeeHeaders = { Authorization: `Bearer ${token}` };
+    await page.getByLabel('Language for website and bot').selectOption('ru');
+    await expect(page).toHaveURL(/\/ru\/tickets$/);
+    expect((await (await request.get(`${API}/me`, { headers: attendeeHeaders })).json()).data.language).toBe('ru');
+    // Bot language changes use this same profile write; returning picks it up.
+    expect((await request.patch(`${API}/me`, { headers: attendeeHeaders, data: { language: 'uz' } })).ok()).toBeTruthy();
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(page).toHaveURL(/\/uz\/tickets$/);
+    // Simulate another surface canceling this attendance, then returning here.
+    expect((await request.delete(`${API}/events/${id}/rsvp`, { headers: attendeeHeaders })).ok()).toBeTruthy();
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(page.locator('img[alt^="Ticket QR"]')).toHaveCount(0);
+    await expect(page.locator('main img')).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+  } finally { await context.close(); }
 });

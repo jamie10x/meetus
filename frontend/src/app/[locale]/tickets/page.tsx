@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import QRCode from "qrcode";
 import { Link, useRouter } from "@/i18n/navigation";
+import { useLiveQuery } from "@/lib/useLiveQuery";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { formatEventDate } from "@/components/EventCard";
@@ -38,12 +39,12 @@ function TicketCard({ ticket }: { ticket: MyTicket }) {
   return (
     <div className="flex flex-col items-center gap-5 rounded-card border border-line bg-ink-raised p-6 shadow-card sm:flex-row">
       <div className="shrink-0 rounded-xl bg-bone p-2">
-        {qrDataUrl ? (
+        {ticket.eventStatus === "published" && qrDataUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={qrDataUrl} alt={t("qrAlt", { title: ticket.eventTitle })} />
         ) : (
           <div className="flex h-[220px] w-[220px] items-center justify-center text-sm text-ink/50">
-            {t("qrUnavailable")}
+            {ticket.eventStatus !== "published" ? t("inactive") : t("qrUnavailable")}
           </div>
         )}
       </div>
@@ -63,7 +64,7 @@ function TicketCard({ ticket }: { ticket: MyTicket }) {
             : (ticket.locationName ?? ticket.citySlug ?? "")}
         </p>
         <p className="mt-2 font-mono text-xs text-dust-dim">{ticket.code}</p>
-        {ticket.isOnline && ticket.onlineUrl ? (
+        {ticket.eventStatus === "published" && ticket.isOnline && ticket.onlineUrl ? (
           <a
             href={ticket.onlineUrl}
             target="_blank"
@@ -111,27 +112,35 @@ export default function TicketsPage() {
   const t = useTranslations("tickets");
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [tickets, setTickets] = useState<MyTicket[] | null>(null);
+  const query = useCallback((signal: AbortSignal) => api<MyTicket[]>("/me/tickets", { auth: true, signal }), []);
+  const { data: tickets, error, refresh } = useLiveQuery(user ? String(user.id) : null, query);
+  const [offline, setOffline] = useState(false);
+  useEffect(() => {
+    const sync = () => setOffline(!navigator.onLine);
+    sync(); window.addEventListener("online", sync); window.addEventListener("offline", sync);
+    return () => { window.removeEventListener("online", sync); window.removeEventListener("offline", sync); };
+  }, []);
 
   useEffect(() => {
-    if (!loading && !user) router.replace("/login");
+    if (!loading && !user) router.replace("/login?next=/tickets");
   }, [loading, user, router]);
 
-  useEffect(() => {
-    if (!user) return;
-    api<MyTicket[]>("/me/tickets", { auth: true })
-      .then(setTickets)
-      .catch(() => setTickets([]));
-  }, [user]);
-
-  if (loading || !user || tickets === null) {
+  if (loading || !user || (tickets === undefined && !error)) {
     return <main className="p-8 text-center text-dust">{t("loading")}</main>;
   }
 
+  const active = tickets?.filter(ticket => ticket.eventStatus === "published" && !ticket.checkedInAt) ?? [];
+  const history = tickets?.filter(ticket => ticket.eventStatus !== "published" || !!ticket.checkedInAt) ?? [];
+
   return (
     <main className="mx-auto max-w-2xl px-5 py-12">
-      <h1 className="mb-6 font-display text-2xl font-black text-bone">{t("title")}</h1>
-      {tickets.length === 0 ? (
+      <h1 className="mb-4 font-display text-2xl font-black text-bone">{t("title")}</h1>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-ink-raised p-4">
+        <p role="status" className="min-w-0 flex-1 text-sm text-dust">{offline ? t("offlineNotice") : t("syncNotice")}</p>
+        <button onClick={refresh} disabled={offline} className="btn btn-secondary btn-sm">{t("refresh")}</button>
+      </div>
+      {error ? <p role="alert" className="mb-5 text-pomegranate">{t("loadFailed")}</p> : null}
+      {tickets?.length === 0 ? (
         <p className="rounded-card border border-dashed border-line p-10 text-center text-dust">
           {t("empty")}{" "}
           <Link href="/events" className="text-registan-strong hover:underline">
@@ -141,9 +150,9 @@ export default function TicketsPage() {
         </p>
       ) : (
         <div className="flex flex-col gap-4">
-          {tickets.map((ticket) => (
-            <TicketCard key={ticket.code} ticket={ticket} />
-          ))}
+          {active.length ? <h2 className="font-display text-lg font-bold">{t("readyTickets")}</h2> : null}
+          {active.map(ticket => <TicketCard key={ticket.code} ticket={ticket} />)}
+          {history.length ? <details className="rounded-card border border-line p-4"><summary className="cursor-pointer py-2 font-semibold text-dust">{t("history", { count: history.length })}</summary><div className="mt-4 flex flex-col gap-4">{history.map(ticket => <TicketCard key={ticket.code} ticket={ticket} />)}</div></details> : null}
         </div>
       )}
     </main>

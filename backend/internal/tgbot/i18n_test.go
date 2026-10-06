@@ -8,7 +8,7 @@ import "testing"
 // to English at runtime.
 var allKeys = []msgKey{
 	kWelcome, kDefaultHint, kNoEvents, kEventsHeader,
-	kJoinButton, kOpenWebButton, kEventUnavailable, kJoinedSuccess, kJoinedAlert,
+	kJoinButton, kOpenWebButton, kEventUnavailable, kJoinedSuccess, kJoinedAlert, kWaitlistedAlert, kJoinWaitlist, kManageAttendance,
 	kLanguagePrompt, kLanguageSet, kFeedbackPrompt, kFeedbackThanks,
 	kFeedbackCommentPrompt, kFeedbackCommentThanks, kSkipButton,
 	kReminder24h, kReminder1h, kPlaceOnline, kPlaceSeeEventPage, kPlaceInPerson,
@@ -111,5 +111,21 @@ func TestTf_Formats(t *testing.T) {
 	got := tf(langEn, kLanguageSet, "English")
 	if got != "✅ Language set to English." {
 		t.Errorf("tf = %q", got)
+	}
+}
+
+func TestAttendanceMarkupPreservesEventAndLanguage(t *testing.T) {
+	for _, language := range []lang{langEn, langRu, langUz} {
+		markup := attendanceMarkup("https://meetus.uz", language, 42)
+		button := markup.InlineKeyboard[0][0]
+		if button.WebApp == nil || button.WebApp.URL != "https://meetus.uz/"+string(language)+"/events/42" {
+			t.Fatalf("incorrect attendance destination for %s", language)
+		}
+		if tText := catalog[language][kManageAttendance]; tText == "" {
+			t.Fatal("missing attendance label")
+		}
+		if tMessage := catalog[language][kWaitlistedAlert]; tMessage == catalog[language][kJoinedAlert] {
+			t.Fatal("waitlist must not announce confirmed attendance")
+		}
 	}
 }

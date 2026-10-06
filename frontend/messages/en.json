@@ -11,7 +11,9 @@
     "organize": "Organize",
     "admin": "Admin",
     "signIn": "Sign in",
-    "logOut": "Log out"
+    "logOut": "Log out",
+    "profile": "Profile",
+    "mobileNavigation": "Main navigation"
   },
   "home": {
     "eyebrow": "Telegram-native · Always free",
@@ -56,7 +58,8 @@
     "saving": "Saving…",
     "saved": "Profile saved.",
     "saveFailed": "Could not save your profile. Please try again.",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "logOut": "Log out"
   },
   "explore": {
     "title": "Explore events",
@@ -76,7 +79,9 @@
     "loadMore": "Load more",
     "listView": "List",
     "mapView": "Map",
-    "noMappableEvents": "None of these events have a location set yet."
+    "noMappableEvents": "None of these events have a location set yet.",
+    "clearFilters": "Clear filters",
+    "retry": "Try again"
   },
   "trending": {
     "title": "Trending this week",
@@ -84,7 +89,8 @@
   },
   "eventCard": {
     "going": "{count} going",
-    "spotsLeft": "{count, plural, one {# spot left} other {# spots left}}"
+    "spotsLeft": "{count, plural, one {# spot left} other {# spots left}}",
+    "waitlist": "Waitlist available"
   },
   "eventDetail": {
     "notFoundTitle": "Event not found",
@@ -99,7 +105,8 @@
     "location": "Location",
     "about": "About this event",
     "seriesHeading": "Other dates in this series",
-    "relatedHeading": "You might also like"
+    "relatedHeading": "You might also like",
+    "timezone": "All event times are in Tashkent time (UTC+5)."
   },
   "rsvp": {
     "eventStarted": "This event has already started.",
@@ -115,7 +122,10 @@
     "waitlistedMessage": "You're on the waitlist — we'll message you if a spot opens up.",
     "leaveWaitlist": "Leave waitlist",
     "joinFailed": "Could not join. Please try again.",
-    "cancelFailed": "Could not cancel. Please try again."
+    "cancelFailed": "Could not cancel. Please try again.",
+    "checking": "Checking your attendance…",
+    "syncFailed": "Could not verify your attendance. Retry before changing it.",
+    "retry": "Try again"
   },
   "tickets": {
     "title": "My tickets",
@@ -129,7 +139,14 @@
     "showAtEntrance": "Show this QR at the entrance",
     "qrUnavailable": "QR unavailable",
     "loading": "Loading…",
-    "qrAlt": "Ticket QR for {title}"
+    "qrAlt": "Ticket QR for {title}",
+    "offlineNotice": "Offline · Saved tickets may have changed. Reconnect to verify their status.",
+    "syncNotice": "Refreshes automatically",
+    "refresh": "Refresh",
+    "loadFailed": "Could not refresh tickets. Please try again.",
+    "inactive": "Ticket inactive",
+    "readyTickets": "Ready to attend",
+    "history": "Past, canceled & checked-in ({count})"
   },
   "calendar": {
     "downloadIcs": "Add to calendar (.ics)",
@@ -215,7 +232,9 @@
     "uploadFailed": "Could not upload that image. Please try again.",
     "saveFailed": "Could not save the event. Please try again.",
     "searchLocation": "Search",
-    "searchFailed": "Could not search for places. Please try again."
+    "searchFailed": "Could not search for places. Please try again.",
+    "timezone": "All event times are in Tashkent time (UTC+5).",
+    "preview": "Preview event"
   },
   "eventNew": {
     "title": "Create event",
@@ -318,7 +337,9 @@
   "languageSwitcher": {
     "uz": "Oʻzbekcha",
     "ru": "Русский",
-    "en": "English"
+    "en": "English",
+    "label": "Language for website and bot",
+    "saveFailed": "Could not save your language. Please try again."
   },
   "miniApp": {
     "signingIn": "Opening Meetus…"

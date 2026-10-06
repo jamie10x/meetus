@@ -19,7 +19,7 @@ export default function ProfilePage() {
   const t = useTranslations("profile");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
-  const { user, loading, setUser } = useAuth();
+  const { user, loading, setUser, logout } = useAuth();
   const router = useRouter();
 
   const [cities, setCities] = useState<MetaItem[]>([]);
@@ -73,6 +73,7 @@ export default function ProfilePage() {
       });
       setUser(updated);
       setMessage(t("saved"));
+      if (updated.language !== locale) router.replace("/profile", { locale: updated.language });
     } catch (err) {
       setError(errorMessage(err, tErrors, t("saveFailed")));
     } finally {
@@ -98,6 +99,7 @@ export default function ProfilePage() {
 
   return (
     <main className="mx-auto max-w-lg px-5 py-12">
+      <button className="btn btn-secondary mb-5 sm:hidden" onClick={async () => { await logout(); router.replace("/"); }}>{t("logOut")}</button>
       <h1 className="mb-6 font-display text-2xl font-black text-bone">{t("title")}</h1>
 
       <form onSubmit={save} className="flex flex-col gap-4">

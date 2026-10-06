@@ -331,8 +331,12 @@ func (b *Bot) handleEventDetail(ctx context.Context, _ *bot.Bot, update *models.
 	// as a Mini App in place instead of switching to an external browser.
 	// Telegram only allows this button type in private-chat messages,
 	// which is the bot's only context.
+	joinLabel := kJoinButton
+	if e.Capacity != nil && e.GoingCount >= *e.Capacity {
+		joinLabel = kJoinWaitlist
+	}
 	markup := &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
-		{{Text: t(l, kJoinButton), CallbackData: "join:" + strconv.FormatInt(e.ID, 10)}},
+		{{Text: t(l, joinLabel), CallbackData: "join:" + strconv.FormatInt(e.ID, 10)}},
 		{{Text: t(l, kOpenWebButton), WebApp: &models.WebAppInfo{
 			URL: b.webURL(l, fmt.Sprintf("/events/%d", e.ID)),
 		}}},
@@ -363,8 +367,8 @@ func (b *Bot) handleJoin(ctx context.Context, _ *bot.Bot, update *models.Update)
 	}
 
 	if res.Status == "waitlisted" {
-		b.answerCallback(ctx, cq.ID, t(l, kJoinedAlert))
-		b.send(ctx, chatIDOf(cq), t(l, kWaitlisted), nil)
+		b.answerCallback(ctx, cq.ID, t(l, kWaitlistedAlert))
+		b.send(ctx, chatIDOf(cq), t(l, kWaitlisted), attendanceMarkup(b.webBaseURL, l, id))
 		return
 	}
 
@@ -383,7 +387,7 @@ func (b *Bot) handleJoin(ctx context.Context, _ *bot.Bot, update *models.Update)
 // photo message — the point of this being a photo rather than a link is
 // that it works without leaving the chat or loading the website at all.
 func (b *Bot) sendTicketPhoto(ctx context.Context, chatID int64, l lang, code string, e *event.Event) {
-	if err := sendTicketPhotoTo(ctx, b.api, b.loc, b.signer, chatID, l, code, e); err != nil {
+	if err := sendTicketPhotoTo(ctx, b.api, b.loc, b.signer, b.webBaseURL, chatID, l, code, e); err != nil {
 		slog.Error("send ticket photo failed", "chat_id", chatID, "err", err)
 	}
 }
@@ -393,17 +397,18 @@ func (b *Bot) sendTicketPhoto(ctx context.Context, chatID int64, l lang, code st
 // Announcer needs the exact same rendering for waitlist-promotion
 // tickets and has no *Bot to call into — see the shared-helper pattern
 // note in AGENTS.md.
-func sendTicketPhotoTo(ctx context.Context, api *bot.Bot, loc *time.Location, signer *rsvp.TicketSigner, chatID int64, l lang, code string, e *event.Event) error {
+func sendTicketPhotoTo(ctx context.Context, api *bot.Bot, loc *time.Location, signer *rsvp.TicketSigner, webBaseURL string, chatID int64, l lang, code string, e *event.Event) error {
 	png, err := qrcode.Encode(signer.QRValue(code), qrcode.Medium, 512)
 	if err != nil {
 		return fmt.Errorf("qr encode: %w", err)
 	}
 	caption := tf(l, kTicketCaption, escape(e.Title), formatEventTime(l, e.StartsAt, loc), escape(eventPlaceLabel(l, e)))
 	_, err = api.SendPhoto(ctx, &bot.SendPhotoParams{
-		ChatID:    chatID,
-		Photo:     &models.InputFileUpload{Filename: "ticket.png", Data: bytes.NewReader(png)},
-		Caption:   caption,
-		ParseMode: models.ParseModeHTML,
+		ChatID:      chatID,
+		Photo:       &models.InputFileUpload{Filename: "ticket.png", Data: bytes.NewReader(png)},
+		Caption:     caption,
+		ReplyMarkup: attendanceMarkup(webBaseURL, l, e.ID),
+		ParseMode:   models.ParseModeHTML,
 	})
 	return err
 }
@@ -923,4 +928,11 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return string(runes[:n-1]) + "…"
+}
+
+// A current server-backed view is available from QR photos and waitlist replies.
+func attendanceMarkup(baseURL string, l lang, eventID int64) *models.InlineKeyboardMarkup {
+	return &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+		{{Text: t(l, kManageAttendance), WebApp: &models.WebAppInfo{URL: buildWebURL(baseURL, l, fmt.Sprintf("/events/%d", eventID))}}},
+	}}
 }

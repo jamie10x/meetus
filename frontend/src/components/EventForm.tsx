@@ -8,6 +8,7 @@ import dynamic from "next/dynamic";
 import { api, uploadImage } from "@/lib/api";
 import { categoryDotColor } from "@/lib/categoryStyle";
 import { metaName, type EventInput, type EventItem, type MetaItem } from "@/lib/types";
+import { toEventTimeInput as toLocalInput, fromEventTimeInput as toRFC3339 } from "@/lib/eventTime";
 import DateTimeField from "@/components/DateTimeField";
 
 // MapLibre touches `window` at import time — ssr: false keeps it out of
@@ -27,19 +28,6 @@ type Props = {
   submitLabel: string;
   onSubmit: (input: EventInput) => Promise<void>;
 };
-
-/** Converts an RFC3339 timestamp to the value of a datetime-local input. */
-function toLocalInput(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-/** Converts a datetime-local value to RFC3339 in the browser's timezone. */
-function toRFC3339(local: string): string {
-  return new Date(local).toISOString();
-}
 
 const inputCls =
   "rounded-xl border border-line bg-ink-raised px-3.5 py-2.5 text-bone placeholder:text-dust-dim transition-all focus:border-registan-dim focus:outline-none focus:ring-2 focus:ring-registan/20";
@@ -211,6 +199,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
               <button
                 key={c.id}
                 type="button"
+                aria-pressed={active}
                 onClick={() => setCategoryId(String(c.id))}
                 className={`flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-medium transition-all ${
                   active
@@ -346,6 +335,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
       )}
 
       <h2 className={sectionTitleCls}>{t("sectionSchedule")}</h2>
+      <p className="text-sm text-dust">{t("timezone")}</p>
 
       <div className="flex flex-col gap-4 sm:flex-row">
         <label className={`${labelCls} flex-1`}>
@@ -492,6 +482,20 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
       </label>
       {uploading ? <p className="text-sm text-dust">{t("uploading")}</p> : null}
 
+      <details className="rounded-card border border-line bg-ink-raised p-5">
+        <summary className="cursor-pointer font-semibold text-registan-strong">{t("preview")}</summary>
+        <article className="mt-4 space-y-3">
+          {coverPreview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={coverPreview} alt="" className="h-40 w-full rounded-xl object-cover" />
+          ) : null}
+          <h3 className="break-words font-display text-2xl font-bold text-bone">{title || t("titleLabel")}</h3>
+          <p className="font-mono text-sm text-registan-strong">{startsAt.replace("T", " · ")}</p>
+          <p className="text-sm text-dust">{t("timezone")}</p>
+          <p className="text-dust">{isOnline ? t("locationTypeOnline") : [locationName, address].filter(Boolean).join(" · ")}</p>
+          <p className="whitespace-pre-wrap break-words text-dust">{description}</p>
+        </article>
+      </details>
       <button
         type="submit"
         disabled={saving || uploading}
@@ -500,7 +504,7 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
         {saving ? t("saving") : submitLabel}
       </button>
 
-      {error ? <p className="text-sm text-pomegranate">{error}</p> : null}
+      {error ? <p role="alert" className="text-sm text-pomegranate">{error}</p> : null}
     </form>
   );
 }

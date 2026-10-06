@@ -50,7 +50,7 @@ func (a *Announcer) SendWaitlistPromotion(ctx context.Context, telegramID int64,
 	}); err != nil {
 		return fmt.Errorf("send promotion message: %w", err)
 	}
-	return sendTicketPhotoTo(ctx, a.api, a.loc, a.signer, telegramID, l, ticketCode, e)
+	return sendTicketPhotoTo(ctx, a.api, a.loc, a.signer, a.webBaseURL, telegramID, l, ticketCode, e)
 }
 
 // SendAnnouncement posts one event to one connected channel, rendered in

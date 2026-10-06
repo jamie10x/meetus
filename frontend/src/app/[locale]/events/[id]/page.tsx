@@ -85,6 +85,7 @@ export default async function EventDetailPage({ params }: Props) {
         {formatEventDate(event.startsAt, locale)}
         {event.endsAt ? ` – ${formatEventDate(event.endsAt, locale)}` : ""}
       </p>
+      <p className="mt-1 text-xs text-dust">{t("timezone")}</p>
       <h1 className="mt-2 font-display text-3xl font-black text-bone sm:text-4xl">
         {event.title}
       </h1>

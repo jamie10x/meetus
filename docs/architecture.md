@@ -655,3 +655,25 @@ healthy. `/api/admin/operations` combines that status with aggregate durable
 queue counts; active-admin authorization applies and job payloads are excluded.
 The host health script independently checks readiness, backup freshness,
 queue age/failures and upload disk space. Alert routing remains operator-owned.
+
+### Shared attendee experience
+
+Website and Mini App share a mobile navigation, attendance state and ticket
+page. Active attendance and tickets revalidate on focus, visibility return,
+network reconnection and every 15 seconds while visible; requests are aborted
+on route/account changes. A failed RSVP read is not treated as “not joined.”
+Ticket failures have retry UI, and offline snapshots are explicitly labeled.
+Canceled/unpublished tickets do not display an entry QR or meeting action.
+
+Explicit website language selections save `users.language` through `PATCH /me`
+before navigating, so subsequent bot replies use the same language. Returning
+from the bot checks for an explicit `/language` change and updates the route.
+Login still never overwrites the stored preference. Explore filters remain in
+the URL across event navigation and language changes. Event form schedules and
+public date displays consistently use Asia/Tashkent (UTC+5), matching the bot.
+
+Native MainButton use temporarily hides the mobile bottom navigation; cleanup
+restores it. SDK access returns null without actual Mini App initData. Direct
+Mini App entry has a back fallback to Explore. Bot QR photos and waitlist replies
+link to a locale-specific event Mini App for current status and cancellation;
+waitlist callback feedback no longer claims confirmed attendance.

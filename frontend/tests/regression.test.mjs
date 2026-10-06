@@ -87,3 +87,11 @@ test('API failures use localized details and never arbitrary exception text', ()
  assert.equal(errorMessage(new ApiError('internal_error','private implementation detail',500), key=>ru[key], 'fallback'),'fallback');
  assert.equal(errorMessage(new Error('private detail'), key=>ru[key], 'fallback'),'fallback');
 });
+
+test('event form schedules match Tashkent regardless of browser timezone', () => {
+ const { load } = runtime(() => { throw new Error('Unexpected request'); });
+ const { toEventTimeInput, fromEventTimeInput } = load('src/lib/eventTime.ts');
+ assert.equal(toEventTimeInput('2026-10-06T22:30:00Z'), '2026-10-07T03:30');
+ assert.equal(fromEventTimeInput('2026-10-07T03:30'), '2026-10-06T22:30:00.000Z');
+ assert.equal(toEventTimeInput(null), '');
+});

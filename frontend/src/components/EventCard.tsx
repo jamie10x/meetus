@@ -6,6 +6,7 @@ import VerifiedBadge from "@/components/VerifiedBadge";
 
 export function formatEventDate(iso: string, locale: string): string {
   return new Date(iso).toLocaleString(locale, {
+    timeZone: "Asia/Tashkent",
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -35,6 +36,10 @@ export default function EventCard({ event, badge }: Props) {
         className="relative overflow-hidden transition-transform duration-500 group-hover:scale-[1.04]"
         style={{ height: 132, ...categoryCoverStyle(event.categorySlug) }}
       >
+        {event.coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={event.coverUrl} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+        ) : null}
         <span
           className={`absolute left-2.5 top-2.5 rounded-full border border-bone/20 bg-ink/55 px-2.5 py-1 font-mono text-[0.64rem] uppercase tracking-wider backdrop-blur-sm ${categoryLabelClass(event.categorySlug)}`}
         >
@@ -67,7 +72,7 @@ export default function EventCard({ event, badge }: Props) {
           <span className="font-mono text-xs text-dust">
             {t("going", { count: event.goingCount })}
             {event.capacity
-              ? ` · ${t("spotsLeft", { count: event.capacity - event.goingCount })}`
+              ? ` · ${event.goingCount >= event.capacity ? t("waitlist") : t("spotsLeft", { count: event.capacity - event.goingCount })}`
               : ""}
           </span>
         </div>

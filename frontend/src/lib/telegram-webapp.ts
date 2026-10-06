@@ -58,7 +58,8 @@ declare global {
 /** Returns the Mini App SDK object, or null outside a Telegram client. */
 export function getTelegramWebApp(): TelegramWebApp | null {
   if (typeof window === "undefined") return null;
-  return window.Telegram?.WebApp ?? null;
+  const app = window.Telegram?.WebApp;
+  return app?.initData ? app : null;
 }
 
 /** True when initData is present — i.e. we're actually running inside Telegram. */

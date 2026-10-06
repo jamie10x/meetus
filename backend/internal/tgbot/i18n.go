@@ -63,6 +63,9 @@ const (
 	kEventUnavailable
 	kJoinedSuccess
 	kJoinedAlert
+	kWaitlistedAlert
+	kJoinWaitlist
+	kManageAttendance
 	kLanguagePrompt
 	kLanguageSet
 	kFeedbackPrompt
@@ -104,6 +107,10 @@ const (
 // tags live inside the template since they're part of the message layout.
 var catalog = map[lang]map[msgKey]string{
 	langEn: {
+		kWaitlistedAlert:  "You are on the waitlist 📋",
+		kJoinWaitlist:     "📋 Join waitlist",
+		kManageAttendance: "🎟 Manage attendance",
+
 		kWelcome: "👋 Welcome to <b>Meetus.uz</b>, %s!\n\n" +
 			"Discover meetups across Uzbekistan and join with one tap.\n\n" +
 			"• /events — upcoming events\n" +
@@ -157,6 +164,10 @@ var catalog = map[lang]map[msgKey]string{
 		kGroupSubscribed:     "✅ This group is now subscribed to Meetus.uz event announcements.",
 	},
 	langRu: {
+		kWaitlistedAlert:  "Вы в списке ожидания 📋",
+		kJoinWaitlist:     "📋 Встать в очередь",
+		kManageAttendance: "🎟 Управлять участием",
+
 		kWelcome: "👋 Добро пожаловать в <b>Meetus.uz</b>, %s!\n\n" +
 			"Находите мероприятия по всему Узбекистану и присоединяйтесь в один клик.\n\n" +
 			"• /events — предстоящие мероприятия\n" +
@@ -211,6 +222,10 @@ var catalog = map[lang]map[msgKey]string{
 		kGroupSubscribed:     "✅ Эта группа теперь подписана на анонсы мероприятий Meetus.uz.",
 	},
 	langUz: {
+		kWaitlistedAlert:  "Siz kutish roʻyxatidasiz 📋",
+		kJoinWaitlist:     "📋 Kutish roʻyxatiga qoʻshilish",
+		kManageAttendance: "🎟 Qatnashishni boshqarish",
+
 		kWelcome: "👋 <b>Meetus.uz</b>ga xush kelibsiz, %s!\n\n" +
 			"Oʻzbekiston boʻylab tadbirlarni toping va bir tegishda qoʻshiling.\n\n" +
 			"• /events — yaqinlashib kelayotgan tadbirlar\n" +

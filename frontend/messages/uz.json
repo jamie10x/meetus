@@ -11,7 +11,9 @@
     "organize": "Tashkil qilish",
     "admin": "Admin",
     "signIn": "Kirish",
-    "logOut": "Chiqish"
+    "logOut": "Chiqish",
+    "profile": "Profil",
+    "mobileNavigation": "Asosiy navigatsiya"
   },
   "home": {
     "eyebrow": "Telegram orqali · Har doim bepul",
@@ -56,7 +58,8 @@
     "saving": "Saqlanmoqda…",
     "saved": "Profil saqlandi.",
     "saveFailed": "Profilni saqlab boʻlmadi. Qayta urinib koʻring.",
-    "loading": "Yuklanmoqda…"
+    "loading": "Yuklanmoqda…",
+    "logOut": "Chiqish"
   },
   "explore": {
     "title": "Tadbirlarni koʻrish",
@@ -76,7 +79,9 @@
     "loadMore": "Koʻproq koʻrsatish",
     "listView": "Roʻyxat",
     "mapView": "Xarita",
-    "noMappableEvents": "Bu tadbirlarning hech biri uchun joylashuv hali belgilanmagan."
+    "noMappableEvents": "Bu tadbirlarning hech biri uchun joylashuv hali belgilanmagan.",
+    "clearFilters": "Filtrlarni tozalash",
+    "retry": "Qayta urinish"
   },
   "trending": {
     "title": "Shu hafta mashhur",
@@ -84,7 +89,8 @@
   },
   "eventCard": {
     "going": "{count} kishi qatnashadi",
-    "spotsLeft": "{count} ta joy qoldi"
+    "spotsLeft": "{count} ta joy qoldi",
+    "waitlist": "Kutish roʻyxati mavjud"
   },
   "eventDetail": {
     "notFoundTitle": "Tadbir topilmadi",
@@ -99,7 +105,8 @@
     "location": "Manzil",
     "about": "Tadbir haqida",
     "seriesHeading": "Ushbu seriyaning boshqa sanalari",
-    "relatedHeading": "Sizga yoqishi mumkin"
+    "relatedHeading": "Sizga yoqishi mumkin",
+    "timezone": "Barcha tadbir vaqtlari Toshkent vaqti bilan (UTC+5)."
   },
   "rsvp": {
     "eventStarted": "Bu tadbir allaqachon boshlangan.",
@@ -115,7 +122,10 @@
     "waitlistedMessage": "Siz navbatdasiz — joy boʻshasa, sizga xabar beramiz.",
     "leaveWaitlist": "Navbatni tark etish",
     "joinFailed": "Qoʻshilib boʻlmadi. Qayta urinib koʻring.",
-    "cancelFailed": "Bekor qilib boʻlmadi. Qayta urinib koʻring."
+    "cancelFailed": "Bekor qilib boʻlmadi. Qayta urinib koʻring.",
+    "checking": "Qatnashish holati tekshirilmoqda…",
+    "syncFailed": "Qatnashish holatini tekshirib boʻlmadi. Oʻzgartirishdan oldin qayta tekshiring.",
+    "retry": "Qayta urinish"
   },
   "tickets": {
     "title": "Chiptalarim",
@@ -129,7 +139,14 @@
     "showAtEntrance": "Kirishda ushbu QR-kodni koʻrsating",
     "qrUnavailable": "QR-kod mavjud emas",
     "loading": "Yuklanmoqda…",
-    "qrAlt": "{title} uchun chipta QR kodi"
+    "qrAlt": "{title} uchun chipta QR kodi",
+    "offlineNotice": "Internet yoʻq · Saqlangan chiptalar oʻzgargan boʻlishi mumkin. Holatni tekshirish uchun internetga ulaning.",
+    "syncNotice": "Avtomatik yangilanadi",
+    "refresh": "Yangilash",
+    "loadFailed": "Chiptalarni yangilab boʻlmadi. Qayta urinib koʻring.",
+    "inactive": "Chipta faol emas",
+    "readyTickets": "Qatnashish uchun tayyor",
+    "history": "Oʻtgan, bekor qilingan va ishlatilgan ({count})"
   },
   "calendar": {
     "downloadIcs": "Kalendarga qoʻshish (.ics)",
@@ -215,7 +232,9 @@
     "uploadFailed": "Rasmni yuklab boʻlmadi. Qayta urinib koʻring.",
     "saveFailed": "Tadbirni saqlab boʻlmadi. Qayta urinib koʻring.",
     "searchLocation": "Qidirish",
-    "searchFailed": "Joylarni qidirib boʻlmadi. Qayta urinib koʻring."
+    "searchFailed": "Joylarni qidirib boʻlmadi. Qayta urinib koʻring.",
+    "timezone": "Barcha tadbir vaqtlari Toshkent vaqti bilan (UTC+5).",
+    "preview": "Tadbirni oldindan koʻrish"
   },
   "eventNew": {
     "title": "Tadbir yaratish",
@@ -318,7 +337,9 @@
   "languageSwitcher": {
     "uz": "Oʻzbekcha",
     "ru": "Русский",
-    "en": "English"
+    "en": "English",
+    "label": "Sayt va bot tili",
+    "saveFailed": "Tilni saqlab boʻlmadi. Qayta urinib koʻring."
   },
   "miniApp": {
     "signingIn": "Meetus ochilmoqda…"

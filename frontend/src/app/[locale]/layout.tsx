@@ -7,6 +7,8 @@ import { Fraunces, Hanken_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { routing, type AppLocale } from "@/i18n/routing";
 import { AuthProvider } from "@/lib/auth-context";
+import MobileNavigation from "@/components/MobileNavigation";
+import AccountLanguageSync from "@/components/AccountLanguageSync";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import TelegramChrome from "@/components/TelegramChrome";
@@ -91,9 +93,11 @@ export default async function LocaleLayout({
           <AuthProvider>
             <ServiceWorkerRegister />
             <TelegramChrome />
+            <AccountLanguageSync />
             <Header />
             <div className="relative z-[1] flex-1">{children}</div>
             <Footer />
+            <MobileNavigation />
           </AuthProvider>
         </NextIntlClientProvider>
       </body>

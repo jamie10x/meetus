@@ -326,3 +326,16 @@ h1, h2, h3 {
 .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--color-line); }
 .maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--color-line); }
 .maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--color-line); }
+
+/* Reserve space for mobile navigation and Telegram's native primary action. */
+@media (max-width: 639px) {
+  body { padding-bottom: calc(5rem + env(safe-area-inset-bottom)); }
+  html[data-telegram-action="true"] .mobile-navigation { display: none; }
+}
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-registan-strong);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

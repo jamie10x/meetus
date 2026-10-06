@@ -81,8 +81,40 @@ export default function ExplorePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const generation = useRef(0);
   const morePending = useRef(false);
+  const [retry, setRetry] = useState(0);
   const [failed, setFailed] = useState(false);
   const [view, setView] = useState<"list" | "map">("list");
+  const [filtersReady, setFiltersReady] = useState(false);
+
+  useEffect(() => {
+    const restore = () => {
+      const params = new URLSearchParams(window.location.search);
+      setCity(params.get("city") ?? "");
+      setCategory(params.get("category") ?? "");
+      setOnline(["true", "false"].includes(params.get("online") ?? "") ? params.get("online")! : "");
+      const query = params.get("q") ?? "";
+      setQ(query); setSearch(query);
+      const date = params.get("date") ?? "all";
+      setPreset(["today", "tomorrow", "week"].includes(date) ? date as DatePreset : "all");
+      setView(params.get("view") === "map" ? "map" : "list");
+      setFiltersReady(true);
+    };
+    restore(); window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersReady) return;
+    const params = new URLSearchParams();
+    if (city) params.set("city", city);
+    if (category) params.set("category", category);
+    if (online) params.set("online", online);
+    if (search) params.set("q", search);
+    if (preset !== "all") params.set("date", preset);
+    if (view !== "list") params.set("view", view);
+    const suffix = params.size ? `?${params}` : "";
+    window.history.replaceState(null, "", `${window.location.pathname}${suffix}`);
+  }, [filtersReady, city, category, online, search, preset, view]);
 
   useEffect(() => {
     api<MetaItem[]>("/meta/cities").then(setCities).catch(() => {});
@@ -112,6 +144,7 @@ export default function ExplorePage() {
   );
 
   useEffect(() => {
+    if (!filtersReady) return;
     let stale = false;
     generation.current++;
     morePending.current = false;
@@ -133,7 +166,7 @@ export default function ExplorePage() {
     return () => {
       stale = true;
     };
-  }, [buildQuery]);
+  }, [buildQuery, retry, filtersReady]);
 
   const loadMore = async () => {
     if (!nextCursor || morePending.current || loading) return;
@@ -179,13 +212,13 @@ export default function ExplorePage() {
           </div>
 
           <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
-            <button onClick={() => setCategory("")} className={chipCls(category === "")}>
+            <button aria-pressed={category === ""} onClick={() => setCategory("")} className={chipCls(category === "")}>
               {t("allCategories")}
             </button>
             {categories.map((c) => (
               <button
                 key={c.id}
-                onClick={() => setCategory(c.slug)}
+                aria-pressed={category === c.slug} onClick={() => setCategory(c.slug)}
                 className={chipCls(category === c.slug)}
               >
                 {metaName(c, locale)}
@@ -204,7 +237,7 @@ export default function ExplorePage() {
             ).map(([value, label]) => (
               <button
                 key={value}
-                onClick={() => setPreset(value)}
+                aria-pressed={preset === value} onClick={() => setPreset(value)}
                 className={chipCls(preset === value)}
               >
                 {label}
@@ -218,7 +251,7 @@ export default function ExplorePage() {
             ].map(([value, label]) => (
               <button
                 key={value}
-                onClick={() => setOnline(value)}
+                aria-pressed={online === value} onClick={() => setOnline(value)}
                 className={chipCls(online === value)}
               >
                 {label}
@@ -229,25 +262,25 @@ export default function ExplorePage() {
       </div>
 
       <div className="mx-auto max-w-6xl px-5 py-10">
-        <TrendingSection city={city} />
+        {(city || category || online || q || preset !== "all") ? <button className="btn btn-secondary btn-sm mb-5" onClick={() => { setCity(""); setCategory(""); setOnline(""); setQ(""); setSearch(""); setPreset("all"); }}>{t("clearFilters")}</button> : <TrendingSection city={city} />}
 
         {loading ? (
           <p className="py-16 text-center text-dust">{t("loading")}</p>
         ) : failed ? (
-          <p className="py-16 text-center text-pomegranate">{t("loadFailed")}</p>
+          <div role="alert" className="py-16 text-center"><p className="text-pomegranate">{t("loadFailed")}</p><button onClick={() => setRetry(value => value + 1)} className="btn btn-secondary mt-4">{t("retry")}</button></div>
         ) : items.length === 0 ? (
           <p className="py-16 text-center text-dust">{t("noResults")}</p>
         ) : (
           <>
             <div className="mb-5 flex justify-end gap-2">
               <button
-                onClick={() => setView("list")}
+                aria-pressed={view === "list"} onClick={() => setView("list")}
                 className={chipCls(view === "list")}
               >
                 {t("listView")}
               </button>
               <button
-                onClick={() => setView("map")}
+                aria-pressed={view === "map"} onClick={() => setView("map")}
                 className={chipCls(view === "map")}
               >
                 {t("mapView")}
