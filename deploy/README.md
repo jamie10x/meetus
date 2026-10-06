@@ -101,11 +101,17 @@ normal change. Trigger it manually from the Actions tab
 **Manual:**
 
 ```bash
-cd /opt/meetus && ./deploy/scripts/deploy.sh
+cd /opt/meetus && ./deploy/scripts/deploy.sh <full-tested-commit-sha>
 ```
 
-The script pulls, rebuilds, applies migrations (the `migrate` service runs
-before the API starts), restarts containers, and waits for `/healthz`.
+The script locks the deployment checkout, fetches and checks out the exact
+tested SHA, builds images with `APP_REVISION`, applies migrations, restarts,
+and verifies API dependency readiness/revision plus the frontend. CI also
+serializes deployments and streams the tested deployment script, so an old
+VPS checkout cannot run outdated deployment logic. Older successful runs
+are skipped when a newer revision is already checked out; intentional
+rollback requires `ALLOW_ROLLBACK=1`. Images are retained for rollback; database down
+migrations are never applied automatically.
 
 ## Operations
 
@@ -116,6 +122,62 @@ docker compose -f deploy/docker-compose.yml --env-file /etc/meetus/meetus.env lo
 ./deploy/scripts/backup.sh                    # manual backup
 ```
 
-Volumes: `pgdata` (database), `uploads` (event covers), `caddy_data`
-(TLS certs). Back up `pgdata` via the script; `uploads` with rsync if
-covers matter to you.
+Volumes: `pgdata` (database), `uploads` (covers/avatars), `caddy_data`
+(TLS certs). The backup script creates restricted, gzip-verified, atomically
+renamed database and upload archives, retained locally for 14 days. Copy
+both off the VPS using an operator-configured destination. No offsite
+credentials or destination are assumed by this repository.
+
+`/healthz` is liveness; `/readyz` checks PostgreSQL and Redis and returns the
+baked image revision. Monitor failed `delivery_jobs` and pending jobs older
+than a few minutes, along with disk space and backup age.
+
+### Restore drill
+Restore into an empty disposable database, never over live data:
+
+```bash
+gzip -dc meetus-<stamp>.sql.gz | psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL"
+gzip -t uploads-<stamp>.tar.gz
+tar xzf uploads-<stamp>.tar.gz -C "$EMPTY_UPLOAD_DIRECTORY"
+```
+
+Verify migration version/dirty flag, user/event/RSVP counts, upload files,
+and a login/RSVP smoke test before switching traffic. Preserve upload
+ownership `65532:65532` when restoring the production volume. The runtime
+image seeds this ownership for fresh Docker volumes.
+
+Local review drill (2026-10-05): PostgreSQL 16 dump restored into a separate
+empty database with migration version 16 and `dirty=false`. A fresh Docker
+upload volume accepted an authenticated PNG and served it back. This does
+not verify VPS offsite replication or production restore credentials.
+
+### Read-only operational checks
+
+Run `sudo bash deploy/scripts/check-health.sh` on the Docker host. It reads the
+production Compose services and `/etc/meetus/meetus.env`, checks API/frontend,
+worker progress, pending delivery age, recent failures, completed backup age,
+and upload filesystem free space. Exit 0 is healthy, 1 needs attention, and 2
+means invalid thresholds. It sends no messages and performs no repairs.
+Configure your monitoring agent separately; no alert destination is installed.
+Overrides: `MEETUS_ENV_FILE`, `BACKUP_DIR`, `BACKUP_MAX_AGE_MINUTES` (2160),
+`MIN_FREE_KB` (1048576), `MAX_PENDING_AGE_SECONDS` (300), and
+`MAX_RECENT_FAILURES` (20 in the last 24 hours). Worker progress is expected
+when the production Telegram worker is configured.
+
+The admin page polls `/api/admin/operations` every 30 seconds. Worker progress
+expires after 90 seconds; an idle but functioning delivery loop still pulses.
+Redis errors display unavailable status rather than a healthy cached result.
+
+Run an upload inventory with the deployed backend image:
+
+```bash
+docker compose -f deploy/docker-compose.yml --env-file /etc/meetus/meetus.env \
+  exec -T api /usr/local/bin/audit-uploads -older-than 720h -details 20
+```
+
+The command only reads the database and upload directory. It counts managed
+images, their bytes, references, and old unreferenced candidates; details are
+capped at 1000 filenames. It ignores symlinks and unmanaged names. A reference
+snapshot is not permission to delete: uploads may be awaiting a profile/event
+save, and backups or external links may still need them. Establish retention
+and storage budgets before scheduling any reclamation.

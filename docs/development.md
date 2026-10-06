@@ -165,3 +165,38 @@ static route so a missing message key can show up there too.
 - DB shell: `docker exec -it meetus-postgres-1 psql -U meetus`
 - Redis shell: `docker exec -it meetus-redis-1 redis-cli`
 - Reset dev DB completely: `docker compose down -v && make infra && make migrate-up`
+
+## Regression checks added in the project review
+
+Run `npm test` in `frontend` for session/offline/calendar/catalog regressions.
+Run `npx playwright install chromium` once, then `npm run test:browser` for
+the real Chromium service-worker privacy regression (local fixture server,
+no Telegram messages). `npm run lint` and `npm run build` remain required.
+
+Backend integration checks require migrated PostgreSQL; use `go test -race
+./...`. With `CI` set, unavailable PostgreSQL fails rather than skipping.
+Run `go run golang.org/x/vuln/cmd/govulncheck@v1.2.0 ./...` with the toolchain
+selected by go.mod. Current Go baseline is 1.25.13.
+
+Apply migrations 0015 and 0016 before starting the new API or worker. Start
+the worker to deliver queued notifications; the API alone only queues
+automatic announcements and promotions. Inspect `delivery_jobs` for
+terminal failures and expired leases.
+
+### Full attendance browser journey
+
+Use a disposable PostgreSQL/Redis pair with migrations applied. Set
+`JOURNEY_DATABASE_URL` and `JOURNEY_REDIS_ADDR` (defaults localhost:55432 and
+localhost:56379), then run:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:58080 NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=journey_test_bot npm --prefix frontend run build
+npm --prefix frontend run test:journey
+```
+
+Playwright starts the real API and production frontend. It generates signed
+empty-token development Telegram payloads and fixture users/events; it does
+not contact Telegram. The test requires ports 58080 and 3000 free. It covers
+attendance, offline tickets, account isolation, check-in, and map rendering
+with a fixture style. Never use a production database for this test.
+See [query measurements](performance-2026-10-06.md) for the opt-in SQL benchmark.

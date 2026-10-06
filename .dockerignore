@@ -1,0 +1,15 @@
+.git
+.claude
+**/node_modules
+**/.next
+**/uploads
+**/bin
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+**/*.test
+**/coverage
+**/playwright-report
+**/test-results
+.DS_Store

@@ -33,9 +33,12 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.backend
+      args:
+        APP_REVISION: ${APP_REVISION:-unknown}
     entrypoint: ["/usr/local/bin/migrate", "up"]
     environment: &backend-env
       APP_ENV: production
+      GEOCODE_BASE_URL: ${GEOCODE_BASE_URL:-https://nominatim.openstreetmap.org}
       DATABASE_URL: postgres://${POSTGRES_USER:-meetus}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-meetus}?sslmode=disable
       REDIS_ADDR: redis:6379
       JWT_SECRET: ${JWT_SECRET:?}
@@ -55,6 +58,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.backend
+      args:
+        APP_REVISION: ${APP_REVISION:-unknown}
     restart: unless-stopped
     environment: *backend-env
     volumes:
@@ -69,6 +74,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.backend
+      args:
+        APP_REVISION: ${APP_REVISION:-unknown}
     entrypoint: ["/usr/local/bin/worker"]
     restart: unless-stopped
     environment: *backend-env
@@ -89,6 +96,13 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+
+  backup-uploads:
+    image: alpine:3.23
+    profiles: ["backup"]
+    volumes:
+      - uploads:/uploads:ro
+    entrypoint: ["tar", "czf", "-", "-C", "/uploads", "."]
 
   caddy:
     image: caddy:2-alpine

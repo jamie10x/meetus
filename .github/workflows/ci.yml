@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'codex/**']
   pull_request:
   workflow_dispatch:
 
@@ -22,7 +22,16 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     env:
+      REDIS_ADDR: localhost:6379
       DATABASE_URL: postgres://meetus:meetus@localhost:5432/meetus?sslmode=disable
     defaults:
       run:
@@ -40,15 +49,53 @@ jobs:
       - name: Migrate
         run: go run ./cmd/migrate up
       - name: Test
-        run: go test ./...
+        run: go test -race ./...
+      - name: Host health-check regression
+        working-directory: .
+        run: bash deploy/tests/check-health.test.sh
+      - name: Vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.2.0 ./...
 
   frontend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: meetus
+          POSTGRES_PASSWORD: meetus
+          POSTGRES_DB: meetus
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U meetus"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      JOURNEY_DATABASE_URL: postgres://meetus:meetus@localhost:5432/meetus?sslmode=disable
+      JOURNEY_REDIS_ADDR: localhost:6379
     defaults:
       run:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Migrate journey database
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ env.JOURNEY_DATABASE_URL }}
+        run: go run ./cmd/migrate up
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -58,17 +105,33 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Regression tests
+        run: npm test
+      - name: Browser privacy regression
+        run: npx playwright install --with-deps chromium && npm run test:browser
+      - name: Production dependency audit
+        run: npm audit --omit=dev
       - name: Build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:58080
+          NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: journey_test_bot
         run: npm run build
+      - name: Attendance journey
+        run: npm run test:journey
 
   deploy:
     needs: [backend, frontend]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: production
+    concurrency:
+      group: meetus-production
+      cancel-in-progress: false
     steps:
+      - uses: actions/checkout@v4
       - name: Deploy to VPS
         env:
+          DEPLOY_SHA: ${{ github.sha }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
@@ -79,4 +142,4 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           echo "$VPS_HOST_KEY" > ~/.ssh/known_hosts
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
-            'cd /opt/meetus && ./deploy/scripts/deploy.sh'
+            "DEPLOY_ROOT=/opt/meetus bash -s -- $DEPLOY_SHA" < deploy/scripts/deploy.sh
