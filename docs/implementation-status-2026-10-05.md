@@ -132,3 +132,16 @@ to `main`. Changes are prepared on `codex/review-hardening` for review.
   auto-login/API calls, native RSVP action, outage/retry, language synchronization,
   external cancellation and no-reload promotion, plus timezone conversion tests.
   This does not replace real Telegram iOS/Android camera/native-chrome testing.
+
+## Navigation and cancellation safeguards — 2026-10-09
+
+Attendance cancellation now requires a separate confirmation explaining ticket
+invalidation or loss of waitlist position. The safe action receives focus and
+Escape dismisses the confirmation. No cancellation request is sent on the
+initial Cancel click.
+
+Unsaved event forms prompt before same-tab links, language selection, desktop
+logout, Telegram Back, and browser unload. Automatic bot-language navigation
+is deferred while edits are pending. New copy is translated in all locales.
+Browser-controlled same-document history traversal and force-closing a mobile
+WebView cannot be reliably blocked by this guard; this is not draft autosave.

@@ -2,7 +2,7 @@
 
 import { errorMessage } from "@/lib/errorMessage";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { useLiveQuery } from "@/lib/useLiveQuery";
@@ -38,6 +38,9 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
   }, [eventId]);
   const { data: rsvp, error: syncFailed, refresh } = useLiveQuery(user ? `${user.id}:${eventId}` : null, query);
   const checked = !user || rsvp !== undefined;
+  const [cancelStatus, setCancelStatus] = useState<RSVPState["status"] | null>(null);
+  const keepButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (cancelStatus) keepButton.current?.focus(); }, [cancelStatus]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inMiniApp, setInMiniApp] = useState(false);
@@ -133,6 +136,7 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
     setError(null);
     try {
       await api(`/events/${eventId}/rsvp`, { method: "DELETE", auth: true });
+      setCancelStatus(null);
       refresh();
     } catch (e) {
       setError(errorMessage(e, tErrors, t("cancelFailed")));
@@ -153,7 +157,7 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
               </Link>
             </p>
             <button
-              onClick={leave}
+              onClick={() => setCancelStatus(rsvp.status)}
               disabled={busy || isPast}
               className="btn btn-danger-ghost btn-sm"
             >
@@ -175,7 +179,7 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-ink-raised p-4">
           <p className="font-semibold text-dust">{t("waitlistedMessage")}</p>
           <button
-            onClick={leave}
+            onClick={() => setCancelStatus(rsvp.status)}
             disabled={busy}
             className="btn btn-danger-ghost btn-sm"
           >
@@ -195,6 +199,14 @@ export default function RsvpSection({ eventId, spotsLeft, isPast }: Props) {
           {busy ? t("joining") : isFull ? t("joinWaitlist") : t("joinEvent")}
         </button>
       )}
+      {cancelStatus && cancelStatus === rsvp?.status ? <section role="group" aria-label={t("confirmTitle")} className="mt-4 rounded-card border border-pomegranate/35 bg-ink-raised p-5" onKeyDown={event => { if (event.key === "Escape" && !busy) setCancelStatus(null); }}>
+        <h2 className="font-semibold text-bone">{t("confirmTitle")}</h2>
+        <p className="mt-2 text-sm text-dust">{t(cancelStatus === "going" ? "cancelWarning" : "waitlistWarning")}</p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button ref={keepButton} onClick={() => setCancelStatus(null)} disabled={busy} className="btn btn-secondary">{t("keepPlace")}</button>
+          <button onClick={leave} disabled={busy} className="btn btn-danger-ghost">{t("confirmCancel")}</button>
+        </div>
+      </section> : null}
       {error ? <p role="alert" className="mt-2.5 text-sm text-pomegranate">{error}</p> : null}
     </div>
   );

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { hasUnsavedChanges } from "@/lib/useUnsavedChanges";
 import { api } from "@/lib/api";
 import type { User } from "@/lib/types";
 
@@ -16,7 +17,7 @@ export default function AccountLanguageSync() {
     const controller = new AbortController();
     let pending = false;
     const sync = async () => {
-      if (pending || document.visibilityState === "hidden") return;
+      if (hasUnsavedChanges() || pending || document.visibilityState === "hidden") return;
       pending = true;
       try {
         const current = await api<User>("/me", { auth: true, signal: controller.signal });

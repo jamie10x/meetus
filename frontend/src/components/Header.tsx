@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { confirmNavigation } from "@/lib/useUnsavedChanges";
 import LanguageSwitcher from "./LanguageSwitcher";
 
 export default function Header() {
@@ -68,6 +69,7 @@ export default function Header() {
               </Link>
               <button
                 onClick={async () => {
+                  if (!confirmNavigation()) return;
                   await logout();
                   router.push("/");
                 }}

@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { useAuth } from "@/lib/auth-context";
+import { confirmNavigation } from "@/lib/useUnsavedChanges";
 import { api } from "@/lib/api";
 import type { User } from "@/lib/types";
 
@@ -17,6 +18,7 @@ export default function LanguageSwitcher() {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const change = async (language: string) => {
+    if (!confirmNavigation()) return;
     setBusy(true); setFailed(false);
     try {
       if (user) setUser(await api<User>("/me", { method: "PATCH", auth: true, body: { language } }));

@@ -125,7 +125,12 @@
     "cancelFailed": "Bekor qilib boʻlmadi. Qayta urinib koʻring.",
     "checking": "Qatnashish holati tekshirilmoqda…",
     "syncFailed": "Qatnashish holatini tekshirib boʻlmadi. Oʻzgartirishdan oldin qayta tekshiring.",
-    "retry": "Qayta urinish"
+    "retry": "Qayta urinish",
+    "confirmTitle": "Qatnashishni bekor qilasizmi?",
+    "cancelWarning": "Chiptangiz yaroqsiz boʻladi. Joyingiz kutish roʻyxatidagi boshqa kishiga berilishi mumkin.",
+    "waitlistWarning": "Navbatdagi oʻrningiz yoʻqoladi. Qayta qoʻshilsangiz, roʻyxat oxiriga tushasiz.",
+    "keepPlace": "Joyimni saqlash",
+    "confirmCancel": "Ha, qatnashishni bekor qilish"
   },
   "tickets": {
     "title": "Chiptalarim",
@@ -234,7 +239,8 @@
     "searchLocation": "Qidirish",
     "searchFailed": "Joylarni qidirib boʻlmadi. Qayta urinib koʻring.",
     "timezone": "Barcha tadbir vaqtlari Toshkent vaqti bilan (UTC+5).",
-    "preview": "Tadbirni oldindan koʻrish"
+    "preview": "Tadbirni oldindan koʻrish",
+    "unsavedWarning": "Tadbir oʻzgarishlari saqlanmagan. Saqlamasdan chiqasizmi?"
   },
   "eventNew": {
     "title": "Tadbir yaratish",

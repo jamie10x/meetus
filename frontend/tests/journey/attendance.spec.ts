@@ -41,6 +41,9 @@ test('organizer creates and publishes; attendees join, cancel, promote and check
     await owner.getByRole('link', { name: /New event/ }).click();
     const title = `Journey event ${stamp}`;
     await owner.getByLabel('Title', { exact: false }).fill(title);
+    owner.once('dialog', dialog => dialog.dismiss());
+    await owner.getByRole('link', { name: 'Explore', exact: true }).first().click();
+    await expect(owner.getByLabel('Title', { exact: false })).toHaveValue(title);
     await owner.getByRole('button', { name: 'Online', exact: true }).click();
     await owner.getByLabel('Meeting link', { exact: false }).fill('https://example.com/private-meeting');
     await owner.getByRole('button', { name: 'Tech', exact: true }).click();
@@ -83,6 +86,10 @@ test('organizer creates and publishes; attendees join, cancel, promote and check
     await expect(waiting.getByText("You're on the waitlist", { exact: false })).toBeVisible();
     await expect(waiting.getByRole('link', { name: 'Join the call' })).toHaveCount(0);
     await attendee.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await attendee.getByRole('button', { name: 'Keep my place', exact: true }).click();
+    await expect(attendee.getByRole('link', { name: 'View your ticket', exact: true })).toBeVisible();
+    await attendee.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await attendee.getByRole('button', { name: 'Yes, cancel attendance', exact: true }).click();
     await expect(attendee.getByRole('link', { name: 'View your ticket', exact: true })).toHaveCount(0);
     await waiting.evaluate(() => window.dispatchEvent(new Event("focus")));
     await expect(waiting.getByText("You're going!", { exact: false })).toBeVisible();

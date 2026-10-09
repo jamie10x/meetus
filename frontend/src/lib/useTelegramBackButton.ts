@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "@/i18n/navigation";
+import { confirmNavigation } from "./useUnsavedChanges";
 import { getTelegramWebApp } from "./telegram-webapp";
 
 /**
@@ -24,6 +25,7 @@ export function useTelegramBackButton() {
     }
 
     const onClick = () => {
+      if (!confirmNavigation()) return;
       if (pathname === initialPath.current) router.replace("/events");
       else router.back();
     };

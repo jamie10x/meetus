@@ -1,5 +1,6 @@
 "use client";
 
+import { useUnsavedChanges } from "@/lib/useUnsavedChanges";
 import { errorMessage } from "@/lib/errorMessage";
 
 import { useEffect, useState } from "react";
@@ -93,6 +94,10 @@ export default function EventForm({ initial, submitLabel, onSubmit }: Props) {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const values = JSON.stringify({ title, description, categoryId, cityId, district, locationName, address, lat, lng, isOnline, onlineUrl, startsAt, endsAt, repeatsWeekly, recurWeeks, capacityMode, capacity, coverUrl });
+  const [originalValues] = useState(values);
+  useUnsavedChanges(values !== originalValues || uploading, t("unsavedWarning"));
 
   useEffect(() => {
     api<MetaItem[]>("/meta/categories").then(setCategories).catch(() => {});

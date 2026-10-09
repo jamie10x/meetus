@@ -125,7 +125,12 @@
     "cancelFailed": "Could not cancel. Please try again.",
     "checking": "Checking your attendance…",
     "syncFailed": "Could not verify your attendance. Retry before changing it.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "confirmTitle": "Cancel your attendance?",
+    "cancelWarning": "Your ticket will become invalid. Your place may go to someone on the waitlist.",
+    "waitlistWarning": "You will lose your position. Rejoining places you at the end of the waitlist.",
+    "keepPlace": "Keep my place",
+    "confirmCancel": "Yes, cancel attendance"
   },
   "tickets": {
     "title": "My tickets",
@@ -234,7 +239,8 @@
     "searchLocation": "Search",
     "searchFailed": "Could not search for places. Please try again.",
     "timezone": "All event times are in Tashkent time (UTC+5).",
-    "preview": "Preview event"
+    "preview": "Preview event",
+    "unsavedWarning": "You have unsaved event changes. Leave without saving?"
   },
   "eventNew": {
     "title": "Create event",
